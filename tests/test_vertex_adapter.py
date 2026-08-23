@@ -67,15 +67,15 @@ def job_spec() -> VertexCustomJobSpec:
 class FakeJobs:
     def __init__(self, existing: list[object] | None = None) -> None:
         self.existing = existing or []
-        self.list_kwargs: dict[str, object] | None = None
-        self.create_kwargs: dict[str, object] | None = None
+        self.list_request: object | None = None
+        self.create_request: object | None = None
 
-    def list_custom_jobs(self, **kwargs: object) -> list[object]:
-        self.list_kwargs = kwargs
+    def list_custom_jobs(self, request: object | None = None) -> list[object]:
+        self.list_request = request
         return self.existing
 
-    def create_custom_job(self, **kwargs: object) -> object:
-        self.create_kwargs = kwargs
+    def create_custom_job(self, request: object | None = None) -> object:
+        self.create_request = request
         return SimpleNamespace(
             name="projects/edugraph-prod/locations/europe-west4/customJobs/123",
             display_name="EduGraph Vertex smoke",
@@ -125,7 +125,7 @@ def test_vertex_adapter_finds_and_launches_jobs_without_sdk_types() -> None:
     found = adapter.find_custom_jobs(spec)
     launched = adapter.launch_custom_job(spec)
 
-    assert client.list_kwargs == {
+    assert client.list_request == {
         "parent": spec.parent,
         "filter": "labels.edugraph_job_id=edugraph-vertex-smoke",
     }
@@ -137,7 +137,7 @@ def test_vertex_adapter_finds_and_launches_jobs_without_sdk_types() -> None:
         "error_message": "done",
     }
     assert launched.state == "JOB_STATE_PENDING"
-    assert client.create_kwargs == adapter.render_custom_job(spec)
+    assert client.create_request == adapter.render_custom_job(spec)
 
     with pytest.raises(VertexLaunchError, match="client is required"):
         VertexTrainingProvider().find_custom_jobs(spec)

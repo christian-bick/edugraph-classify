@@ -414,13 +414,17 @@ class VertexTrainingProvider:
 
     def find_custom_jobs(self, spec: VertexCustomJobSpec) -> tuple[VertexJobRecord, ...]:
         observed = self._require_client().list_custom_jobs(
-            parent=spec.parent,
-            filter=f"labels.edugraph_job_id={spec.job_id}",
+            request={
+                "parent": spec.parent,
+                "filter": f"labels.edugraph_job_id={spec.job_id}",
+            }
         )
         return tuple(self._record(job) for job in observed)
 
     def launch_custom_job(self, spec: VertexCustomJobSpec) -> VertexJobRecord:
-        job = self._require_client().create_custom_job(**self.render_custom_job(spec))
+        job = self._require_client().create_custom_job(
+            request=self.render_custom_job(spec)
+        )
         return self._record(job)
 
     @staticmethod
