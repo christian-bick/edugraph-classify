@@ -73,9 +73,9 @@ Properties and labels use one fixed canonical order. Arrays are sets semanticall
 
 ## 3. Repository boundaries
 
-### `edugraph-content`
+### `edugraph-dataset`
 
-Owns canonical task generation, image rendering, train/validation assignment, public dataset metadata, and the proof that every image supports its complete label conjunction.
+Owns released labeled images, official train/validation splits, public metadata, and the evidence contract for each image's complete label conjunction.
 
 ### `edugraph-ontology`
 
@@ -478,4 +478,3 @@ Relevant research for later custom objectives/architectures:
 - [Distribution-Balanced Loss for Multi-Label Classification](https://www.ecva.net/papers/eccv_2020/papers_ECCV/papers/123490154.pdf)
 - [ML-GCN: graph convolution for multi-label recognition](https://openaccess.thecvf.com/content_CVPR_2019/html/Chen_Multi-Label_Image_Recognition_With_Graph_Convolutional_Networks_CVPR_2019_paper.html)
 - [Chain-of-Thought Prompting Elicits Reasoning in Large Language Models](https://papers.nips.cc/paper/2022/hash/9d5609613524ecf4f15af0f7b31abca4-Abstract-Conference.html)
-

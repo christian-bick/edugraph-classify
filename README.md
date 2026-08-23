@@ -12,7 +12,6 @@ Architecture and experiment plan only. No training job has been launched and no 
 
 ## Related projects
 
-- [edugraph-content](https://github.com/christian-bick/edugraph-content): canonical labeled image generation and dataset releases
+- [edugraph-dataset](https://github.com/christian-bick/edugraph-dataset): canonical labeled image dataset releases
 - [edugraph-ontology](https://github.com/christian-bick/edugraph-ontology): ontology entities, dimensions, definitions, and relations
 - [edugraph-classify-qwen3vl](https://github.com/christian-bick/edugraph-classify-qwen3vl): earlier Qwen3-VL classifier experiment and checkpoint lineage
-

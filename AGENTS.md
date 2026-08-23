@@ -30,7 +30,7 @@ Update the relevant documentation after larger changes. Architecture, workflows,
 ## 4. Classifier-Specific Guardrails
 
 - **Atomic Input:** Preserve the invariant that one independent pedagogical task equals one classification unit. Keep all renderings of the same underlying task in the same data split.
-- **Repository Boundaries:** `edugraph-content` owns canonical task generation and released images; `edugraph-ontology` owns identifiers, dimensions, definitions, versions, and relations; this repository owns classifier prompts, conversion, orchestration, inference, evaluation, and experiment records. Do not duplicate upstream ownership here.
+- **Repository Boundaries:** `edugraph-dataset` owns released labeled images, official splits, and the public dataset contract; `edugraph-ontology` owns identifiers, dimensions, definitions, versions, and relations; this repository owns classifier prompts, conversion, orchestration, inference, evaluation, and experiment records. Do not duplicate upstream ownership here.
 - **Version Pinning:** Every run must pin and record the dataset release, ontology version, prompt/schema identity, code commit, provider model/job configuration, and evaluation settings.
 - **Ontology Semantics:** Keep explicit model predictions separate from ontology-derived closure. Do not treat `integrates` as logical entailment. Apply only deterministic, documented validation and canonicalization rules.
 - **Provider Eligibility:** Fireworks model and training-shape support is volatile. Check the live catalog and require `Tunable: true` plus a compatible vision training surface before preparing or launching a job.

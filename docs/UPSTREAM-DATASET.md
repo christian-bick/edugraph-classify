@@ -1,63 +1,34 @@
 # Upstream dataset contract
 
-This document transports the stable parts of the [`edugraph-content`](https://github.com/christian-bick/edugraph-content) contract that classifier code needs. It intentionally omits sample counts, label frequencies, covered standards, current release numbers, and implementation-module inventories. Those are release-specific facts and must be profiled from the pinned artifact.
+This document transports the stable consumer-facing contract of [`edugraph-dataset`](https://github.com/christian-bick/edugraph-dataset). It intentionally excludes release counts, label frequencies, current coverage, and internal implementation architecture.
 
-The upstream repository remains authoritative. If this summary and a pinned upstream release disagree, the pinned release and its documentation win.
+The pinned upstream release remains authoritative. If this summary and a released artifact disagree, the released artifact and its documentation win.
 
 ## 1. Purpose and ownership
 
-`edugraph-content` produces synthetic, visually rendered educational tasks with ontology labels known before generation. It owns:
+`edugraph-dataset` publishes synthetic images of educational tasks with EduGraph ontology labels. It owns:
 
-- competency-target authoring from education standards;
-- mathematical problem generation;
-- learner-facing question and solution rendering;
-- final label resolution;
-- deterministic train/validation assignment and deduplication;
-- artifact-level visual quality assurance;
-- publication of the merged dataset.
+- released images and metadata;
+- official dataset splits;
+- the meaning of gold label sets;
+- dataset and ontology version alignment;
+- upstream integrity and evidence validation.
 
-`edugraph-classify` consumes released artifacts. It must not reproduce generator/view matching, reinterpret curriculum standards, or silently repair upstream gold labels. Suspected gold-label defects should be reported upstream and tracked separately from model errors.
+`edugraph-classify` consumes those released artifacts. It must not reinterpret curriculum sources or silently repair upstream gold labels. Suspected label defects should be recorded separately from model errors and reported upstream.
 
-## 2. Label-driven generation
+## 2. One row is one classification unit
 
-The pipeline is label-driven rather than retrospectively labeled:
+Every released image is one standalone pedagogical task and one multilabel example.
 
-```text
-competency label conjunction
-          |
-          v
-compatible generator + view
-          |
-          v
-canonical mathematical payload
-          |
-          v
-learner-facing image
-          |
-          v
-validated released sample
-```
+For real-world material, this establishes the preprocessing boundary:
 
-The target label set constrains the mathematics, relevant context, and requested learner action before pixels are rendered. A released sample is therefore intended as positive evidence for the complete conjunction in `tags`, not as an image that happened to receive plausible labels afterward.
+> One independent pedagogical task equals one classification unit.
 
-All labels on one row mean **A AND B AND ...**. They are not alternatives, ranked suggestions, or a menu from which the classifier should select one.
+Worksheets, documents, or videos containing several independent tasks must be segmented before classification. The direct-labeling model is not responsible for discovering task boundaries.
 
-## 3. One row is one classification unit
+## 3. Stable public artifact shape
 
-For classifier purposes, every released image is one standalone pedagogical task and one multilabel example. Upstream documents, worksheets, or videos that contain several independent tasks belong in an earlier segmentation stage; they must not be passed to this classifier as if they were atomic.
-
-The upstream renderer has two modes:
-
-- `solution: false` identifies a question/unsolved task rendering;
-- `solution: true` identifies a solution/worked or filled rendering.
-
-Question and solution rows are separate classification examples. Within generation they belong to the same structural exercise, share the competency target, and are kept or removed together during deduplication. They may nevertheless be independent deterministic problem draws; public consumers must not assume that a question row and a solution row depict the identical numeric instance or can be paired by filename.
-
-The `solution` flag is a meaningful evaluation slice. Problem-only classification can require more mathematical inference than classifying a worked solution, so metrics must preserve this distinction.
-
-## 4. Stable public artifact shape
-
-The released union is organized into named splits with a `metadata.jsonl` file and referenced image files:
+The released dataset provides named splits with a `metadata.jsonl` file and referenced image files:
 
 ```text
 dataset/
@@ -79,78 +50,114 @@ Each nonblank JSONL line has the compact training-facing shape:
 }
 ```
 
-Field semantics:
-
 | Field | Stable meaning | Consumer rule |
 |---|---|---|
-| `file_name` | Path to the image relative to the containing split root | Resolve as a relative path; treat the name itself as opaque |
-| `tags` | Complete explicit ontology-label set asserted for the image | Treat as a mathematical set, even if serialized in deterministic order |
-| `solution` | Whether the image is the solution-mode rendering | Preserve for training manifests and sliced evaluation |
+| `file_name` | Image path relative to the containing split root | Resolve it as a relative path and treat the name itself as opaque |
+| `tags` | Complete explicit ontology-label set asserted for the image | Treat it as a mathematical set, regardless of serialized order |
+| `solution` | Whether the image presents a solution rather than an unsolved task | Preserve it in manifests and evaluation slices |
 
-The public projection deliberately omits operational fields such as generator, view, target ID, sample key, random seed, fingerprints, curriculum-standard provenance, and deduplicated target associations. Do not infer these fields by parsing `file_name`; filenames are locators, not a supported semantic API.
+The public contract does not expose curriculum provenance or an identity that links related rows. Do not extract semantics from filename components. Filenames are locators, not a supported metadata API.
 
-The released `tags` values are shortened ontology individual identifiers such as `Addition`, not enum-qualified strings such as `Area.Addition` and not full IRIs. Resolve their dimensions through the exact pinned ontology package rather than naming conventions.
+Released `tags` are shortened ontology individual identifiers such as `Addition`, not programming-language expressions such as `Area.Addition` and not full IRIs. Resolve each tag's dimension through the exact pinned ontology package rather than its spelling.
 
-## 5. How final labels are owned
+## 4. Label-set meaning
 
-The generation architecture separates canonical mathematics from learner-facing task behavior:
+The dataset is label-driven: the labels are known constraints of the task, not retrospective guesses based on a finished image.
 
-- Generators own the abstract mathematical payload and the Area/Scope claims established by that mathematics.
-- Views own the learner-facing projection and every Ability claim, because an Ability is only true when the final task actually asks the learner to exercise it.
-- A view may also establish a presentational Area or Scope when the representation itself is educationally meaningful, but it must preserve the evidence supplied by the generator.
+All labels on one row form a conjunction:
 
-The final screenshot must make every supplied label reasonably identifiable and defendable through visible or necessary textual evidence. Label names or hidden payload fields are not substitutes for rendered evidence.
+```text
+A AND B AND C
+```
 
-Upstream authoring selects the most specific ontology label that remains true and avoids adding ancestors merely to restate the taxonomy. Consequently, consumers should ingest `tags` as the explicit gold set and compute any ancestor or logical closure as a separate derived view. Derived labels must not be mixed into exact-set training targets or scored as additional explicit gold labels.
+They are not alternatives, ranked suggestions, or a list from which the classifier should select one.
 
-## 6. Target breadth versus rendered specificity
+Every asserted label is intended to be reasonably identifiable and defendable from visible or necessary textual evidence in the image. A label name appearing as decorative text is not, by itself, evidence for the corresponding competency.
 
-Education-standard targets may be broader than the concrete generator/view capability that satisfies them. Matching is one-directional: an equal or more-specific generated capability may satisfy a broader target through the ontology's `partOf` hierarchy.
+The gold set describes the concrete artifact being classified. It should not be broadened merely because the task can also be indexed under a curriculum category or a taxonomic ancestor.
 
-The published row contains the labels resolved for the concrete artifact, including runtime choices, rather than merely copying an abstract standard statement. This distinction matters because classifier training is about what the image demonstrates, not every broader curriculum concept under which the task can be indexed.
+## 5. Explicit and derived labels
 
-## 7. Union, overlap, and deduplication
+Upstream labels follow a minimal-explicit-label convention: use the most specific descriptor that remains true without repeating broader facts already carried by the ontology.
 
-The released dataset is a derived union of non-isolated education-standard datasets. Standards overlap by design, so adding another standard does not imply that every generated task becomes another public row.
+Classifier ingestion should therefore preserve `tags` exactly as the explicit gold set. Information computed mechanically from the ontology belongs in a separate derived representation:
 
-The merge follows declared standard precedence and removes duplicate configured tasks. Within the view scope used by the pipeline, it also prevents validation mathematical content from duplicating train content. Question and solution modes of one structural exercise are retained or dropped as a unit so deduplication cannot leave a partial exercise behind.
+```text
+explicit gold labels
+        |
+        v
+optional ontology closure
+        |
+        v
+derived ancestors / implications
+```
 
-Important consequences for classifier work:
+Derived labels must not be mixed into direct SFT targets or counted as additional explicit-label successes. Keeping the two representations separate also permits ontology closures to be recomputed after a version change without rewriting historical predictions.
 
-- repeated label sets are normal and do not imply duplicate images;
-- two images with the same `tags` may present different valid tasks or visual forms;
-- one retained physical sample can operationally evidence several overlapping standard targets even though public metadata contains only one row;
-- curriculum provenance and task identity cannot be reconstructed from the compact public projection;
-- official splits should be preserved unless a new split can be built from richer upstream identity/fingerprint metadata.
+## 6. Question and solution samples
+
+The `solution` field defines two important cohorts:
+
+- `false`: an unsolved question or task;
+- `true`: a worked, filled, or otherwise solution-presenting task.
+
+Each row stands on its own as a classification example. The public metadata does not provide a supported pairing identifier, so consumers must not assume that question and solution rows can be paired or that similarly named files contain the same mathematical instance.
+
+Preserve the flag during training and report performance separately for both cohorts. Unsolved tasks can require more inference to identify the intended operation or procedure, while a presented solution can expose additional evidence.
+
+## 7. Released union and duplicates
+
+The public release combines content aligned to supported education standards. Overlap between standards is normal, and the released artifact removes duplicate content according to its publication policy.
+
+Important consumer consequences:
+
+- repeated exact label sets are expected and do not imply duplicate images;
+- two images with identical labels may depict different valid tasks or representations;
+- one image may be relevant to several curriculum statements even though the public row is singular;
+- curriculum provenance cannot be reconstructed from the compact metadata;
+- label-set equality is not image or task identity.
+
+Classifier tooling should check for duplicate paths and bytes as an ingestion safeguard, but it should not discard examples merely because their label sets match.
 
 ## 8. Split semantics
 
-Train is the primary generated artifact. Validation is generated with knowledge of train so that mathematical content already present in train is excluded from validation within the pipeline's view-scoped fingerprint comparison. Split-integrity tooling also rejects configured-task redundancy within the corresponding view scope.
+`train` and `validation` are the official upstream splits. They are created and checked as part of dataset publication, including checks intended to prevent leakage and redundant task content.
 
-Split assignment and sample randomness are identity-derived, not dependent on filesystem enumeration order. Upstream release checks audit leakage and redundancy, but classifier ingestion should still fail closed on missing files, duplicate public paths, malformed rows, or accidental cross-split byte duplication.
+Preserve these splits for the baseline. Arbitrary row-level resplitting can introduce semantic leakage or separate related material because the public schema intentionally omits richer grouping identity.
 
-Because the public schema omits structural identities and fingerprints, arbitrary row-level resplitting can separate related renderings or reintroduce semantic leakage. Prefer the official train/validation split. If a test set is introduced, derive it upstream or obtain the operational grouping fields needed to split complete task groups.
+If a new held-out test set is needed, it should be published upstream or constructed from additional stable grouping metadata rather than inferred from filenames.
 
-## 9. Determinism and visual validation
+Classifier ingestion should still fail closed on:
 
-Canonical generation pins the rendering environment and derives all sample entropy from structural identity. The output is intended to be reproducible for the same complete source and renderer identity.
+- a path appearing more than once in a split;
+- a missing referenced image;
+- identical image bytes appearing across splits;
+- malformed metadata;
+- an unknown ontology identifier;
+- a tag whose dimension cannot be resolved.
 
-Before release, canonical artifacts pass static integrity checks and artifact-level VQA. VQA evaluates the final image against the complete claimed label conjunction and the view's observable contract. This is a gold-data quality gate, not a guarantee that every downstream classifier will find the image equally easy.
+These checks detect packaging or ingestion mistakes; they do not redefine the upstream split policy.
 
-Do not replace upstream artifact validation with classifier confidence. A confident model can be wrong, and a low-confidence model does not establish a gold-label defect.
+## 9. Reproducibility and evidence validation
+
+Released samples are produced reproducibly from a versioned source and undergo upstream validation before publication. Validation checks that each final image is a coherent standalone task and supports its complete asserted label conjunction.
+
+This is a gold-data quality contract, not a guarantee that every downstream classifier will find every image equally easy. Model confidence must not be used as a replacement for upstream validation: a confident model can be wrong, and low confidence does not establish a gold-label defect.
+
+Classifier code should hash every consumed image and generated metadata artifact so that experiments can be reproduced even if mutable local paths later point elsewhere.
 
 ## 10. Dataset and ontology version alignment
 
-Every dataset release is tied to the ontology version used to generate and validate it. Labels, definitions, dimensions, and relations can change across ontology releases, so a dataset tag without its ontology provenance is not a complete experiment identity.
+Every dataset release is tied to the ontology version used to label and validate it. A dataset revision without its ontology provenance is not a complete experiment identity.
 
 Every classifier run must record at least:
 
 - immutable dataset repository and release/revision;
-- dataset split and source-content hashes;
-- ontology package/version used by that dataset;
-- conversion code commit and output hashes.
+- split names and source-content hashes;
+- ontology release/package associated with the dataset;
+- conversion code commit and generated-artifact hashes.
 
-Never validate an older dataset's labels against an unpinned latest ontology package. A label missing from the latest ontology may still be valid for the dataset release that contains it, while a reused local name may have changed meaning.
+Never validate an older dataset against an unpinned latest ontology package. A label absent from the latest ontology can still be valid for the historical dataset release that contains it, while a retained local name may have changed meaning.
 
 ## 11. Required ingestion behavior
 
@@ -161,13 +168,13 @@ A correct dataset adapter should:
 3. reject absolute or split-escaping `file_name` paths;
 4. verify every referenced image exists and record its content hash;
 5. treat `tags` as an unordered set and reject non-string values;
-6. validate each tag's existence and dimension against the pinned ontology;
-7. preserve the upstream split and `solution` flag;
-8. serialize one canonical classifier target for each set;
-9. profile release-specific counts, frequencies, cardinalities, and label-set coverage rather than hard-coding them;
-10. retain source-row identity in the generated run manifest without committing provider-ready images or JSONL to Git.
+6. validate every tag's existence and dimension against the pinned ontology;
+7. preserve the official split and `solution` flag;
+8. serialize exactly one canonical classifier target for each explicit set;
+9. profile counts, frequencies, cardinalities, and coverage from the release rather than hard-coding them;
+10. retain source-row identity in the run manifest without committing provider-ready images or JSONL to Git.
 
-Canonicalization may detect duplicate tags or redundant ancestors, but it must report any change to gold labels. Silent gold mutation would make model metrics incomparable to the released dataset.
+Canonicalization may detect duplicate tags or redundant ancestors, but it must report any change to gold labels. Silent mutation would make model metrics incomparable to the released dataset.
 
 ## 12. Assumptions that are intentionally not stable
 
@@ -175,19 +182,17 @@ Do not encode any of the following in long-lived classifier logic:
 
 - number of samples, labels, or exact label sets;
 - label frequency or class balance;
-- which standards, grades, generators, or views are covered;
-- image dimensions or visual style;
+- standards or grades currently covered;
+- image dimensions, format, or visual style;
 - label cardinality per row;
 - presence of every ontology label in every split;
-- a pairing convention derived from filenames;
-- release-specific validation thresholds or reports.
+- pairing conventions inferred from filenames;
+- release-specific validation statistics.
 
 Those belong in generated data profiles and run manifests.
 
 ## 13. Authoritative upstream references
 
-- [`edugraph-content` README](https://github.com/christian-bick/edugraph-content/blob/main/README.md)
-- [`edugraph-content` technical documentation](https://github.com/christian-bick/edugraph-content/blob/main/DOCS.md)
-- [Target-spec evidence and label rules](https://github.com/christian-bick/edugraph-content/blob/main/docs/target-spec.md)
-- [Generator/view specification rules](https://github.com/christian-bick/edugraph-content/blob/main/docs/spec-general.md)
-- [Published metadata projection](https://github.com/christian-bick/edugraph-content/blob/main/src/lib/dataset-merge.ts)
+- [`edugraph-dataset` repository](https://github.com/christian-bick/edugraph-dataset)
+- [`edugraph-dataset` README](https://github.com/christian-bick/edugraph-dataset/blob/main/README.md)
+- [Released dataset on Hugging Face](https://huggingface.co/datasets/christian-bick/edugraph-exercises)
