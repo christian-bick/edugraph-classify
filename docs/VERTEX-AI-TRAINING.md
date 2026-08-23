@@ -25,7 +25,7 @@ The project must have the Vertex AI API enabled. The chosen region also needs su
 
 ### Selected GCP setup
 
-The initial GCP project is `edugraph-438718` and the existing, currently empty staging bucket is `gs://edugraph-classify`. The first output prefix will therefore be `gs://edugraph-classify/runs/<job-id>`. The bucket's actual location must be verified as `europe-west4` before it is used; an empty bucket in a different location should be replaced by a same-region bucket rather than silently accepting cross-region storage.
+The initial GCP project is `edugraph-438718` and the existing, currently empty staging bucket is `gs://edugraph-classify`. The bucket location is user-confirmed as `europe-west4`, matching the selected Vertex region. The first output prefix will therefore be `gs://edugraph-classify/runs/<job-id>`.
 
 The proposed dedicated runtime identity is `vertex-training@edugraph-438718.iam.gserviceaccount.com`, and the proposed same-region Artifact Registry repository is `europe-west4-docker.pkg.dev/edugraph-438718/training`. These are target names only until a read-only project inspection confirms whether they already exist. Creating them, enabling APIs, or changing IAM remains a separately confirmed external mutation.
 
