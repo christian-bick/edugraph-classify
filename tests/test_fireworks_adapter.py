@@ -130,7 +130,7 @@ class FakeDatasets:
         self.calls.append(("create", kwargs))
 
     def upload(self, dataset_id: str, **kwargs: object) -> None:
-        self.calls.append(("upload", dataset_id))
+        self.calls.append(("upload", (dataset_id, kwargs)))
 
     def validate_upload(self, dataset_id: str, **kwargs: object) -> None:
         self.calls.append(("validate", dataset_id))
@@ -221,6 +221,7 @@ def test_training_boundary_validates_uploads_and_maps_launch_records(tmp_path: P
 
     assert observed.name == upload.resource_name
     assert [call[0] for call in datasets.calls] == ["create", "upload", "validate"]
+    assert datasets.calls[1][1][1]["file"] == upload.path
     assert jobs.create_kwargs is not None
     assert jobs.create_kwargs["eval_auto_carveout"] is False
     assert launched.output_model == "accounts/account-1/models/model-1"

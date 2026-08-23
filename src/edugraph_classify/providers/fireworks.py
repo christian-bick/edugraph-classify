@@ -215,7 +215,7 @@ class FireworksTrainingProvider:
         self._client.datasets.upload(
             spec.dataset_id,
             account_id=spec.account_id,
-            file=(spec.path.name, spec.path, "application/jsonl"),
+            file=spec.path,
         )
         self._client.datasets.validate_upload(
             spec.dataset_id,
