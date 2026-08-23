@@ -286,3 +286,41 @@ def test_prepare_run_rejects_uncommitted_identity_and_escaping_paths(tmp_path: P
             runs_root=tmp_path / "runs",
             code_commit="a" * 40,
         )
+
+
+def test_prepare_run_validates_smoke_selection_contract(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config = {
+        "run_id": "run-1",
+        "dataset": {
+            "repository": "owner/data",
+            "revision": "b" * 40,
+            "selection": {"mode": "random", "limits": {"train": 3, "validation": 3}},
+        },
+        "ontology": {"version": "0.21.0"},
+        "prompt": {"path": "prompt.json", "prompt_id": "x", "version": "1"},
+        "schema": {"path": "schema.json"},
+        "provider": {},
+        "training": {},
+    }
+    (tmp_path / "prompt.json").write_text(
+        '{"prompt_id":"x","version":"1","system":"s","user":"u"}',
+        encoding="utf-8",
+    )
+    (tmp_path / "schema.json").write_text("{}", encoding="utf-8")
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(
+        training,
+        "load_released_splits",
+        lambda *args, **kwargs: {"train": [], "validation": []},
+    )
+
+    with pytest.raises(TrainingConfigError, match="sorted_prefix"):
+        prepare_run(
+            path,
+            repo_root=tmp_path,
+            runs_root=tmp_path / "runs",
+            code_commit="a" * 40,
+        )

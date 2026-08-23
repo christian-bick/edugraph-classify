@@ -60,6 +60,13 @@ uv run edugraph-classify run launch \
 
 The launch creates and validates two Fireworks datasets and starts one supervised LoRA job. It records provider identifiers in `launch-record.json`; it does not create a deployment or publish the resulting model.
 
+The full pinned release currently fails the required cross-split image-byte safeguard. A separate tracked eight-example-per-split smoke configuration exists solely to verify managed-training plumbing and must not be treated as a quality baseline:
+
+```bash
+uv run edugraph-classify run prepare \
+  --config experiments/edugraph-20260823-qwen3vl8b-smoke-v1.json
+```
+
 ## Related projects
 
 - [edugraph-dataset](https://github.com/christian-bick/edugraph-dataset): canonical labeled image dataset releases

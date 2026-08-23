@@ -15,6 +15,7 @@ from edugraph_classify.dataset import (
     PromptTemplate,
     SourceExample,
     convert_dataset,
+    select_sorted_prefix,
 )
 from edugraph_classify.ontology import OntologyCatalog
 
@@ -350,3 +351,27 @@ def test_prompt_and_dataset_loader_contracts(tmp_path: Path, monkeypatch) -> Non
             prompt=prompt(),
             output_dir=tmp_path / "escaped",
         )
+
+
+def test_smoke_selection_is_path_sorted_and_fail_closed() -> None:
+    splits = {
+        "train": [row("train", index, index) for index in (3, 1, 2, 0)],
+        "validation": [
+            row("validation", index, index + 10) for index in (3, 1, 2, 0)
+        ],
+    }
+    selected = select_sorted_prefix(
+        splits,
+        limits={"train": 3, "validation": 3},
+    )
+    assert [item["image"]["path"] for item in selected["train"]] == [
+        row("train", index, index)["image"]["path"] for index in (0, 1, 2)
+    ]
+
+    with pytest.raises(DatasetConversionError, match="at least 3"):
+        select_sorted_prefix(splits, limits={"train": 2, "validation": 3})
+    with pytest.raises(DatasetConversionError, match="only 4 exist"):
+        select_sorted_prefix(splits, limits={"train": 5, "validation": 3})
+    malformed = {**splits, "train": [{"image": None}, *splits["train"][1:]]}
+    with pytest.raises(DatasetConversionError, match="invalid image path"):
+        select_sorted_prefix(malformed, limits={"train": 3, "validation": 3})

@@ -217,3 +217,9 @@ The first training shape is deliberately conservative:
 - unique Fireworks dataset, job, and output-model identifiers so existing resources are never overwritten.
 
 Preparation and launch are separate operations. Preparation is offline with respect to Fireworks, needs no Hugging Face credential for this public dataset, records a clean code commit plus all source and output hashes, and stores generated files only under gitignored `runs/`. Launch reloads `FIREWORKS_API_KEY` at the application boundary without logging it, repeats the exact-model capability check, verifies artifact hashes and resource collisions, then uploads the two datasets and starts one job. Launch does not deploy or publish the trained model.
+
+### Technical smoke run
+
+The pinned full release currently fails the classifier's required cross-split byte-identity safeguard. Until a corrected upstream release is available, `experiments/edugraph-20260823-qwen3vl8b-smoke-v1.json` is authorized only to validate the managed-training plumbing. It deterministically selects the first eight source paths from each official split, while retaining all ordinary row, image, ontology, and selected-subset cross-split checks. It does not repair labels, move examples between splits, or establish a quality result.
+
+The smoke job uses the same Qwen3-VL-8B-Instruct, prompt, schema, one-epoch LoRA rank 8 shape, and no-deployment boundary as the intended baseline. Its metrics and resulting model must not be compared or promoted as the baseline; success means only that conversion, provider dataset upload and validation, and supervised fine-tuning job creation work end to end.

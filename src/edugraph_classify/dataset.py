@@ -439,3 +439,42 @@ def load_released_splits(
         split: dataset[split].cast_column("image", Image(decode=False))
         for split in dataset
     }
+
+
+def select_sorted_prefix(
+    splits: Mapping[str, Iterable[Mapping[str, object]]],
+    *,
+    limits: Mapping[str, object],
+) -> Mapping[str, Iterable[Mapping[str, object]]]:
+    """Select a deterministic metadata-only prefix for technical smoke runs."""
+
+    if set(splits) != {"train", "validation"} or set(limits) != {
+        "train",
+        "validation",
+    }:
+        raise DatasetConversionError(
+            "smoke selection requires train and validation splits and limits"
+        )
+    selected: dict[str, list[Mapping[str, object]]] = {}
+    for split in ("train", "validation"):
+        limit = limits[split]
+        if not isinstance(limit, int) or isinstance(limit, bool) or limit < 3:
+            raise DatasetConversionError(
+                f"smoke {split} limit must be an integer of at least 3"
+            )
+
+        def source_path(row: Mapping[str, object]) -> str:
+            image = row.get("image")
+            if not isinstance(image, Mapping) or not isinstance(image.get("path"), str):
+                raise DatasetConversionError(
+                    f"smoke {split} row has an invalid image path"
+                )
+            return image["path"]
+
+        rows = sorted(splits[split], key=source_path)
+        if len(rows) < limit:
+            raise DatasetConversionError(
+                f"smoke {split} requested {limit} examples but only {len(rows)} exist"
+            )
+        selected[split] = rows[:limit]
+    return selected

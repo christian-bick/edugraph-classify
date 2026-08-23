@@ -15,6 +15,7 @@ from .dataset import (
     convert_dataset,
     file_sha256,
     load_released_splits,
+    select_sorted_prefix,
 )
 from .ontology import OntologyCatalog
 
@@ -219,6 +220,19 @@ def prepare_run(
     run_dir = runs_root / run_id
     data_dir = run_dir / "data"
     splits = load_released_splits(repo_id, revision, cache_dir=run_dir / "cache")
+    selection = dataset_config.get("selection")
+    if selection is not None:
+        if not isinstance(selection, Mapping):
+            raise TrainingConfigError("dataset.selection must be an object")
+        _require_keys(selection, {"mode", "limits"}, "dataset.selection")
+        if selection["mode"] != "sorted_prefix":
+            raise TrainingConfigError(
+                "dataset.selection mode must be sorted_prefix when provided"
+            )
+        limits = selection["limits"]
+        if not isinstance(limits, Mapping):
+            raise TrainingConfigError("dataset.selection.limits must be an object")
+        splits = select_sorted_prefix(splits, limits=limits)
     conversion = convert_dataset(
         splits,
         repo_id=repo_id,
