@@ -168,6 +168,10 @@ class FakeJobs:
             status=SimpleNamespace(code="OK", message=""),
         )
 
+    def get(self, job_id: str, **kwargs: object) -> SimpleNamespace:
+        assert self.create_kwargs is not None
+        return self.create(**self.create_kwargs)
+
 
 def training_provider(
     tmp_path: Path,
@@ -213,6 +217,7 @@ def test_training_boundary_validates_uploads_and_maps_launch_records(tmp_path: P
     adapter.validate_launch_targets((upload,), job)
     observed = adapter.upload_dataset(upload, timeout_seconds=0, poll_interval_seconds=0)
     launched = adapter.launch_supervised_fine_tuning(job)
+    resumed_job = adapter.get_supervised_fine_tuning_job(job)
 
     assert observed.name == upload.resource_name
     assert [call[0] for call in datasets.calls] == ["create", "upload", "validate"]
@@ -220,6 +225,7 @@ def test_training_boundary_validates_uploads_and_maps_launch_records(tmp_path: P
     assert jobs.create_kwargs["eval_auto_carveout"] is False
     assert launched.output_model == "accounts/account-1/models/model-1"
     assert launched.estimated_cost == 3.0
+    assert resumed_job.name == launched.name
 
 
 def test_training_boundary_refuses_existing_resources(tmp_path: Path) -> None:
@@ -259,3 +265,29 @@ def test_dataset_upload_reports_provider_rejection_and_timeout(
     monkeypatch.setattr("edugraph_classify.providers.fireworks.time.monotonic", lambda: 1.0)
     with pytest.raises(TrainingLaunchError, match="did not become ready"):
         adapter.upload_dataset(upload, timeout_seconds=0, poll_interval_seconds=0)
+
+
+def test_dataset_upload_can_resume_an_exact_checkpointed_resource(tmp_path: Path) -> None:
+    adapter, upload, job, datasets, _ = training_provider(tmp_path)
+    datasets.items = [SimpleNamespace(name=upload.resource_name)]
+    datasets.get = lambda *args, **kwargs: SimpleNamespace(  # type: ignore[method-assign]
+        name=upload.resource_name,
+        display_name=upload.display_name,
+        example_count="3",
+        state="READY",
+        status=SimpleNamespace(code="OK", message=""),
+    )
+
+    existing = adapter.validate_launch_targets(
+        (upload,), job, allowed_existing=frozenset({upload.resource_name})
+    )
+    observed = adapter.upload_dataset(upload, create=False)
+
+    assert existing == frozenset({upload.resource_name})
+    assert observed.state == "READY"
+    assert datasets.calls == []
+
+    with pytest.raises(TrainingLaunchError, match="unexpected provider resource"):
+        adapter.validate_launch_targets(
+            (upload,), job, allowed_existing=frozenset({"accounts/x/datasets/bad"})
+        )

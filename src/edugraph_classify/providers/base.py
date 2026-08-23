@@ -25,11 +25,20 @@ class TrainingProvider(Protocol):
         self,
         uploads: tuple[DatasetUploadSpec, ...],
         job: SupervisedFineTuningSpec,
-    ) -> None: ...
+        *,
+        allowed_existing: frozenset[str] = frozenset(),
+    ) -> frozenset[str]: ...
 
-    def upload_dataset(self, spec: DatasetUploadSpec) -> ProviderDatasetRecord: ...
+    def upload_dataset(
+        self, spec: DatasetUploadSpec, *, create: bool = True
+    ) -> ProviderDatasetRecord: ...
 
     def launch_supervised_fine_tuning(
+        self,
+        spec: SupervisedFineTuningSpec,
+    ) -> TrainingJobRecord: ...
+
+    def get_supervised_fine_tuning_job(
         self,
         spec: SupervisedFineTuningSpec,
     ) -> TrainingJobRecord: ...

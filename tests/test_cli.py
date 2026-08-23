@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -186,10 +187,15 @@ def test_run_launch_requires_exact_confirmation_and_records_external_ids(
                 ),
             )
 
-        def validate_launch_targets(self, *args: object) -> None:
-            return None
+        def validate_launch_targets(
+            self, *args: object, **kwargs: object
+        ) -> frozenset[str]:
+            return frozenset()
 
-        def upload_dataset(self, upload: DatasetUploadSpec) -> ProviderDatasetRecord:
+        def upload_dataset(
+            self, upload: DatasetUploadSpec, *, create: bool = True
+        ) -> ProviderDatasetRecord:
+            assert create is True
             return ProviderDatasetRecord(upload.resource_name, "READY", 3)
 
         def launch_supervised_fine_tuning(
@@ -211,6 +217,11 @@ def test_run_launch_requires_exact_confirmation_and_records_external_ids(
                 status_message="",
             )
 
+        def get_supervised_fine_tuning_job(
+            self, spec: SupervisedFineTuningSpec
+        ) -> TrainingJobRecord:
+            raise AssertionError("new launch must not attempt to resume a job")
+
     monkeypatch.setattr(cli, "FireworksTrainingProvider", Provider)
 
     with pytest.raises(TrainingLaunchError, match="confirmation"):
@@ -231,6 +242,120 @@ def test_run_launch_requires_exact_confirmation_and_records_external_ids(
     assert payload["status"] == "launched"
     assert payload["job"]["estimated_cost"] == 3.0
     assert (tmp_path / "launch-record.json").is_file()
+
+
+def test_run_launch_resumes_only_resources_checkpointed_by_same_manifest(
+    monkeypatch, tmp_path: Path
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        '{"run_id":"run-1","code_commit":"' + "a" * 40 + '"}',
+        encoding="utf-8",
+    )
+    upload = DatasetUploadSpec(
+        account_id="account-1",
+        dataset_id="train-1",
+        display_name="run-1 train",
+        split="train",
+        path=tmp_path / "train.jsonl",
+        example_count=3,
+        sha256="a" * 64,
+    )
+    upload.path.write_text("{}\n{}\n{}\n", encoding="utf-8")
+    validation = DatasetUploadSpec(
+        account_id="account-1",
+        dataset_id="validation-1",
+        display_name="run-1 validation",
+        split="validation",
+        path=upload.path,
+        example_count=3,
+        sha256="a" * 64,
+    )
+    job_spec = SupervisedFineTuningSpec(
+        account_id="account-1",
+        job_id="job-1",
+        display_name="run-1",
+        base_model="accounts/fireworks/models/qwen3-vl-8b-instruct",
+        output_model_id="model-1",
+        training_dataset=upload.resource_name,
+        evaluation_dataset=validation.resource_name,
+        epochs=1,
+        lora_rank=8,
+        early_stop=False,
+        eval_auto_carveout=False,
+    )
+    monkeypatch.setattr(cli, "launch_specs", lambda path: ((upload, validation), job_spec))
+    manifest_hash = cli.file_sha256(manifest)
+    (tmp_path / "launch-record.json").write_text(
+        json.dumps(
+            {
+                "run_id": "run-1",
+                "manifest_sha256": manifest_hash,
+                "status": "dataset_upload_pending",
+                "pending_dataset": upload.resource_name,
+                "datasets": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed: dict[str, object] = {}
+
+    class Provider:
+        def __init__(self, client: object) -> None:
+            pass
+
+        def preflight_model(self, hypothesis: str) -> SimpleNamespace:
+            return SimpleNamespace(
+                status=EligibilityStatus.ELIGIBLE,
+                capabilities=SimpleNamespace(identity=ModelIdentity("fireworks", job_spec.base_model)),
+            )
+
+        def validate_launch_targets(
+            self, *args: object, **kwargs: object
+        ) -> frozenset[str]:
+            observed["allowed"] = kwargs["allowed_existing"]
+            return frozenset({upload.resource_name})
+
+        def upload_dataset(
+            self, spec: DatasetUploadSpec, *, create: bool = True
+        ) -> ProviderDatasetRecord:
+            observed[spec.split] = create
+            return ProviderDatasetRecord(spec.resource_name, "READY", 3)
+
+        def launch_supervised_fine_tuning(
+            self, spec: SupervisedFineTuningSpec
+        ) -> TrainingJobRecord:
+            return TrainingJobRecord(
+                name="accounts/account-1/supervisedFineTuningJobs/job-1",
+                state="JOB_STATE_CREATING",
+                base_model=spec.base_model,
+                output_model=spec.output_model_name,
+                dataset=spec.training_dataset,
+                evaluation_dataset=spec.evaluation_dataset,
+                epochs=1,
+                lora_rank=8,
+                learning_rate=None,
+                max_context_length=None,
+                estimated_cost=None,
+                status_code="OK",
+                status_message="",
+            )
+
+        def get_supervised_fine_tuning_job(
+            self, spec: SupervisedFineTuningSpec
+        ) -> TrainingJobRecord:
+            raise AssertionError("job was not pending")
+
+    monkeypatch.setattr(cli, "FireworksTrainingProvider", Provider)
+    exit_code, payload = cli.run_launch(
+        str(manifest), "run-1", ".env", client=object(), code_commit="a" * 40
+    )
+
+    assert exit_code == 0
+    assert payload["status"] == "launched"
+    assert observed["allowed"] == frozenset({upload.resource_name})
+    assert observed["train"] is False
+    assert observed["validation"] is True
 
 
 def test_main_routes_prepare_and_launch_commands(monkeypatch, capsys) -> None:

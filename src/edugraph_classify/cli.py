@@ -119,25 +119,79 @@ def run_launch(
         raise TrainingLaunchError("base model failed the final live eligibility preflight")
     if preflight.capabilities.identity.model_id != job_spec.base_model:
         raise TrainingLaunchError("live preflight resolved a different base model")
-    provider.validate_launch_targets(uploads, job_spec)
 
     record_path = path.parent / "launch-record.json"
-    record: dict[str, object] = {
-        "run_id": run_id,
-        "manifest_sha256": file_sha256(path),
-        "status": "validated",
-        "datasets": [],
+    manifest_sha256 = file_sha256(path)
+    record: dict[str, object] | None = None
+    if record_path.is_file():
+        candidate = json.loads(record_path.read_text(encoding="utf-8"))
+        if not isinstance(candidate, dict):
+            raise TrainingLaunchError("launch record must be an object")
+        if (
+            candidate.get("run_id") != run_id
+            or candidate.get("manifest_sha256") != manifest_sha256
+        ):
+            raise TrainingLaunchError("launch record does not match the prepared manifest")
+        if candidate.get("status") == "launched":
+            return 0, {**candidate, "launch_record_path": str(record_path)}
+        record = candidate
+
+    dataset_records = [] if record is None else record.get("datasets")
+    if not isinstance(dataset_records, list) or any(
+        not isinstance(item, dict) for item in dataset_records
+    ):
+        raise TrainingLaunchError("launch record datasets are invalid")
+    completed = {
+        item.get("name")
+        for item in dataset_records
+        if isinstance(item.get("name"), str)
     }
-    _write_launch_record(record_path, record)
-    dataset_records: list[dict[str, object]] = []
+    allowed_existing = set(completed)
+    if record is not None and isinstance(record.get("pending_dataset"), str):
+        allowed_existing.add(record["pending_dataset"])
+    pending_job = record is not None and record.get("status") == "job_launch_pending"
+    job_resource = f"accounts/{job_spec.account_id}/supervisedFineTuningJobs/{job_spec.job_id}"
+    if pending_job:
+        allowed_existing.update({job_resource, job_spec.output_model_name})
+
+    existing = provider.validate_launch_targets(
+        uploads,
+        job_spec,
+        allowed_existing=frozenset(allowed_existing),
+    )
+    if record is None:
+        record = {
+            "run_id": run_id,
+            "manifest_sha256": manifest_sha256,
+            "status": "validated",
+            "datasets": dataset_records,
+        }
+        _write_launch_record(record_path, record)
+
     for upload in uploads:
-        observed = provider.upload_dataset(upload)
+        if upload.resource_name in completed:
+            continue
+        record["status"] = "dataset_upload_pending"
+        record["pending_dataset"] = upload.resource_name
+        _write_launch_record(record_path, record)
+        observed = provider.upload_dataset(
+            upload,
+            create=upload.resource_name not in existing,
+        )
         dataset_records.append({"split": upload.split, **asdict(observed)})
         record["status"] = "datasets_uploading"
         record["datasets"] = dataset_records
+        record.pop("pending_dataset", None)
         _write_launch_record(record_path, record)
 
-    job = provider.launch_supervised_fine_tuning(job_spec)
+    record["status"] = "job_launch_pending"
+    _write_launch_record(record_path, record)
+    if job_resource in existing:
+        job = provider.get_supervised_fine_tuning_job(job_spec)
+    elif job_spec.output_model_name in existing:
+        raise TrainingLaunchError("output model exists without its recorded training job")
+    else:
+        job = provider.launch_supervised_fine_tuning(job_spec)
     record["status"] = "launched"
     record["job"] = job.to_mapping()
     _write_launch_record(record_path, record)

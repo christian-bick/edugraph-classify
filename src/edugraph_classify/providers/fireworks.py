@@ -62,7 +62,7 @@ def _optional_int(value: object | None) -> int | None:
 
 
 class FireworksTrainingProvider:
-    """Read-only Fireworks training capability adapter."""
+    """Guarded Fireworks capability, dataset, and managed-training adapter."""
 
     provider_id = "fireworks"
     training_execution_mode = ExecutionMode.PROVIDER_DEDICATED
@@ -131,7 +131,9 @@ class FireworksTrainingProvider:
         self,
         uploads: tuple[DatasetUploadSpec, ...],
         job: SupervisedFineTuningSpec,
-    ) -> None:
+        *,
+        allowed_existing: frozenset[str] = frozenset(),
+    ) -> frozenset[str]:
         if any(upload.account_id != job.account_id for upload in uploads):
             raise TrainingLaunchError("all launch resources must use the same Fireworks account")
         for upload in uploads:
@@ -159,29 +161,57 @@ class FireworksTrainingProvider:
             f"accounts/{job.account_id}/supervisedFineTuningJobs/{job.job_id}",
             job.output_model_name,
         }
-        collisions = sorted(target for target in targets if target in existing)
+        unexpected_allowed = allowed_existing - targets
+        if unexpected_allowed:
+            raise TrainingLaunchError("resume record contains an unexpected provider resource")
+        collisions = sorted(
+            target
+            for target in targets
+            if target in existing and target not in allowed_existing
+        )
         if collisions:
             raise TrainingLaunchError(
                 f"refusing to overwrite existing Fireworks resources: {', '.join(collisions)}"
             )
+        return frozenset(targets & existing)
 
     def upload_dataset(
         self,
         spec: DatasetUploadSpec,
         *,
+        create: bool = True,
         timeout_seconds: float = 300,
         poll_interval_seconds: float = 5,
     ) -> ProviderDatasetRecord:
-        self._client.datasets.create(
-            account_id=spec.account_id,
-            dataset_id=spec.dataset_id,
-            dataset={
-                "display_name": spec.display_name,
-                "example_count": str(spec.example_count),
-                "format": "CHAT",
-                "user_uploaded": {},
-            },
-        )
+        if create:
+            self._client.datasets.create(
+                account_id=spec.account_id,
+                dataset_id=spec.dataset_id,
+                dataset={
+                    "display_name": spec.display_name,
+                    "example_count": str(spec.example_count),
+                    "format": "CHAT",
+                    "user_uploaded": {},
+                },
+            )
+        else:
+            existing = self._client.datasets.get(
+                spec.dataset_id, account_id=spec.account_id
+            )
+            if (
+                getattr(existing, "name", None) != spec.resource_name
+                or getattr(existing, "display_name", None) != spec.display_name
+                or getattr(existing, "example_count", None) != str(spec.example_count)
+            ):
+                raise TrainingLaunchError(
+                    f"existing Fireworks dataset does not match resume record: {spec.dataset_id}"
+                )
+            if getattr(existing, "state", None) == "READY":
+                return ProviderDatasetRecord(
+                    name=spec.resource_name,
+                    state="READY",
+                    example_count=spec.example_count,
+                )
         self._client.datasets.upload(
             spec.dataset_id,
             account_id=spec.account_id,
@@ -232,6 +262,22 @@ class FireworksTrainingProvider:
             early_stop=spec.early_stop,
             eval_auto_carveout=spec.eval_auto_carveout,
         )
+        return self._training_job_record(job, spec)
+
+    def get_supervised_fine_tuning_job(
+        self,
+        spec: SupervisedFineTuningSpec,
+    ) -> TrainingJobRecord:
+        job = self._client.supervised_fine_tuning_jobs.get(
+            spec.job_id, account_id=spec.account_id
+        )
+        return self._training_job_record(job, spec)
+
+    @staticmethod
+    def _training_job_record(
+        job: object,
+        spec: SupervisedFineTuningSpec,
+    ) -> TrainingJobRecord:
         status = getattr(job, "status", None)
         estimated_cost = getattr(job, "estimated_cost", None)
         return TrainingJobRecord(
