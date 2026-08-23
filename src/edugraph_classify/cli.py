@@ -18,6 +18,12 @@ from .providers.fireworks import (
     FireworksTrainingProvider,
     TrainingLaunchError,
 )
+from .providers.vertex import (
+    VertexConfigError,
+    VertexLaunchError,
+    VertexTrainingProvider,
+    load_vertex_job_config,
+)
 from .training import TrainingConfigError, launch_specs, prepare_run
 
 
@@ -76,6 +82,21 @@ def run_prepare(
     return 0, prepared.to_mapping()
 
 
+def run_vertex_render(config_path: str) -> tuple[int, dict[str, object]]:
+    """Validate and render a Vertex request without credentials or network calls."""
+
+    spec = load_vertex_job_config(Path(config_path))
+    request = VertexTrainingProvider().render_custom_job(spec)
+    return 0, {
+        "status": "validated",
+        "provider_id": VertexTrainingProvider.provider_id,
+        "training_execution_mode": VertexTrainingProvider.training_execution_mode,
+        "job_id": spec.job_id,
+        "api_endpoint": spec.api_endpoint,
+        "request": request,
+    }
+
+
 def _write_launch_record(path: Path, payload: dict[str, object]) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(
@@ -84,6 +105,84 @@ def _write_launch_record(path: Path, payload: dict[str, object]) -> None:
         newline="\n",
     )
     temporary.replace(path)
+
+
+def _vertex_client(location: str) -> Any:
+    from google.cloud import aiplatform_v1
+
+    return aiplatform_v1.JobServiceClient(
+        client_options={"api_endpoint": f"{location}-aiplatform.googleapis.com"}
+    )
+
+
+def run_vertex_launch(
+    config_path: str,
+    confirmation: str,
+    env_file: str,
+    records_root: str,
+    *,
+    client: Any | None = None,
+    repo_root: Path | None = None,
+    code_commit: str | None = None,
+) -> tuple[int, dict[str, object]]:
+    """Submit one explicitly confirmed Vertex CustomJob with retry protection."""
+
+    path = Path(config_path)
+    spec = load_vertex_job_config(path)
+    if confirmation != spec.job_id:
+        raise VertexLaunchError("launch confirmation must exactly match the Vertex job_id")
+    current_commit = code_commit or _code_commit((repo_root or Path.cwd()).resolve())
+    if current_commit != spec.code_commit:
+        raise VertexLaunchError(
+            "launch requires the same clean code commit recorded in the Vertex configuration"
+        )
+
+    record_path = Path(records_root) / spec.job_id / "vertex-launch-record.json"
+    config_sha256 = file_sha256(path)
+    record: dict[str, object] | None = None
+    if record_path.is_file():
+        candidate = json.loads(record_path.read_text(encoding="utf-8"))
+        if not isinstance(candidate, dict):
+            raise VertexLaunchError("Vertex launch record must be an object")
+        if (
+            candidate.get("job_id") != spec.job_id
+            or candidate.get("config_sha256") != config_sha256
+        ):
+            raise VertexLaunchError("Vertex launch record does not match the configuration")
+        if candidate.get("status") == "launched":
+            return 0, {**candidate, "launch_record_path": str(record_path)}
+        if candidate.get("status") != "job_launch_pending":
+            raise VertexLaunchError("Vertex launch record has an invalid status")
+        record = candidate
+
+    load_local_environment(env_file)
+    vertex_client = client if client is not None else _vertex_client(spec.location)
+    provider = VertexTrainingProvider(vertex_client)
+    observed = provider.find_custom_jobs(spec)
+    if len(observed) > 1:
+        raise VertexLaunchError("multiple Vertex jobs share the protected EduGraph job label")
+    if observed and record is None:
+        raise VertexLaunchError("a Vertex job already exists for this job_id")
+
+    if record is None:
+        record_path.parent.mkdir(parents=True, exist_ok=True)
+        record = {
+            "job_id": spec.job_id,
+            "config_sha256": config_sha256,
+            "code_commit": spec.code_commit,
+            "provider_id": provider.provider_id,
+            "training_execution_mode": provider.training_execution_mode,
+            "status": "job_launch_pending",
+        }
+        _write_launch_record(record_path, record)
+
+    job = observed[0] if observed else provider.launch_custom_job(spec)
+    if not job.name:
+        raise VertexLaunchError("Vertex did not return a CustomJob resource name")
+    record["status"] = "launched"
+    record["job"] = job.to_mapping()
+    _write_launch_record(record_path, record)
+    return 0, {**record, "launch_record_path": str(record_path)}
 
 
 def run_launch(
@@ -222,6 +321,22 @@ def build_parser() -> argparse.ArgumentParser:
     launch.add_argument("--manifest", required=True)
     launch.add_argument("--confirm-run-id", required=True)
     launch.add_argument("--env-file", default=".env")
+
+    vertex = commands.add_parser(
+        "vertex", help="validate or launch a Vertex AI serverless custom-training job"
+    )
+    vertex_actions = vertex.add_subparsers(dest="action", required=True)
+    render = vertex_actions.add_parser(
+        "render", help="validate and print the exact CustomJob request offline"
+    )
+    render.add_argument("--config", required=True)
+    vertex_launch = vertex_actions.add_parser(
+        "launch", help="submit one explicitly confirmed Vertex CustomJob"
+    )
+    vertex_launch.add_argument("--config", required=True)
+    vertex_launch.add_argument("--confirm-job-id", required=True)
+    vertex_launch.add_argument("--records-root", default="runs")
+    vertex_launch.add_argument("--env-file", default=".env")
     return parser
 
 
@@ -230,15 +345,31 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "preflight":
             exit_code, payload = run_fireworks_preflight(args.hypothesis, args.env_file)
-        elif args.action == "prepare":
+        elif args.command == "run" and args.action == "prepare":
             exit_code, payload = run_prepare(args.config, args.runs_root, args.workers)
-        else:
+        elif args.command == "run":
             exit_code, payload = run_launch(
                 args.manifest,
                 args.confirm_run_id,
                 args.env_file,
             )
-    except (PreflightError, DatasetConversionError, TrainingConfigError, TrainingLaunchError) as error:
+        elif args.action == "render":
+            exit_code, payload = run_vertex_render(args.config)
+        else:
+            exit_code, payload = run_vertex_launch(
+                args.config,
+                args.confirm_job_id,
+                args.env_file,
+                args.records_root,
+            )
+    except (
+        PreflightError,
+        DatasetConversionError,
+        TrainingConfigError,
+        TrainingLaunchError,
+        VertexConfigError,
+        VertexLaunchError,
+    ) as error:
         print(json.dumps({"status": "error", "message": str(error)}, indent=2), file=sys.stderr)
         return 2
     except Exception as error:  # Provider SDK errors must never expose request configuration.

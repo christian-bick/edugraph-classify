@@ -1,6 +1,6 @@
 """Provider-neutral managed-training boundary."""
 
-from typing import Protocol, runtime_checkable
+from typing import Mapping, Protocol, runtime_checkable
 
 from ..contracts import ExecutionMode
 from ..preflight import ModelPreflight
@@ -42,3 +42,17 @@ class TrainingProvider(Protocol):
         self,
         spec: SupervisedFineTuningSpec,
     ) -> TrainingJobRecord: ...
+
+
+@runtime_checkable
+class ServerlessTrainingProvider(Protocol):
+    """Boundary for provider-managed custom-container training jobs."""
+
+    provider_id: str
+    training_execution_mode: ExecutionMode
+
+    def render_custom_job(self, spec: object) -> Mapping[str, object]: ...
+
+    def find_custom_jobs(self, spec: object) -> tuple[object, ...]: ...
+
+    def launch_custom_job(self, spec: object) -> object: ...

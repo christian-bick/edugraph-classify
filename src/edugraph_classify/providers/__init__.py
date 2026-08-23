@@ -1,5 +1,5 @@
 """Managed-training provider adapters."""
 
-from .base import TrainingProvider
+from .base import ServerlessTrainingProvider, TrainingProvider
 
-__all__ = ["TrainingProvider"]
+__all__ = ["ServerlessTrainingProvider", "TrainingProvider"]

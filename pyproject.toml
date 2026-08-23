@@ -9,6 +9,7 @@ dependencies = [
     "edugraph-py",
     "fireworks-ai>=1.2.9",
     "fsspec>=2026.6.0",
+    "google-cloud-aiplatform>=1.122.0,<2",
     "pillow>=12.3.0",
     "python-dotenv>=1.2.3",
 ]

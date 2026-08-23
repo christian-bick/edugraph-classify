@@ -10,6 +10,7 @@ from edugraph_classify import cli
 from edugraph_classify.contracts import ModelIdentity
 from edugraph_classify.preflight import EligibilityStatus
 from edugraph_classify.providers.fireworks import ModelResolutionError, TrainingLaunchError
+from edugraph_classify.providers.vertex import VertexLaunchError
 from edugraph_classify.training import (
     DatasetUploadSpec,
     ProviderDatasetRecord,
@@ -385,4 +386,168 @@ def test_main_routes_prepare_and_launch_commands(monkeypatch, capsys) -> None:
         )
         == 0
     )
+    assert "launched" in capsys.readouterr().out
+
+
+def vertex_config() -> dict[str, object]:
+    return {
+        "provider_id": "gcp_vertex_ai",
+        "training_execution_mode": "serverless",
+        "job_id": "edugraph-vertex-smoke",
+        "code_commit": "a" * 40,
+        "project_id": "edugraph-prod",
+        "location": "europe-west4",
+        "display_name": "EduGraph Vertex smoke",
+        "output_uri": "gs://edugraph-training/runs/vertex-smoke",
+        "service_account": "vertex-training@edugraph-prod.iam.gserviceaccount.com",
+        "container": {
+            "image_uri": "example.com/trainer@sha256:" + "b" * 64,
+            "command": [],
+            "args": [],
+            "environment": {},
+        },
+        "compute": {
+            "machine_type": "g2-standard-12",
+            "accelerator_type": "NVIDIA_L4",
+            "accelerator_count": 1,
+            "replica_count": 1,
+            "boot_disk_type": "pd-ssd",
+            "boot_disk_size_gb": 500,
+        },
+        "scheduling": {
+            "strategy": "FLEX_START",
+            "timeout_seconds": 14400,
+            "max_wait_seconds": 7200,
+        },
+        "labels": {"workload": "vlm-training"},
+    }
+
+
+class FakeVertexClient:
+    def __init__(self, existing: list[object] | None = None) -> None:
+        self.existing = existing or []
+        self.created = 0
+
+    def list_custom_jobs(self, **kwargs: object) -> list[object]:
+        return self.existing
+
+    def create_custom_job(self, **kwargs: object) -> SimpleNamespace:
+        self.created += 1
+        return SimpleNamespace(
+            name="projects/edugraph-prod/locations/europe-west4/customJobs/123",
+            display_name="EduGraph Vertex smoke",
+            state=SimpleNamespace(name="JOB_STATE_PENDING"),
+            error=SimpleNamespace(code=0, message=""),
+        )
+
+
+def test_vertex_render_is_offline_and_exposes_exact_regional_request(tmp_path: Path) -> None:
+    path = tmp_path / "vertex.json"
+    path.write_text(json.dumps(vertex_config()), encoding="utf-8")
+
+    exit_code, payload = cli.run_vertex_render(str(path))
+
+    assert exit_code == 0
+    assert payload["status"] == "validated"
+    assert payload["training_execution_mode"] == "serverless"
+    assert payload["api_endpoint"] == "europe-west4-aiplatform.googleapis.com"
+    assert payload["request"]["parent"].endswith("locations/europe-west4")  # type: ignore[index,union-attr]
+
+
+def test_vertex_launch_requires_confirmation_and_pinned_commit(tmp_path: Path) -> None:
+    path = tmp_path / "vertex.json"
+    path.write_text(json.dumps(vertex_config()), encoding="utf-8")
+    client = FakeVertexClient()
+
+    with pytest.raises(VertexLaunchError, match="confirmation"):
+        cli.run_vertex_launch(
+            str(path), "wrong", ".env", str(tmp_path / "runs"), client=client,
+            code_commit="a" * 40,
+        )
+    with pytest.raises(VertexLaunchError, match="same clean code commit"):
+        cli.run_vertex_launch(
+            str(path), "edugraph-vertex-smoke", ".env", str(tmp_path / "runs"),
+            client=client, code_commit="c" * 40,
+        )
+
+    exit_code, payload = cli.run_vertex_launch(
+        str(path), "edugraph-vertex-smoke", ".env", str(tmp_path / "runs"),
+        client=client, code_commit="a" * 40,
+    )
+    repeated_code, repeated = cli.run_vertex_launch(
+        str(path), "edugraph-vertex-smoke", ".env", str(tmp_path / "runs"),
+        client=client, code_commit="a" * 40,
+    )
+
+    assert exit_code == repeated_code == 0
+    assert payload["status"] == repeated["status"] == "launched"
+    assert payload["job"]["name"].endswith("customJobs/123")  # type: ignore[index,union-attr]
+    assert client.created == 1
+    assert Path(payload["launch_record_path"]).is_file()  # type: ignore[arg-type]
+
+
+def test_vertex_launch_collision_and_pending_resume_are_fail_safe(tmp_path: Path) -> None:
+    path = tmp_path / "vertex.json"
+    path.write_text(json.dumps(vertex_config()), encoding="utf-8")
+    existing_job = SimpleNamespace(
+        name="projects/edugraph-prod/locations/europe-west4/customJobs/456",
+        display_name="EduGraph Vertex smoke",
+        state="JOB_STATE_RUNNING",
+        error=None,
+    )
+    client = FakeVertexClient([existing_job])
+    records = tmp_path / "runs"
+
+    with pytest.raises(VertexLaunchError, match="already exists"):
+        cli.run_vertex_launch(
+            str(path), "edugraph-vertex-smoke", ".env", str(records),
+            client=client, code_commit="a" * 40,
+        )
+
+    record_path = records / "edugraph-vertex-smoke" / "vertex-launch-record.json"
+    record_path.parent.mkdir(parents=True)
+    record_path.write_text(
+        json.dumps(
+            {
+                "job_id": "edugraph-vertex-smoke",
+                "config_sha256": cli.file_sha256(path),
+                "status": "job_launch_pending",
+            }
+        ),
+        encoding="utf-8",
+    )
+    _, resumed = cli.run_vertex_launch(
+        str(path), "edugraph-vertex-smoke", ".env", str(records),
+        client=client, code_commit="a" * 40,
+    )
+    assert resumed["job"]["name"].endswith("customJobs/456")  # type: ignore[index,union-attr]
+    assert client.created == 0
+
+    record_path.unlink()
+    client.existing.append(existing_job)
+    with pytest.raises(VertexLaunchError, match="multiple"):
+        cli.run_vertex_launch(
+            str(path), "edugraph-vertex-smoke", ".env", str(records),
+            client=client, code_commit="a" * 40,
+        )
+
+
+def test_main_routes_vertex_commands(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        cli, "run_vertex_render", lambda config: (0, {"status": "validated"})
+    )
+    assert cli.main(["vertex", "render", "--config", "vertex.json"]) == 0
+    assert "validated" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        cli,
+        "run_vertex_launch",
+        lambda config, confirmation, env_file, records_root: (0, {"status": "launched"}),
+    )
+    assert cli.main(
+        [
+            "vertex", "launch", "--config", "vertex.json",
+            "--confirm-job-id", "run-1",
+        ]
+    ) == 0
     assert "launched" in capsys.readouterr().out

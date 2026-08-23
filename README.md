@@ -2,13 +2,13 @@
 
 Training and evaluation tooling for direct ontology labeling of atomic educational tasks with vision-language models.
 
-The first project milestone is a direct-labeling baseline using Qwen3-VL-8B-Instruct and Fireworks AI. Managed-training adapters keep data preparation and evaluation independent from provider APIs, while execution mode remains explicit across serverless, provider-dedicated, and self-hosted paths. The repository does not own dataset generation or ontology authoring.
+The first project milestone is a direct-labeling VLM baseline. Fireworks was tested first and rejected the selected Qwen3-VL checkpoint at job creation; Google Vertex AI serverless custom training is now the second managed-training path. Provider adapters keep data preparation and evaluation independent from provider APIs, while execution mode remains explicit across serverless, provider-dedicated, and self-hosted paths. The repository does not own dataset generation or ontology authoring.
 
 The accepted architecture and experiment rationale are recorded in [Project kickoff and baseline decision](docs/PROJECT-KICKOFF.md).
 
 ## Status
 
-Provider-neutral identities, dimension-aware conversion, pinned ontology validation, deterministic Fireworks VLM JSONL generation, guarded managed-training operations, and read-only model preflight are in place. The technical smoke datasets reached `READY`, but Fireworks rejected Qwen3-VL-8B-Instruct at managed-job creation as unsupported. No training job, output model, or deployment was created.
+Provider-neutral identities, dimension-aware conversion, pinned ontology validation, deterministic VLM JSONL generation, guarded managed-training operations, Fireworks model preflight, and a Vertex AI CustomJob adapter are in place. The Fireworks technical smoke datasets reached `READY`, but Fireworks rejected Qwen3-VL-8B-Instruct at managed-job creation as unsupported. The Vertex adapter can validate and render a regional custom-job request offline and can submit one explicitly confirmed job; no Vertex job has been submitted.
 
 ## Development
 
@@ -23,6 +23,7 @@ uv build
 The initial runtime dependencies are:
 
 - `fireworks-ai`, the official Fireworks Python SDK for inference and platform orchestration;
+- `google-cloud-aiplatform`, the official Vertex AI SDK used only by the GCP provider boundary;
 - `datasets`, the Hugging Face library used to access and process the released image dataset;
 - `fsspec` and `pillow`, used to read and validate the pinned release images deterministically;
 - `edugraph-py`, installed from the official `v0.21.0` wheel and used as the ontology authority;
@@ -66,6 +67,26 @@ The full pinned release currently fails the required cross-split image-byte safe
 uv run edugraph-classify run prepare \
   --config experiments/edugraph-20260823-qwen3vl8b-smoke-v1.json
 ```
+
+## Vertex AI serverless custom training
+
+Vertex AI CustomJob is treated as `serverless` training because Google owns job provisioning and teardown, even though each run still declares its ephemeral machine and GPU shape. The adapter uses the regional API endpoint from the job configuration and supports standard, Spot, and Flex Start scheduling.
+
+Validate and inspect the exact provider request without credentials or network access:
+
+```bash
+uv run edugraph-classify vertex render --config runs/<job-id>/vertex-job.json
+```
+
+Submitting a job is separate and cost-incurring. It requires Application Default Credentials, a clean checkout at the commit pinned in the configuration, an immutable training-image digest, and the exact job ID as confirmation:
+
+```bash
+uv run edugraph-classify vertex launch \
+  --config runs/<job-id>/vertex-job.json \
+  --confirm-job-id <job-id>
+```
+
+The setup, IAM boundary, strict configuration shape, and EU-region guidance are documented in [Vertex AI serverless training](docs/VERTEX-AI-TRAINING.md). Building the provider-neutral VLM trainer container and staging a first resolved run are deliberately separate from the provider adapter.
 
 ## Related projects
 
