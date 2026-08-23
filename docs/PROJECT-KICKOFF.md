@@ -395,7 +395,10 @@ Implementation should stay provider-aware at the edge and provider-neutral in da
 
 ```text
 edugraph-classify/
+  .python-version
   README.md
+  pyproject.toml
+  uv.lock
   docs/
     PROJECT-KICKOFF.md
   prompts/
@@ -403,6 +406,7 @@ edugraph-classify/
   schemas/
     prediction.schema.json
   src/edugraph_classify/
+    __init__.py
     data/          # release loading, validation, provider JSONL rendering
     ontology/      # pin loading, dimensions, canonicalization, graph checks
     providers/     # Fireworks API adapter and live capability preflight
@@ -412,10 +416,9 @@ edugraph-classify/
     cli.py
   tests/
   .env.example
-  pyproject.toml
 ```
 
-Recommended implementation defaults are Python 3.12, a locked dependency manager, typed configuration, Pydantic schemas, a small CLI, and pytest. Provider calls should be thin adapters so offline data validation and evaluation do not require Fireworks credentials.
+The initial scaffold uses Python 3.12 and `uv` as its project manager and native build backend. It directly depends on the official `fireworks-ai` SDK and Hugging Face `datasets` library, with all transitive versions recorded in `uv.lock`. Future implementation defaults remain typed configuration, Pydantic schemas, a small CLI, and pytest. Provider calls should be thin adapters so offline data validation and evaluation do not require Fireworks credentials.
 
 ## 16. Reproducibility contract
 

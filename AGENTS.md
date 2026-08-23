@@ -13,6 +13,7 @@
 - **Code Organization:** Prefer loose coupling, high composability, and clear separation of concerns. Keep provider adapters thin so data preparation, ontology validation, and evaluation remain usable offline.
 - **Functional Style:** Prefer short, chainable, and pure functions with well-scoped responsibilities.
 - **Naming:** Prefer self-explaining and concise names. Add code documentation to inherently complex functions and classes.
+- **Python Tooling:** Use `uv` for Python version selection, dependency management, environment synchronization, command execution, locking, and package builds. Keep `pyproject.toml` and `uv.lock` synchronized; do not add parallel requirements or lock files.
 - **Tests:** Generate and execute unit tests for production code. Follow the repository's configured pytest and coverage conventions once the Python toolchain exists, and keep provider calls behind fakes or recorded fixtures in unit tests. Verify high coverage with the repository's complete coverage command.
 - **Temporary Files:** Never write scratch files to the repository root. Captured command output, logs, intermediate data, provider-ready JSONL, raw predictions, reports, and other generated artifacts belong in the applicable gitignored directory (`temp/`, `data/`, `artifacts/`, `runs/`, or `reports/`). Clean up scratch files that are no longer needed.
 - **Secrets:** Keep Fireworks, Hugging Face, Weights & Biases, and other credentials in environment variables or an approved secret manager. Never commit credentials or include them in manifests, reports, fixtures, prompts, or logs.
@@ -22,7 +23,6 @@
 Before executing any task, make yourself familiar with the project:
 
 - **ALWAYS read `README.md`** for the repository purpose, ownership boundaries, and current status.
-- **ALWAYS read `docs/PROJECT-KICKOFF.md` completely** for the accepted baseline, terminology, ontology semantics, provider boundary, evaluation contract, and implementation milestones.
 - **Load the relevant document under `docs/`** before authoring or reviewing the corresponding subsystem. Treat the project documents as the source of truth for accepted architecture and experiment policy.
 
 Update the relevant documentation after larger changes. Architecture, workflows, and experiment decisions belong in `docs/`; `README.md` should remain a concise entry point rather than duplicating them.
