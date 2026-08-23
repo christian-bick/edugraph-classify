@@ -23,6 +23,12 @@ Use a dedicated runtime service account. The submitting identity needs permissio
 
 The project must have the Vertex AI API enabled. The chosen region also needs sufficient custom-training GPU quota. Artifact Registry and Cloud Storage must be enabled when those services host the image and run artifacts.
 
+### Selected GCP setup
+
+The initial GCP project is `edugraph-438718` and the existing, currently empty staging bucket is `gs://edugraph-classify`. The first output prefix will therefore be `gs://edugraph-classify/runs/<job-id>`. The bucket's actual location must be verified as `europe-west4` before it is used; an empty bucket in a different location should be replaced by a same-region bucket rather than silently accepting cross-region storage.
+
+The proposed dedicated runtime identity is `vertex-training@edugraph-438718.iam.gserviceaccount.com`, and the proposed same-region Artifact Registry repository is `europe-west4-docker.pkg.dev/edugraph-438718/training`. These are target names only until a read-only project inspection confirms whether they already exist. Creating them, enabling APIs, or changing IAM remains a separately confirmed external mutation.
+
 ## Resolved job configuration
 
 Generated job configurations belong under `runs/<job-id>/` and remain gitignored. They contain reproducibility metadata and infrastructure identifiers, but no secrets. The strict JSON shape is:
@@ -33,15 +39,15 @@ Generated job configurations belong under `runs/<job-id>/` and remain gitignored
   "training_execution_mode": "serverless",
   "job_id": "edugraph-vertex-smoke",
   "code_commit": "0123456789abcdef0123456789abcdef01234567",
-  "project_id": "edugraph-prod",
+  "project_id": "edugraph-438718",
   "location": "europe-west4",
   "display_name": "EduGraph Vertex smoke",
-  "output_uri": "gs://edugraph-training/runs/edugraph-vertex-smoke",
-  "service_account": "vertex-training@edugraph-prod.iam.gserviceaccount.com",
+  "output_uri": "gs://edugraph-classify/runs/edugraph-vertex-smoke",
+  "service_account": "vertex-training@edugraph-438718.iam.gserviceaccount.com",
   "container": {
-    "image_uri": "europe-west4-docker.pkg.dev/edugraph-prod/training/vlm@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "image_uri": "europe-west4-docker.pkg.dev/edugraph-438718/training/vlm@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "command": ["python", "-m", "edugraph_trainer"],
-    "args": ["--run-manifest", "gs://edugraph-training/runs/edugraph-vertex-smoke/manifest.json"],
+    "args": ["--run-manifest", "gs://edugraph-classify/runs/edugraph-vertex-smoke/manifest.json"],
     "environment": {
       "HF_HOME": "/tmp/huggingface"
     }
