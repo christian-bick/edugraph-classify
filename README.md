@@ -8,7 +8,7 @@ The accepted architecture and experiment rationale are recorded in [Project kick
 
 ## Status
 
-Provider-neutral identities, dimension-aware conversion, pinned ontology validation, deterministic VLM JSONL generation, guarded managed-training operations, Fireworks model preflight, and a Vertex AI CustomJob adapter are in place. The Fireworks technical smoke datasets reached `READY`, but Fireworks rejected Qwen3-VL-8B-Instruct at managed-job creation as unsupported. The Vertex adapter can validate and render a regional custom-job request offline and can submit one explicitly confirmed job; no Vertex job has been submitted.
+Provider-neutral identities, dimension-aware conversion, pinned ontology validation, deterministic VLM JSONL generation, guarded managed-training operations, Fireworks model preflight, and a Vertex AI CustomJob adapter are in place. The Fireworks technical smoke datasets reached `READY`, but Fireworks rejected Qwen3-VL-8B-Instruct at managed-job creation as unsupported. Vertex bootstrap now includes a dedicated keyless runtime identity, regional Artifact Registry repository, and bucket-scoped IAM. No training image or data has been uploaded and no Vertex job has been submitted.
 
 ## Development
 
