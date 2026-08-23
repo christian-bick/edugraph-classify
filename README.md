@@ -2,7 +2,7 @@
 
 Training and evaluation tooling for direct ontology labeling of atomic educational tasks with vision-language models.
 
-The first project milestone is a managed Fireworks AI supervised fine-tuning baseline. The repository will own prompts, dataset adaptation, provider orchestration, evaluation, and experiment records. It will not own dataset generation or ontology authoring.
+The first project milestone is a direct-labeling baseline using Qwen3.5-9B as the starting model hypothesis and Fireworks AI as the initial managed provider. Provider adapters keep data preparation and evaluation independent from provider APIs and leave room for both serverless and self-hosted execution. The repository will not own dataset generation or ontology authoring.
 
 The accepted architecture and experiment rationale are recorded in [Project kickoff and baseline decision](docs/PROJECT-KICKOFF.md).
 
