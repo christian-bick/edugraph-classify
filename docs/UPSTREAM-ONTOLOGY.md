@@ -1,8 +1,6 @@
 # Upstream ontology contract
 
-This document transports the stable classifier-facing concepts of [`edugraph-ontology`](https://github.com/christian-bick/edugraph-ontology). It intentionally omits the current label inventory, branch depths, individual examples that may be renamed, and release-specific package versions.
-
-The pinned ontology release remains authoritative. This summary explains how classifier code should interpret it; it does not redefine ontology semantics.
+This document explains the stable classifier-facing concepts of [`edugraph-ontology`](https://github.com/christian-bick/edugraph-ontology).
 
 ## 1. Purpose and representation
 
@@ -72,10 +70,6 @@ Safe classifier uses:
 - construct graph neighborhoods for later reranking.
 
 The explicit classifier target should remain separate from its ancestor closure. If a task is labeled with a specific descriptor, the broader ancestors are derived facts, not additional model successes.
-
-### `involves` and `involvedBy`
-
-`A involves B` links a competency entity to a descriptor that specializes it. `involvedBy` is the inverse. These relations construct or analyze applied competencies; they do not mean that every content image should emit a separate competency-description identifier.
 
 ## 5. Logical constraint relations
 
