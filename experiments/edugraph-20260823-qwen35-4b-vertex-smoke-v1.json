@@ -1,0 +1,62 @@
+{
+  "run_id": "edugraph-20260823-qwen35-4b-vertex-smoke-v1",
+  "dataset": {
+    "repository": "christian-bick/edugraph-exercises",
+    "release_tag": "v0.21.0-01",
+    "revision": "ed47264f751a8a67c480dbe4eb7397e317a722eb",
+    "splits": ["train", "validation"],
+    "selection": {
+      "mode": "sorted_prefix",
+      "limits": {
+        "train": 8,
+        "validation": 8
+      }
+    }
+  },
+  "ontology": {
+    "package": "edugraph-py",
+    "version": "0.21.0",
+    "release_asset_sha256": "e8de8f2559bb298da7e2048512c0cab629bf43b8919c02f3f5282f6ad932bcde"
+  },
+  "prompt": {
+    "path": "prompts/direct-label-v1.json",
+    "prompt_id": "direct-label",
+    "version": "1"
+  },
+  "schema": {
+    "path": "schemas/dimension-labels-v1.json",
+    "schema_id": "dimension-labels",
+    "version": "1"
+  },
+  "model": {
+    "repository": "Qwen/Qwen3.5-4B",
+    "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+    "created_at": "2026-02-27T14:45:03Z",
+    "capabilities": ["image", "text", "thinking"]
+  },
+  "provider": {
+    "provider_id": "gcp_vertex_ai",
+    "training_execution_mode": "serverless",
+    "project_id": "edugraph-438718",
+    "location": "europe-west4",
+    "bucket_uri": "gs://edugraph-classify",
+    "service_account": "vertex-training@edugraph-438718.iam.gserviceaccount.com"
+  },
+  "training": {
+    "method": "supervised_qlora",
+    "epochs": 1,
+    "lora_rank": 8,
+    "lora_alpha": 16,
+    "lora_dropout": 0.05,
+    "learning_rate": 0.00002,
+    "train_batch_size": 1,
+    "eval_batch_size": 1,
+    "gradient_accumulation_steps": 4,
+    "gradient_checkpointing": true,
+    "quantization": "nf4",
+    "precision": "bfloat16",
+    "seed": 42,
+    "chat_template_thinking": false,
+    "wandb": false
+  }
+}

@@ -8,7 +8,7 @@ The accepted architecture and experiment rationale are recorded in [Project kick
 
 ## Status
 
-Provider-neutral identities, dimension-aware conversion, pinned ontology validation, deterministic VLM JSONL generation, guarded managed-training operations, Fireworks model preflight, and a Vertex AI CustomJob adapter are in place. The Fireworks technical smoke datasets reached `READY`, but Fireworks rejected Qwen3-VL-8B-Instruct at managed-job creation as unsupported. Vertex bootstrap now includes a dedicated keyless runtime identity, regional Artifact Registry repository, and bucket-scoped IAM. No training image or data has been uploaded and no Vertex job has been submitted.
+Provider-neutral identities, dimension-aware conversion, pinned ontology validation, deterministic VLM JSONL generation, guarded managed-training operations, Fireworks model preflight, and a Vertex AI CustomJob adapter are in place. The Fireworks technical smoke datasets reached `READY`, but Fireworks rejected Qwen3-VL-8B-Instruct at managed-job creation as unsupported. Vertex bootstrap now includes a dedicated keyless runtime identity, regional Artifact Registry repository, bucket-scoped IAM, an immutable GCS staging workflow, and a containerized QLoRA trainer. The first Vertex recipe pins the public 2026 `Qwen/Qwen3.5-4B` VLM revision. No Vertex training job has been submitted.
 
 ## Development
 
@@ -24,6 +24,7 @@ The initial runtime dependencies are:
 
 - `fireworks-ai`, the official Fireworks Python SDK for inference and platform orchestration;
 - `google-cloud-aiplatform`, the official Vertex AI SDK used only by the GCP provider boundary;
+- `google-cloud-storage`, used for immutable, hash-checked run staging and artifact transfer;
 - `datasets`, the Hugging Face library used to access and process the released image dataset;
 - `fsspec` and `pillow`, used to read and validate the pinned release images deterministically;
 - `edugraph-py`, installed from the official `v0.21.0` wheel and used as the ontology authority;
@@ -86,7 +87,7 @@ uv run edugraph-classify vertex launch \
   --confirm-job-id <job-id>
 ```
 
-The setup, IAM boundary, strict configuration shape, and EU-region guidance are documented in [Vertex AI serverless training](docs/VERTEX-AI-TRAINING.md). Building the provider-neutral VLM trainer container and staging a first resolved run are deliberately separate from the provider adapter.
+The first tracked Vertex smoke recipe is `experiments/edugraph-20260823-qwen35-4b-vertex-smoke-v1.json`. Preparation, content-addressed staging, immutable image publication, offline job configuration/rendering, and paid submission are deliberately separate operations. The setup, commands, IAM boundary, model/training decision, strict configuration shape, and EU-region guidance are documented in [Vertex AI serverless training](docs/VERTEX-AI-TRAINING.md).
 
 ## Related projects
 

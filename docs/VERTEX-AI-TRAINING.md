@@ -99,15 +99,63 @@ uv run edugraph-classify vertex launch \
 
 The launcher verifies the pinned clean commit, checks for an existing job with the protected label, writes `runs/<job-id>/vertex-launch-record.json` before the create call, and records the returned CustomJob resource name. A retry resumes one unambiguous existing resource after a pending create; it refuses an unrelated collision or multiple matches.
 
-## Required next implementation
+## First Qwen3.5 smoke recipe
 
-The adapter alone does not make a model trainable. Before the first Vertex smoke job, the repository still needs:
+The first model is `Qwen/Qwen3.5-4B` at immutable Hugging Face revision `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`. The public repository was created on 2026-02-27, is ungated, and declares a 4B causal language model with a vision encoder. Qwen3.5 is natively multimodal and uses thinking mode by default. This meets the requested 2026, VLM, 3B–12B, and reasoning-capable criteria; no Hugging Face credential is needed to download it.
 
-1. a provider-neutral VLM trainer entry point and container;
-2. an immutable 2026 model repository and revision that fits the 3B–12B target;
-3. a deterministic staging step for the prepared run manifest and JSONL inputs;
-4. a model-specific GPU-memory estimate and EU-region machine choice;
-5. a local container smoke test and a rendered Vertex request review;
-6. explicit approval for the estimated billable training run.
+The tracked run is `experiments/edugraph-20260823-qwen35-4b-vertex-smoke-v1.json`. It selects eight examples per official split solely to validate the technical path. Its first-fit recipe is:
 
-Official references: [create a serverless custom job](https://cloud.google.com/vertex-ai/docs/training/create-custom-job), [configure compute](https://cloud.google.com/vertex-ai/docs/training/configure-compute), [Vertex AI locations](https://cloud.google.com/vertex-ai/docs/general/locations), and [Flex Start scheduling](https://cloud.google.com/vertex-ai/docs/training/schedule-jobs-dws).
+- NF4 4-bit QLoRA with bfloat16 compute and gradient checkpointing;
+- one epoch, rank 8, alpha 16, dropout 0.05, and learning rate `2e-5`;
+- train/evaluation batch size 1 and four-step gradient accumulation;
+- all linear modules as LoRA targets;
+- prompt/image loss masking with only the canonical assistant JSON supervised;
+- thinking disabled in the training chat template because the gold data contains final labels, not reasoning traces;
+- W&B disabled; outputs remain in the regional run prefix.
+
+The container uses the Python 3.12.13 base image by digest and resolves all Python packages from the committed `uv.lock`. The GPU runtime pins `torch==2.13.0`, `torchvision==0.28.0`, `transformers==5.15.1`, `peft==0.20.0`, `accelerate==1.14.0`, and `bitsandbytes==0.50.1`.
+
+The first compute hypothesis is `g2-standard-12` with one 24 GB NVIDIA L4, one replica, a 200 GB SSD boot disk, and Flex Start. Provisioning wait and execution are each bounded to two hours. This is expected to fit a 4-bit 4B VLM with batch size 1 and checkpointing, but remains an empirical smoke hypothesis; OOM must be recorded and resolved explicitly rather than by silent truncation.
+
+## Preparation, staging, and image workflow
+
+Prepare the deterministic local run from a clean committed checkout:
+
+```bash
+uv run edugraph-classify run prepare \
+  --config experiments/edugraph-20260823-qwen35-4b-vertex-smoke-v1.json
+```
+
+Preparation reads the public Hugging Face dataset release and does not use GCP. Inspect `runs/edugraph-20260823-qwen35-4b-vertex-smoke-v1/manifest.json` before staging.
+
+Staging is an explicit dataset upload and requires the exact run ID:
+
+```bash
+uv run edugraph-classify vertex stage \
+  --manifest runs/edugraph-20260823-qwen35-4b-vertex-smoke-v1/manifest.json \
+  --bucket-uri gs://edugraph-classify \
+  --confirm-run-id edugraph-20260823-qwen35-4b-vertex-smoke-v1
+```
+
+The staging plan verifies every local SHA-256 before upload. Object names include the clean code commit and content hash; create-only generation preconditions prevent overwrite. A retry accepts an existing object only when its size and `edugraph-sha256` metadata match. The resulting runtime manifest pins the prepared manifest, dataset splits, ontology, prompt, schema, model revision, recipe, provider identity, and regional output prefix.
+
+Build the trainer from the repository root, tag it with the clean commit, authenticate Docker to the regional Artifact Registry, and push it. Resolve the uploaded manifest to an immutable digest; never put a tag in a job configuration.
+
+```bash
+docker build -f containers/vertex-trainer/Dockerfile \
+  -t europe-west4-docker.pkg.dev/edugraph-438718/training/vlm:<code-commit> .
+```
+
+After staging and image publication, generate the fixed first-smoke job configuration offline:
+
+```bash
+uv run edugraph-classify vertex configure \
+  --manifest runs/edugraph-20260823-qwen35-4b-vertex-smoke-v1/manifest.json \
+  --staging-record runs/edugraph-20260823-qwen35-4b-vertex-smoke-v1/vertex-staging-record.json \
+  --image-uri europe-west4-docker.pkg.dev/edugraph-438718/training/vlm@sha256:<digest> \
+  --output runs/edugraph-20260823-qwen35-4b-vertex-smoke-v1/vertex-job.json
+```
+
+Then render and review the exact CustomJob request. Submission remains blocked until the local container smoke succeeds, the image digest and request are reviewed, a current cost bound is recorded, and the exact job ID is explicitly confirmed.
+
+Official references: [Qwen3.5-4B model card](https://huggingface.co/Qwen/Qwen3.5-4B), [Transformers Qwen3.5 architecture](https://huggingface.co/docs/transformers/model_doc/qwen3_5), [PEFT QLoRA guidance](https://huggingface.co/docs/peft/developer_guides/quantization), [create a serverless custom job](https://cloud.google.com/vertex-ai/docs/training/create-custom-job), [configure compute](https://cloud.google.com/vertex-ai/docs/training/configure-compute), [Vertex AI locations](https://cloud.google.com/vertex-ai/docs/general/locations), and [Flex Start scheduling](https://cloud.google.com/vertex-ai/docs/training/schedule-jobs-dws).

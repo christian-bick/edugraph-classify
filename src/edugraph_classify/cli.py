@@ -25,6 +25,13 @@ from .providers.vertex import (
     load_vertex_job_config,
 )
 from .training import TrainingConfigError, launch_specs, prepare_run
+from .vertex_artifacts import (
+    GcsArtifactStore,
+    VertexArtifactError,
+    build_vertex_job_config,
+    build_vertex_staging_plan,
+    stage_vertex_run,
+)
 
 
 def run_fireworks_preflight(
@@ -94,6 +101,81 @@ def run_vertex_render(config_path: str) -> tuple[int, dict[str, object]]:
         "job_id": spec.job_id,
         "api_endpoint": spec.api_endpoint,
         "request": request,
+    }
+
+
+def run_vertex_stage(
+    manifest_path: str,
+    bucket_uri: str,
+    confirmation: str,
+    records_root: str,
+    *,
+    client: Any | None = None,
+) -> tuple[int, dict[str, object]]:
+    """Upload one explicitly confirmed prepared run with immutable object semantics."""
+
+    plan = build_vertex_staging_plan(Path(manifest_path), bucket_uri)
+    if confirmation != plan.run_id:
+        raise VertexArtifactError(
+            "staging confirmation must exactly match the prepared run_id"
+        )
+    record_path = Path(records_root) / plan.run_id / "vertex-staging-record.json"
+    plan_identity = {
+        "runtime_manifest_uri": plan.runtime_manifest_uri,
+        "runtime_manifest_sha256": plan.runtime_manifest_sha256,
+    }
+    if record_path.is_file():
+        candidate = json.loads(record_path.read_text(encoding="utf-8"))
+        if not isinstance(candidate, dict) or any(
+            candidate.get(key) != value for key, value in plan_identity.items()
+        ):
+            raise VertexArtifactError("Vertex staging record does not match the upload plan")
+        if candidate.get("status") == "staged":
+            return 0, {**candidate, "staging_record_path": str(record_path)}
+
+    record_path.parent.mkdir(parents=True, exist_ok=True)
+    record: dict[str, object] = {
+        "status": "staging_pending",
+        **plan.to_mapping(),
+        **plan_identity,
+    }
+    _write_launch_record(record_path, record)
+    stage_vertex_run(plan, GcsArtifactStore(client))
+    record["status"] = "staged"
+    _write_launch_record(record_path, record)
+    return 0, {**record, "staging_record_path": str(record_path)}
+
+
+def run_vertex_configure(
+    manifest_path: str,
+    staging_record_path: str,
+    image_uri: str,
+    output_path: str,
+    *,
+    repo_root: Path | None = None,
+    code_commit: str | None = None,
+) -> tuple[int, dict[str, object]]:
+    """Materialize and validate the exact first-smoke Vertex job offline."""
+
+    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    prepared_commit = manifest.get("code_commit") if isinstance(manifest, dict) else None
+    current_commit = code_commit or _code_commit((repo_root or Path.cwd()).resolve())
+    if prepared_commit != current_commit:
+        raise VertexArtifactError(
+            "job configuration requires the same clean commit used for preparation"
+        )
+    config = build_vertex_job_config(
+        Path(manifest_path), Path(staging_record_path), image_uri
+    )
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    _write_launch_record(destination, config)
+    spec = load_vertex_job_config(destination)
+    return 0, {
+        "status": "configured",
+        "job_id": spec.job_id,
+        "config_path": str(destination),
+        "config_sha256": file_sha256(destination),
     }
 
 
@@ -330,6 +412,20 @@ def build_parser() -> argparse.ArgumentParser:
         "render", help="validate and print the exact CustomJob request offline"
     )
     render.add_argument("--config", required=True)
+    stage = vertex_actions.add_parser(
+        "stage", help="upload one explicitly confirmed prepared run to Cloud Storage"
+    )
+    stage.add_argument("--manifest", required=True)
+    stage.add_argument("--bucket-uri", required=True)
+    stage.add_argument("--confirm-run-id", required=True)
+    stage.add_argument("--records-root", default="runs")
+    configure = vertex_actions.add_parser(
+        "configure", help="materialize the exact first-smoke CustomJob configuration offline"
+    )
+    configure.add_argument("--manifest", required=True)
+    configure.add_argument("--staging-record", required=True)
+    configure.add_argument("--image-uri", required=True)
+    configure.add_argument("--output", required=True)
     vertex_launch = vertex_actions.add_parser(
         "launch", help="submit one explicitly confirmed Vertex CustomJob"
     )
@@ -355,6 +451,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.action == "render":
             exit_code, payload = run_vertex_render(args.config)
+        elif args.action == "stage":
+            exit_code, payload = run_vertex_stage(
+                args.manifest,
+                args.bucket_uri,
+                args.confirm_run_id,
+                args.records_root,
+            )
+        elif args.action == "configure":
+            exit_code, payload = run_vertex_configure(
+                args.manifest,
+                args.staging_record,
+                args.image_uri,
+                args.output,
+            )
         else:
             exit_code, payload = run_vertex_launch(
                 args.config,
@@ -369,6 +479,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         TrainingLaunchError,
         VertexConfigError,
         VertexLaunchError,
+        VertexArtifactError,
     ) as error:
         print(json.dumps({"status": "error", "message": str(error)}, indent=2), file=sys.stderr)
         return 2

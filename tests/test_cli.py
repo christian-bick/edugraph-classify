@@ -11,6 +11,7 @@ from edugraph_classify.contracts import ModelIdentity
 from edugraph_classify.preflight import EligibilityStatus
 from edugraph_classify.providers.fireworks import ModelResolutionError, TrainingLaunchError
 from edugraph_classify.providers.vertex import VertexLaunchError
+from edugraph_classify.vertex_artifacts import VertexArtifactError
 from edugraph_classify.training import (
     DatasetUploadSpec,
     ProviderDatasetRecord,
@@ -532,6 +533,67 @@ def test_vertex_launch_collision_and_pending_resume_are_fail_safe(tmp_path: Path
         )
 
 
+def test_vertex_stage_requires_confirmation_and_records_retry_identity(
+    monkeypatch, tmp_path: Path
+) -> None:
+    applied: list[object] = []
+
+    class Plan:
+        run_id = "vertex-smoke"
+        runtime_manifest_uri = "gs://bucket-1/runtime.json"
+        runtime_manifest_sha256 = "d" * 64
+
+        def to_mapping(self) -> dict[str, object]:
+            return {"run_id": self.run_id, "artifacts": []}
+
+    plan = Plan()
+    monkeypatch.setattr(cli, "build_vertex_staging_plan", lambda path, bucket: plan)
+    monkeypatch.setattr(cli, "GcsArtifactStore", lambda client: client)
+    monkeypatch.setattr(cli, "stage_vertex_run", lambda value, writer: applied.append(writer))
+
+    with pytest.raises(VertexArtifactError, match="confirmation"):
+        cli.run_vertex_stage(
+            "manifest.json", "gs://bucket-1", "wrong", str(tmp_path), client=object()
+        )
+
+    client = object()
+    exit_code, payload = cli.run_vertex_stage(
+        "manifest.json", "gs://bucket-1", "vertex-smoke", str(tmp_path), client=client
+    )
+    repeated_code, repeated = cli.run_vertex_stage(
+        "manifest.json", "gs://bucket-1", "vertex-smoke", str(tmp_path), client=client
+    )
+
+    assert exit_code == repeated_code == 0
+    assert payload["status"] == repeated["status"] == "staged"
+    assert applied == [client]
+
+
+def test_vertex_configure_requires_prepared_commit_and_writes_validated_file(
+    monkeypatch, tmp_path: Path
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"code_commit": "a" * 40}), encoding="utf-8")
+    staging = tmp_path / "staging.json"
+    staging.write_text("{}", encoding="utf-8")
+    config = vertex_config()
+    monkeypatch.setattr(cli, "build_vertex_job_config", lambda *args: config)
+
+    with pytest.raises(VertexArtifactError, match="same clean commit"):
+        cli.run_vertex_configure(
+            str(manifest), str(staging), config["container"]["image_uri"],  # type: ignore[index]
+            str(tmp_path / "job.json"), code_commit="b" * 40,
+        )
+
+    exit_code, payload = cli.run_vertex_configure(
+        str(manifest), str(staging), config["container"]["image_uri"],  # type: ignore[index]
+        str(tmp_path / "job.json"), code_commit="a" * 40,
+    )
+    assert exit_code == 0
+    assert payload["status"] == "configured"
+    assert (tmp_path / "job.json").is_file()
+
+
 def test_main_routes_vertex_commands(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         cli, "run_vertex_render", lambda config: (0, {"status": "validated"})
@@ -551,3 +613,30 @@ def test_main_routes_vertex_commands(monkeypatch, capsys) -> None:
         ]
     ) == 0
     assert "launched" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        cli,
+        "run_vertex_stage",
+        lambda manifest, bucket, confirmation, records: (0, {"status": "staged"}),
+    )
+    assert cli.main(
+        [
+            "vertex", "stage", "--manifest", "manifest.json",
+            "--bucket-uri", "gs://bucket-1", "--confirm-run-id", "run-1",
+        ]
+    ) == 0
+    assert "staged" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        cli,
+        "run_vertex_configure",
+        lambda manifest, staging, image, output: (0, {"status": "configured"}),
+    )
+    assert cli.main(
+        [
+            "vertex", "configure", "--manifest", "manifest.json",
+            "--staging-record", "staging.json", "--image-uri",
+            "example.com/vlm@sha256:" + "a" * 64, "--output", "job.json",
+        ]
+    ) == 0
+    assert "configured" in capsys.readouterr().out

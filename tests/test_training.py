@@ -202,6 +202,7 @@ def test_prepare_run_pins_every_identity_and_hashes_generated_artifacts(
             "version": "1",
         },
         "schema": {"path": "schema.json", "schema_id": "labels", "version": "1"},
+        "model": {"repository": "Qwen/Qwen3.5-4B", "revision": "d" * 40},
         "provider": {
             "account_id": "account-1",
             "base_model": "accounts/fireworks/models/qwen3-vl-8b-instruct",
@@ -257,6 +258,7 @@ def test_prepare_run_pins_every_identity_and_hashes_generated_artifacts(
     assert len(manifest["ontology"]["normalized_snapshot_sha256"]) == 64
     assert len(manifest["prompt"]["sha256"]) == 64
     assert len(manifest["schema"]["sha256"]) == 64
+    assert manifest["model"]["revision"] == "d" * 40
 
 
 def test_prepare_run_rejects_uncommitted_identity_and_escaping_paths(tmp_path: Path) -> None:

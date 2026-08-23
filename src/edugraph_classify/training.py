@@ -147,11 +147,12 @@ def load_experiment_config(path: Path) -> Mapping[str, object]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, Mapping):
         raise TrainingConfigError("experiment configuration must be an object")
-    _require_keys(
-        payload,
-        {"run_id", "dataset", "ontology", "prompt", "schema", "provider", "training"},
-        "experiment configuration",
-    )
+    required = {"run_id", "dataset", "ontology", "prompt", "schema", "provider", "training"}
+    if not required.issubset(payload) or not set(payload).issubset(required | {"model"}):
+        raise TrainingConfigError(
+            "experiment configuration must contain exactly the required tracked sections "
+            "and the optional model section"
+        )
     run_id = payload["run_id"]
     if not isinstance(run_id, str):
         raise TrainingConfigError("run_id must be a string")
@@ -261,6 +262,11 @@ def prepare_run(
         "provider": dict(provider_config),
         "training": dict(training_config),
     }
+    model_config = config.get("model")
+    if model_config is not None:
+        if not isinstance(model_config, Mapping):
+            raise TrainingConfigError("model must be an object")
+        manifest["model"] = dict(model_config)
     manifest_path = run_dir / "manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(
