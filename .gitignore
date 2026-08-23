@@ -7,6 +7,9 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
 .mypy_cache/
 .ruff_cache/
 .venv/
@@ -15,15 +18,14 @@ build/
 *.egg-info/
 
 # Generated datasets, model outputs, and reports
-data/
-artifacts/
-runs/
-reports/
-temp/
+/data/
+/artifacts/
+/runs/
+/reports/
+/temp/
 
 # IDE and operating system
 .idea/
 .vscode/
 .DS_Store
 Thumbs.db
-

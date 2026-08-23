@@ -162,6 +162,8 @@ The following decisions define the initial implementation without changing the d
 
 Use the latest public `christian-bick/edugraph-exercises` release on Hugging Face as the baseline source. Resolve the moving release reference to its full immutable Hub commit before conversion and record that commit in every run identity. Use the exact ontology release declared by the dataset; fail closed if its ontology provenance cannot be resolved rather than validating against an unpinned latest ontology.
 
+The initial baseline pair is dataset tag `v0.21.0-01` at commit `ed47264f751a8a67c480dbe4eb7397e317a722eb` with ontology release `v0.21.0`. Treat this pair as run configuration and consume it directly through the dataset library; Hugging Face is a data source, not a classifier provider adapter.
+
 Public dataset discovery and download do not require a Hugging Face credential. Authentication is introduced only if a future source is private or gated, or when an explicit model-publication step is approved.
 
 ### Model capability preflight
@@ -184,6 +186,8 @@ Never overwrite one view with another or attribute deterministic post-processing
 ### Core and adapter boundary
 
 Define provider-neutral request, prediction, model, execution-mode, and run identities in the core package. Provider SDK types remain inside thin adapters. In particular, provider identity and execution mode are independent fields rather than one combined provider-specific state.
+
+The first adapter interface targets managed training providers. Each adapter reports its provider identity and training execution mode explicitly, so a future serverless training surface and Fireworks provider-hosted training can implement the same neutral capability contract without conflating their infrastructure lifecycles.
 
 ### Configuration and secrets
 
