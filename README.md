@@ -8,7 +8,7 @@ The accepted architecture and experiment rationale are recorded in [Project kick
 
 ## Status
 
-Provider-neutral identities, dimension-aware conversion, pinned ontology validation, deterministic Fireworks VLM JSONL generation, guarded managed-training operations, and read-only model preflight are in place. The first tracked experiment is configured but no training job or deployment has been launched.
+Provider-neutral identities, dimension-aware conversion, pinned ontology validation, deterministic Fireworks VLM JSONL generation, guarded managed-training operations, and read-only model preflight are in place. The technical smoke datasets reached `READY`, but Fireworks rejected Qwen3-VL-8B-Instruct at managed-job creation as unsupported. No training job, output model, or deployment was created.
 
 ## Development
 

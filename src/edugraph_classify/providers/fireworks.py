@@ -217,11 +217,6 @@ class FireworksTrainingProvider:
             account_id=spec.account_id,
             file=spec.path,
         )
-        self._client.datasets.validate_upload(
-            spec.dataset_id,
-            account_id=spec.account_id,
-            body={},
-        )
 
         deadline = time.monotonic() + timeout_seconds
         while True:

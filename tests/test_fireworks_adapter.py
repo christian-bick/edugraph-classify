@@ -220,7 +220,7 @@ def test_training_boundary_validates_uploads_and_maps_launch_records(tmp_path: P
     resumed_job = adapter.get_supervised_fine_tuning_job(job)
 
     assert observed.name == upload.resource_name
-    assert [call[0] for call in datasets.calls] == ["create", "upload", "validate"]
+    assert [call[0] for call in datasets.calls] == ["create", "upload"]
     assert datasets.calls[1][1][1]["file"] == upload.path
     assert jobs.create_kwargs is not None
     assert jobs.create_kwargs["eval_auto_carveout"] is False
