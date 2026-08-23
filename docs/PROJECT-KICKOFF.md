@@ -153,3 +153,42 @@ The first implementation phase should establish only what is needed to run and e
 5. evaluate the untuned and fine-tuned model with the same set-based metrics.
 
 Implementation details that do not affect these durable boundaries can be decided as they arise and documented at the point they become real decisions.
+
+## 11. Accepted implementation defaults
+
+The following decisions define the initial implementation without changing the durable architecture above.
+
+### Data and ontology pinning
+
+Use the latest public `christian-bick/edugraph-exercises` release on Hugging Face as the baseline source. Resolve the moving release reference to its full immutable Hub commit before conversion and record that commit in every run identity. Use the exact ontology release declared by the dataset; fail closed if its ontology provenance cannot be resolved rather than validating against an unpinned latest ontology.
+
+Public dataset discovery and download do not require a Hugging Face credential. Authentication is introduced only if a future source is private or gated, or when an explicit model-publication step is approved.
+
+### Model capability preflight
+
+Resolve the exact Fireworks model identity behind the Qwen3.5-9B hypothesis through a live, read-only capability check. Eligibility requires vision inference plus a compatible fine-tuning surface reporting `Tunable: true`. If no eligible checkpoint exists, stop and report the observed capabilities and alternatives; do not silently substitute a nearby model.
+
+### Prediction contract
+
+Use a dimension-aware response with `areas`, `scopes`, and `abilities` arrays. The arrays have set semantics and canonical serialization uses a fixed property order plus deterministic identifier ordering.
+
+Preserve four distinct prediction views:
+
+1. **Raw:** the provider response and relevant response metadata exactly as received.
+2. **Parsed:** the structured explicit labels extracted from the raw response.
+3. **Canonical:** the validated, deterministically ordered explicit label set after documented cleanup.
+4. **Derived:** separately computed ontology closure or other logically derived facts.
+
+Never overwrite one view with another or attribute deterministic post-processing gains to the model.
+
+### Core and adapter boundary
+
+Define provider-neutral request, prediction, model, execution-mode, and run identities in the core package. Provider SDK types remain inside thin adapters. In particular, provider identity and execution mode are independent fields rather than one combined provider-specific state.
+
+### Configuration and secrets
+
+Load local `.env` configuration explicitly at application entry points without overriding environment variables already supplied by the process. Never print, persist, or include secret values in errors, manifests, reports, or fixtures. `FIREWORKS_API_KEY` is used only by the Fireworks boundary.
+
+### Test tooling
+
+Manage pytest and coverage tooling through uv and keep `pyproject.toml` and `uv.lock` synchronized. Production provider calls are tested with fakes or recorded non-secret fixtures, while live checks remain explicit read-only integration operations.
