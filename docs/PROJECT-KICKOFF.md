@@ -207,6 +207,8 @@ With explicit approval, the first executable baseline is `accounts/fireworks/mod
 
 The tracked experiment is `experiments/edugraph-20260823-qwen3vl8b-sft-v1.json`. It uses all 1,602 official training examples and all 356 official validation examples from the pinned release. Each assistant target is canonical JSON with separate `areas`, `scopes`, and `abilities` arrays; images are embedded in the provider's multimodal chat format after integrity, type, size, path, split, ontology, and duplicate checks.
 
+Exact image duplicates are treated according to their effect on the experiment contract. A duplicate crossing the official train/validation boundary fails preparation because it would leak evaluation input. Records duplicated within one official split are preserved rather than changing upstream gold data; the profile records every duplicate group and whether its gold label sets conflict. Such conflicts are upstream-data diagnostics and must be considered when interpreting achievable exact-set accuracy.
+
 The first training shape is deliberately conservative:
 
 - supervised LoRA, one epoch, rank 8;

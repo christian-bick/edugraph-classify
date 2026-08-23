@@ -260,7 +260,8 @@ def convert_dataset(
 
     expected_uri_prefix = f"hf://datasets/{repo_id}@{revision}/"
     seen_paths: set[str] = set()
-    seen_hashes: dict[str, str] = {}
+    seen_hashes: dict[str, ConvertedExample] = {}
+    duplicate_groups: dict[str, list[ConvertedExample]] = {}
     split_artifacts: list[SplitArtifact] = []
     profile: dict[str, Any] = {
         "splits": {},
@@ -301,10 +302,17 @@ def convert_dataset(
                             seen_paths.add(example.source.source_path)
                             prior = seen_hashes.get(example.image_sha256)
                             if prior is not None:
-                                raise DatasetConversionError(
-                                    f"duplicate image bytes for {example.source.source_path!r} and {prior!r}"
-                                )
-                            seen_hashes[example.image_sha256] = example.source.source_path
+                                if prior.source.split != example.source.split:
+                                    raise DatasetConversionError(
+                                        "cross-split duplicate image bytes for "
+                                        f"{example.source.source_path!r} and "
+                                        f"{prior.source.source_path!r}"
+                                    )
+                                duplicate_groups.setdefault(
+                                    example.image_sha256, [prior]
+                                ).append(example)
+                            else:
+                                seen_hashes[example.image_sha256] = example
 
                             output.write(_canonical_line(example.provider_record))
                             manifest.write(
@@ -361,6 +369,32 @@ def convert_dataset(
                         jsonl_size=split_path.stat().st_size,
                     )
                 )
+
+        duplicate_details = []
+        for image_sha256, examples in sorted(duplicate_groups.items()):
+            label_variants = {example.labels.to_json() for example in examples}
+            duplicate_details.append(
+                {
+                    "image_sha256": image_sha256,
+                    "split": examples[0].source.split,
+                    "source_paths": sorted(
+                        example.source.source_path for example in examples
+                    ),
+                    "record_count": len(examples),
+                    "conflicting_gold_labels": len(label_variants) > 1,
+                }
+            )
+        profile["duplicate_images"] = {
+            "within_split_groups": len(duplicate_details),
+            "additional_records": sum(
+                detail["record_count"] - 1 for detail in duplicate_details
+            ),
+            "conflicting_gold_label_groups": sum(
+                bool(detail["conflicting_gold_labels"])
+                for detail in duplicate_details
+            ),
+            "groups": duplicate_details,
+        }
 
         temporary[profile_path].write_text(
             json.dumps(profile, ensure_ascii=False, indent=2, sort_keys=True) + "\n",

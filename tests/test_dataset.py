@@ -93,7 +93,7 @@ def test_conversion_is_deterministic_and_keeps_dimension_aware_targets(tmp_path:
     )
 
 
-def test_conversion_fails_closed_on_duplicate_bytes_and_unpinned_paths(tmp_path: Path) -> None:
+def test_conversion_fails_closed_on_cross_split_duplicate_bytes(tmp_path: Path) -> None:
     duplicate = row("validation", 0, 1)
     splits = {
         "train": [row("train", 0, 1), row("train", 1, 2), row("train", 2, 3)],
@@ -108,6 +108,51 @@ def test_conversion_fails_closed_on_duplicate_bytes_and_unpinned_paths(tmp_path:
             prompt=prompt(),
             output_dir=tmp_path / "duplicate",
         )
+
+
+def test_conversion_preserves_and_reports_within_split_gold_conflicts(
+    tmp_path: Path,
+) -> None:
+    conflicting = row("train", 1, 1)
+    conflicting["tags"] = ["Addition", "ConceptClassification"]
+    result = convert_dataset(
+        {
+            "train": [row("train", 0, 1), conflicting, row("train", 2, 2)],
+            "validation": [
+                row("validation", 0, 3),
+                row("validation", 1, 4),
+                row("validation", 2, 5),
+            ],
+        },
+        repo_id=REPO,
+        revision=REVISION,
+        catalog=OntologyCatalog.load("0.21.0"),
+        prompt=prompt(),
+        output_dir=tmp_path / "within-split",
+    )
+
+    profile = json.loads(Path(result.profile_path).read_text(encoding="utf-8"))
+    assert profile["duplicate_images"] == {
+        "within_split_groups": 1,
+        "additional_records": 1,
+        "conflicting_gold_label_groups": 1,
+        "groups": [
+            {
+                "image_sha256": profile["duplicate_images"]["groups"][0][
+                    "image_sha256"
+                ],
+                "split": "train",
+                "source_paths": sorted(
+                    [
+                        row("train", 0, 1)["image"]["path"],
+                        conflicting["image"]["path"],
+                    ]
+                ),
+                "record_count": 2,
+                "conflicting_gold_labels": True,
+            }
+        ],
+    }
 
 
 @pytest.mark.parametrize(
