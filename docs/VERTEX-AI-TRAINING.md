@@ -27,7 +27,9 @@ The project must have the Vertex AI API enabled. The chosen region also needs su
 
 The initial GCP project is `edugraph-438718` and the existing, currently empty staging bucket is `gs://edugraph-classify`. The bucket location is user-confirmed as `europe-west4`, matching the selected Vertex region. The first output prefix will therefore be `gs://edugraph-classify/runs/<job-id>`.
 
-The proposed dedicated runtime identity is `vertex-training@edugraph-438718.iam.gserviceaccount.com`, and the proposed same-region Artifact Registry repository is `europe-west4-docker.pkg.dev/edugraph-438718/training`. These are target names only until a read-only project inspection confirms whether they already exist. Creating them, enabling APIs, or changing IAM remains a separately confirmed external mutation.
+The dedicated runtime identity will be `vertex-training@edugraph-438718.iam.gserviceaccount.com`, and the same-region Artifact Registry repository will be `europe-west4-docker.pkg.dev/edugraph-438718/training`. A live read-only inspection confirmed that neither resource exists yet. Creating them or changing IAM remains a separately confirmed external mutation.
+
+The same inspection confirmed that Vertex AI, Artifact Registry, and Cloud Storage APIs are enabled. Host Application Default Credentials are available, and the authenticated principal has the required project permissions to create/get/list CustomJobs, consume service quota, and upload Artifact Registry content, plus create/get/list object access on the staging bucket. The bucket uses uniform bucket-level access with public-access prevention enforced. No cloud resource or policy was changed during inspection.
 
 ## Resolved job configuration
 
