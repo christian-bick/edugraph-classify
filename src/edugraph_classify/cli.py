@@ -4,13 +4,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from collections.abc import Sequence
+from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 from .configuration import load_local_environment
+from .dataset import DatasetConversionError, file_sha256
 from .preflight import EligibilityStatus, PreflightError
-from .providers.fireworks import FireworksTrainingProvider
+from .providers.fireworks import (
+    FireworksTrainingProvider,
+    TrainingLaunchError,
+)
+from .training import TrainingConfigError, launch_specs, prepare_run
 
 
 def run_fireworks_preflight(
@@ -29,6 +37,113 @@ def run_fireworks_preflight(
     return exit_code, result.to_mapping()
 
 
+def _code_commit(repo_root: Path) -> str:
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    if status.strip():
+        raise TrainingConfigError("run preparation requires a clean committed worktree")
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def run_prepare(
+    config_path: str,
+    runs_root: str,
+    workers: int,
+    *,
+    repo_root: Path | None = None,
+    code_commit: str | None = None,
+) -> tuple[int, dict[str, object]]:
+    root = (repo_root or Path.cwd()).resolve()
+    commit = code_commit or _code_commit(root)
+    prepared = prepare_run(
+        Path(config_path),
+        repo_root=root,
+        runs_root=Path(runs_root),
+        code_commit=commit,
+        workers=workers,
+    )
+    return 0, prepared.to_mapping()
+
+
+def _write_launch_record(path: Path, payload: dict[str, object]) -> None:
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    temporary.replace(path)
+
+
+def run_launch(
+    manifest_path: str,
+    confirmation: str,
+    env_file: str,
+    *,
+    client: Any | None = None,
+    repo_root: Path | None = None,
+    code_commit: str | None = None,
+) -> tuple[int, dict[str, object]]:
+    path = Path(manifest_path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    run_id = manifest.get("run_id")
+    if not isinstance(run_id, str) or confirmation != run_id:
+        raise TrainingLaunchError("launch confirmation must exactly match the prepared run_id")
+    prepared_commit = manifest.get("code_commit")
+    current_commit = code_commit or _code_commit((repo_root or Path.cwd()).resolve())
+    if not isinstance(prepared_commit, str) or current_commit != prepared_commit:
+        raise TrainingLaunchError(
+            "launch requires the same clean code commit recorded during preparation"
+        )
+    uploads, job_spec = launch_specs(path)
+
+    load_local_environment(env_file)
+    if client is None:
+        from fireworks import Fireworks
+
+        client = Fireworks()
+    provider = FireworksTrainingProvider(client)
+    preflight = provider.preflight_model(job_spec.base_model.rsplit("/", 1)[-1])
+    if preflight.status is not EligibilityStatus.ELIGIBLE:
+        raise TrainingLaunchError("base model failed the final live eligibility preflight")
+    if preflight.capabilities.identity.model_id != job_spec.base_model:
+        raise TrainingLaunchError("live preflight resolved a different base model")
+    provider.validate_launch_targets(uploads, job_spec)
+
+    record_path = path.parent / "launch-record.json"
+    record: dict[str, object] = {
+        "run_id": run_id,
+        "manifest_sha256": file_sha256(path),
+        "status": "validated",
+        "datasets": [],
+    }
+    _write_launch_record(record_path, record)
+    dataset_records: list[dict[str, object]] = []
+    for upload in uploads:
+        observed = provider.upload_dataset(upload)
+        dataset_records.append({"split": upload.split, **asdict(observed)})
+        record["status"] = "datasets_uploading"
+        record["datasets"] = dataset_records
+        _write_launch_record(record_path, record)
+
+    job = provider.launch_supervised_fine_tuning(job_spec)
+    record["status"] = "launched"
+    record["job"] = job.to_mapping()
+    _write_launch_record(record_path, record)
+    return 0, {**record, "launch_record_path": str(record_path)}
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="edugraph-classify")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -36,22 +151,46 @@ def build_parser() -> argparse.ArgumentParser:
     targets = preflight.add_subparsers(dest="target", required=True)
 
     fireworks = targets.add_parser("fireworks", help="inspect a Fireworks model hypothesis")
-    fireworks.add_argument("--hypothesis", default="Qwen3.5-9B")
+    fireworks.add_argument("--hypothesis", default="Qwen3-VL-8B-Instruct")
     fireworks.add_argument("--env-file", default=".env")
+
+    run = commands.add_parser("run", help="prepare or launch a pinned experiment")
+    actions = run.add_subparsers(dest="action", required=True)
+    prepare = actions.add_parser("prepare", help="convert and validate provider-ready data")
+    prepare.add_argument(
+        "--config",
+        default="experiments/edugraph-20260823-qwen3vl8b-sft-v1.json",
+    )
+    prepare.add_argument("--runs-root", default="runs")
+    prepare.add_argument("--workers", type=int, default=8)
+
+    launch = actions.add_parser("launch", help="upload data and launch one authorized SFT job")
+    launch.add_argument("--manifest", required=True)
+    launch.add_argument("--confirm-run-id", required=True)
+    launch.add_argument("--env-file", default=".env")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        exit_code, payload = run_fireworks_preflight(args.hypothesis, args.env_file)
-    except PreflightError as error:
+        if args.command == "preflight":
+            exit_code, payload = run_fireworks_preflight(args.hypothesis, args.env_file)
+        elif args.action == "prepare":
+            exit_code, payload = run_prepare(args.config, args.runs_root, args.workers)
+        else:
+            exit_code, payload = run_launch(
+                args.manifest,
+                args.confirm_run_id,
+                args.env_file,
+            )
+    except (PreflightError, DatasetConversionError, TrainingConfigError, TrainingLaunchError) as error:
         print(json.dumps({"status": "error", "message": str(error)}, indent=2), file=sys.stderr)
         return 2
     except Exception as error:  # Provider SDK errors must never expose request configuration.
         payload = {
             "status": "error",
-            "message": f"preflight failed with {type(error).__name__}",
+            "message": f"command failed with {type(error).__name__}",
         }
         print(json.dumps(payload, indent=2), file=sys.stderr)
         return 1

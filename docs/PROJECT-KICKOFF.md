@@ -1,10 +1,12 @@
 # EduGraph classifier: kickoff brief
 
-Status: accepted starting direction
+Status: accepted direction; first executable baseline selected
 
 Initial model hypothesis: Qwen3.5-9B
 
 Initial managed provider: Fireworks AI
+
+First executable baseline: Qwen3-VL-8B-Instruct
 
 ## 1. Core decision
 
@@ -196,3 +198,20 @@ Load local `.env` configuration explicitly at application entry points without o
 ### Test tooling
 
 Manage pytest and coverage tooling through uv and keep `pyproject.toml` and `uv.lock` synchronized. Production provider calls are tested with fakes or recorded non-secret fixtures, while live checks remain explicit read-only integration operations.
+
+## 12. First executable baseline decision (2026-08-23)
+
+The original Qwen3.5-9B hypothesis failed the required live Fireworks preflight because the catalog did not report `Tunable: true`. The subsequently requested Qwen3 4B checkpoint was tunable but text-only, so it could not consume the released task images. Neither checkpoint was silently substituted.
+
+With explicit approval, the first executable baseline is `accounts/fireworks/models/qwen3-vl-8b-instruct`. The live catalog check confirmed vision input, `Tunable: true`, LoRA support, and supervised LoRA eligibility. It did not report serverless inference support, so any later inference deployment is a distinct provider-dedicated and cost-incurring decision outside this run.
+
+The tracked experiment is `experiments/edugraph-20260823-qwen3vl8b-sft-v1.json`. It uses all 1,602 official training examples and all 356 official validation examples from the pinned release. Each assistant target is canonical JSON with separate `areas`, `scopes`, and `abilities` arrays; images are embedded in the provider's multimodal chat format after integrity, type, size, path, split, ontology, and duplicate checks.
+
+The first training shape is deliberately conservative:
+
+- supervised LoRA, one epoch, rank 8;
+- provider-selected learning rate and maximum context length, with the resolved values captured from the created job;
+- the official validation split supplied explicitly, with early stopping and automatic validation carveout disabled;
+- unique Fireworks dataset, job, and output-model identifiers so existing resources are never overwritten.
+
+Preparation and launch are separate operations. Preparation is offline with respect to Fireworks, needs no Hugging Face credential for this public dataset, records a clean code commit plus all source and output hashes, and stores generated files only under gitignored `runs/`. Launch reloads `FIREWORKS_API_KEY` at the application boundary without logging it, repeats the exact-model capability check, verifies artifact hashes and resource collisions, then uploads the two datasets and starts one job. Launch does not deploy or publish the trained model.

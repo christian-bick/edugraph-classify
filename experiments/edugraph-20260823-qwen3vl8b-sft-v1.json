@@ -1,0 +1,44 @@
+{
+  "run_id": "edugraph-20260823-qwen3vl8b-sft-v1",
+  "dataset": {
+    "repository": "christian-bick/edugraph-exercises",
+    "release_tag": "v0.21.0-01",
+    "revision": "ed47264f751a8a67c480dbe4eb7397e317a722eb",
+    "splits": ["train", "validation"]
+  },
+  "ontology": {
+    "package": "edugraph-py",
+    "version": "0.21.0",
+    "release_asset_sha256": "e8de8f2559bb298da7e2048512c0cab629bf43b8919c02f3f5282f6ad932bcde"
+  },
+  "prompt": {
+    "path": "prompts/direct-label-v1.json",
+    "prompt_id": "direct-label",
+    "version": "1"
+  },
+  "schema": {
+    "path": "schemas/dimension-labels-v1.json",
+    "schema_id": "dimension-labels",
+    "version": "1"
+  },
+  "provider": {
+    "provider_id": "fireworks",
+    "account_id": "christian-bick-91boy",
+    "training_execution_mode": "provider_dedicated",
+    "base_model": "accounts/fireworks/models/qwen3-vl-8b-instruct",
+    "training_dataset_id": "edugraph-20260823-direct-v1-train",
+    "evaluation_dataset_id": "edugraph-20260823-direct-v1-validation",
+    "job_id": "edugraph-20260823-qwen3vl8b-sft-v1",
+    "output_model_id": "edugraph-20260823-qwen3vl8b-direct-v1"
+  },
+  "training": {
+    "method": "supervised_lora",
+    "epochs": 1,
+    "lora_rank": 8,
+    "learning_rate": "provider_default",
+    "max_context_length": "provider_default",
+    "early_stop": false,
+    "eval_auto_carveout": false,
+    "wandb": false
+  }
+}

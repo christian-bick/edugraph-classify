@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 import re
+import time
 from collections.abc import Iterable
 from typing import Protocol
 
 from ..contracts import ExecutionMode, ModelIdentity
 from ..preflight import ModelCapabilities, ModelPreflight, PreflightError, assess_model
+from ..training import (
+    DatasetUploadSpec,
+    ProviderDatasetRecord,
+    SupervisedFineTuningSpec,
+    TrainingJobRecord,
+    file_sha256,
+)
 
 
 class ModelResource(Protocol):
@@ -18,10 +26,16 @@ class ModelResource(Protocol):
 
 class FireworksClient(Protocol):
     models: ModelResource
+    datasets: object
+    supervised_fine_tuning_jobs: object
 
 
 class ModelResolutionError(PreflightError):
     """Raised when a model hypothesis cannot be resolved unambiguously."""
+
+
+class TrainingLaunchError(RuntimeError):
+    """Raised when a guarded Fireworks upload or launch cannot proceed safely."""
 
 
 def _normalized_model_name(value: str) -> str:
@@ -112,3 +126,132 @@ class FireworksTrainingProvider:
             model_ids = ", ".join(match.model_id for match in matches)
             raise ModelResolutionError(f"Fireworks model hypothesis {hypothesis!r} is ambiguous: {model_ids}")
         return assess_model(self.inspect(matches[0]), self.training_execution_mode)
+
+    def validate_launch_targets(
+        self,
+        uploads: tuple[DatasetUploadSpec, ...],
+        job: SupervisedFineTuningSpec,
+    ) -> None:
+        if any(upload.account_id != job.account_id for upload in uploads):
+            raise TrainingLaunchError("all launch resources must use the same Fireworks account")
+        for upload in uploads:
+            if not upload.path.is_file():
+                raise TrainingLaunchError(f"prepared dataset is missing: {upload.path}")
+            if file_sha256(upload.path) != upload.sha256:
+                raise TrainingLaunchError(f"prepared dataset hash changed: {upload.path}")
+
+        existing = {
+            getattr(item, "name", None)
+            for item in self._client.datasets.list(account_id=job.account_id, page_size=200)
+        }
+        existing.update(
+            getattr(item, "name", None)
+            for item in self._client.supervised_fine_tuning_jobs.list(
+                account_id=job.account_id, page_size=200
+            )
+        )
+        existing.update(
+            getattr(item, "name", None)
+            for item in self._client.models.list(account_id=job.account_id, page_size=200)
+        )
+        targets = {
+            *(upload.resource_name for upload in uploads),
+            f"accounts/{job.account_id}/supervisedFineTuningJobs/{job.job_id}",
+            job.output_model_name,
+        }
+        collisions = sorted(target for target in targets if target in existing)
+        if collisions:
+            raise TrainingLaunchError(
+                f"refusing to overwrite existing Fireworks resources: {', '.join(collisions)}"
+            )
+
+    def upload_dataset(
+        self,
+        spec: DatasetUploadSpec,
+        *,
+        timeout_seconds: float = 300,
+        poll_interval_seconds: float = 5,
+    ) -> ProviderDatasetRecord:
+        self._client.datasets.create(
+            account_id=spec.account_id,
+            dataset_id=spec.dataset_id,
+            dataset={
+                "display_name": spec.display_name,
+                "example_count": str(spec.example_count),
+                "format": "CHAT",
+                "user_uploaded": {},
+            },
+        )
+        self._client.datasets.upload(
+            spec.dataset_id,
+            account_id=spec.account_id,
+            file=(spec.path.name, spec.path, "application/jsonl"),
+        )
+        self._client.datasets.validate_upload(
+            spec.dataset_id,
+            account_id=spec.account_id,
+            body={},
+        )
+
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            observed = self._client.datasets.get(spec.dataset_id, account_id=spec.account_id)
+            state = getattr(observed, "state", None)
+            status = getattr(observed, "status", None)
+            status_code = getattr(status, "code", None)
+            if state == "READY":
+                count = getattr(observed, "example_count", None)
+                return ProviderDatasetRecord(
+                    name=getattr(observed, "name", spec.resource_name),
+                    state=state,
+                    example_count=int(count) if isinstance(count, str) and count.isdigit() else None,
+                )
+            if status_code not in {None, "OK"}:
+                message = getattr(status, "message", "dataset validation failed")
+                raise TrainingLaunchError(f"Fireworks rejected {spec.dataset_id}: {message}")
+            if time.monotonic() >= deadline:
+                raise TrainingLaunchError(
+                    f"Fireworks dataset {spec.dataset_id} did not become ready in time"
+                )
+            time.sleep(poll_interval_seconds)
+
+    def launch_supervised_fine_tuning(
+        self,
+        spec: SupervisedFineTuningSpec,
+    ) -> TrainingJobRecord:
+        job = self._client.supervised_fine_tuning_jobs.create(
+            account_id=spec.account_id,
+            supervised_fine_tuning_job_id=spec.job_id,
+            dataset=spec.training_dataset,
+            evaluation_dataset=spec.evaluation_dataset,
+            base_model=spec.base_model,
+            output_model=spec.output_model_id,
+            display_name=spec.display_name,
+            epochs=spec.epochs,
+            lora_rank=spec.lora_rank,
+            early_stop=spec.early_stop,
+            eval_auto_carveout=spec.eval_auto_carveout,
+        )
+        status = getattr(job, "status", None)
+        estimated_cost = getattr(job, "estimated_cost", None)
+        return TrainingJobRecord(
+            name=getattr(
+                job,
+                "name",
+                f"accounts/{spec.account_id}/supervisedFineTuningJobs/{spec.job_id}",
+            ),
+            state=getattr(job, "state", None),
+            base_model=getattr(job, "base_model", None),
+            output_model=getattr(job, "output_model", None),
+            dataset=getattr(job, "dataset", None),
+            evaluation_dataset=getattr(job, "evaluation_dataset", None),
+            epochs=getattr(job, "epochs", None),
+            lora_rank=getattr(job, "lora_rank", None),
+            learning_rate=getattr(job, "learning_rate", None),
+            max_context_length=getattr(job, "max_context_length", None),
+            estimated_cost=(
+                float(estimated_cost) if isinstance(estimated_cost, (float, int, str)) else None
+            ),
+            status_code=getattr(status, "code", None),
+            status_message=getattr(status, "message", None),
+        )

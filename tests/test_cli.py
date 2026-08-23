@@ -6,7 +6,16 @@ from types import SimpleNamespace
 import pytest
 
 from edugraph_classify import cli
-from edugraph_classify.providers.fireworks import ModelResolutionError
+from edugraph_classify.contracts import ModelIdentity
+from edugraph_classify.preflight import EligibilityStatus
+from edugraph_classify.providers.fireworks import ModelResolutionError, TrainingLaunchError
+from edugraph_classify.training import (
+    DatasetUploadSpec,
+    ProviderDatasetRecord,
+    SupervisedFineTuningSpec,
+    TrainingConfigError,
+    TrainingJobRecord,
+)
 
 
 def test_fireworks_preflight_loads_env_and_returns_fail_closed_status(
@@ -46,8 +55,12 @@ def test_fireworks_preflight_loads_env_and_returns_fail_closed_status(
 
 def test_parser_defaults_to_accepted_provider_hypothesis() -> None:
     args = cli.build_parser().parse_args(["preflight", "fireworks"])
-    assert args.hypothesis == "Qwen3.5-9B"
+    assert args.hypothesis == "Qwen3-VL-8B-Instruct"
     assert args.env_file == ".env"
+
+    args = cli.build_parser().parse_args(["run", "prepare"])
+    assert args.workers == 8
+    assert args.runs_root == "runs"
 
 
 def test_main_prints_payload_and_preserves_preflight_exit_code(monkeypatch, capsys) -> None:
@@ -82,3 +95,169 @@ def test_main_reports_safe_known_and_unexpected_errors(monkeypatch, capsys) -> N
 def test_main_requires_a_subcommand() -> None:
     with pytest.raises(SystemExit):
         cli.main([])
+
+
+def test_code_commit_requires_a_clean_worktree(monkeypatch, tmp_path: Path) -> None:
+    responses = iter([SimpleNamespace(stdout=""), SimpleNamespace(stdout="a" * 40 + "\n")])
+    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: next(responses))
+    assert cli._code_commit(tmp_path) == "a" * 40
+
+    monkeypatch.setattr(
+        cli.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=" M tracked.py\n"),
+    )
+    with pytest.raises(TrainingConfigError, match="clean committed"):
+        cli._code_commit(tmp_path)
+
+
+def test_run_prepare_passes_a_pinned_commit_to_preparation(monkeypatch, tmp_path: Path) -> None:
+    observed: dict[str, object] = {}
+
+    class Prepared:
+        def to_mapping(self) -> dict[str, object]:
+            return {"run_id": "run-1"}
+
+    def fake_prepare(path: Path, **kwargs: object) -> Prepared:
+        observed.update({"path": path, **kwargs})
+        return Prepared()
+
+    monkeypatch.setattr(cli, "prepare_run", fake_prepare)
+    exit_code, payload = cli.run_prepare(
+        "experiment.json",
+        str(tmp_path / "runs"),
+        3,
+        repo_root=tmp_path,
+        code_commit="a" * 40,
+    )
+
+    assert exit_code == 0
+    assert payload == {"run_id": "run-1"}
+    assert observed["code_commit"] == "a" * 40
+    assert observed["workers"] == 3
+
+
+def test_run_launch_requires_exact_confirmation_and_records_external_ids(
+    monkeypatch, tmp_path: Path
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        '{"run_id":"run-1","code_commit":"' + "a" * 40 + '"}',
+        encoding="utf-8",
+    )
+    artifact = tmp_path / "train.jsonl"
+    artifact.write_text("{}\n{}\n{}\n", encoding="utf-8")
+    uploads = tuple(
+        DatasetUploadSpec(
+            account_id="account-1",
+            dataset_id=f"{split}-1",
+            display_name=split,
+            split=split,
+            path=artifact,
+            example_count=3,
+            sha256="a" * 64,
+        )
+        for split in ("train", "validation")
+    )
+    job_spec = SupervisedFineTuningSpec(
+        account_id="account-1",
+        job_id="job-1",
+        display_name="run-1",
+        base_model="accounts/fireworks/models/qwen3-vl-8b-instruct",
+        output_model_id="model-1",
+        training_dataset=uploads[0].resource_name,
+        evaluation_dataset=uploads[1].resource_name,
+        epochs=1,
+        lora_rank=8,
+        early_stop=False,
+        eval_auto_carveout=False,
+    )
+    monkeypatch.setattr(cli, "launch_specs", lambda path: (uploads, job_spec))
+
+    class Provider:
+        def __init__(self, client: object) -> None:
+            self.client = client
+
+        def preflight_model(self, hypothesis: str) -> SimpleNamespace:
+            return SimpleNamespace(
+                status=EligibilityStatus.ELIGIBLE,
+                capabilities=SimpleNamespace(
+                    identity=ModelIdentity("fireworks", job_spec.base_model)
+                ),
+            )
+
+        def validate_launch_targets(self, *args: object) -> None:
+            return None
+
+        def upload_dataset(self, upload: DatasetUploadSpec) -> ProviderDatasetRecord:
+            return ProviderDatasetRecord(upload.resource_name, "READY", 3)
+
+        def launch_supervised_fine_tuning(
+            self, spec: SupervisedFineTuningSpec
+        ) -> TrainingJobRecord:
+            return TrainingJobRecord(
+                name="accounts/account-1/supervisedFineTuningJobs/job-1",
+                state="JOB_STATE_CREATING",
+                base_model=spec.base_model,
+                output_model=spec.output_model_name,
+                dataset=spec.training_dataset,
+                evaluation_dataset=spec.evaluation_dataset,
+                epochs=1,
+                lora_rank=8,
+                learning_rate=0.0001,
+                max_context_length=32768,
+                estimated_cost=3.0,
+                status_code="OK",
+                status_message="",
+            )
+
+    monkeypatch.setattr(cli, "FireworksTrainingProvider", Provider)
+
+    with pytest.raises(TrainingLaunchError, match="confirmation"):
+        cli.run_launch(
+            str(manifest), "wrong", ".env", client=object(), code_commit="a" * 40
+        )
+
+    with pytest.raises(TrainingLaunchError, match="same clean code commit"):
+        cli.run_launch(
+            str(manifest), "run-1", ".env", client=object(), code_commit="b" * 40
+        )
+
+    exit_code, payload = cli.run_launch(
+        str(manifest), "run-1", ".env", client=object(), code_commit="a" * 40
+    )
+
+    assert exit_code == 0
+    assert payload["status"] == "launched"
+    assert payload["job"]["estimated_cost"] == 3.0
+    assert (tmp_path / "launch-record.json").is_file()
+
+
+def test_main_routes_prepare_and_launch_commands(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        cli,
+        "run_prepare",
+        lambda config, runs_root, workers: (0, {"status": "prepared"}),
+    )
+    assert cli.main(["run", "prepare"]) == 0
+    assert "prepared" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        cli,
+        "run_launch",
+        lambda manifest, confirmation, env_file: (0, {"status": "launched"}),
+    )
+    assert (
+        cli.main(
+            [
+                "run",
+                "launch",
+                "--manifest",
+                "manifest.json",
+                "--confirm-run-id",
+                "run-1",
+            ]
+        )
+        == 0
+    )
+    assert "launched" in capsys.readouterr().out

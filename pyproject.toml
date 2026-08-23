@@ -6,7 +6,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "datasets>=5.0.1",
+    "edugraph-py",
     "fireworks-ai>=1.2.9",
+    "fsspec>=2026.6.0",
+    "pillow>=12.3.0",
     "python-dotenv>=1.2.3",
 ]
 classifiers = ["Private :: Do Not Upload"]
@@ -37,3 +40,6 @@ omit = ["*/__main__.py"]
 fail_under = 95
 show_missing = true
 skip_covered = true
+
+[tool.uv.sources]
+edugraph-py = { url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.21.0/edugraph_py-0.21.0-py3-none-any.whl" }

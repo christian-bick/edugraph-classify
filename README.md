@@ -2,13 +2,13 @@
 
 Training and evaluation tooling for direct ontology labeling of atomic educational tasks with vision-language models.
 
-The first project milestone is a direct-labeling baseline using Qwen3.5-9B as the starting model hypothesis and Fireworks AI as the initial managed provider. Managed-training adapters keep data preparation and evaluation independent from provider APIs, while execution mode remains explicit across serverless, provider-dedicated, and self-hosted paths. The repository will not own dataset generation or ontology authoring.
+The first project milestone is a direct-labeling baseline using Qwen3-VL-8B-Instruct and Fireworks AI. Managed-training adapters keep data preparation and evaluation independent from provider APIs, while execution mode remains explicit across serverless, provider-dedicated, and self-hosted paths. The repository does not own dataset generation or ontology authoring.
 
 The accepted architecture and experiment rationale are recorded in [Project kickoff and baseline decision](docs/PROJECT-KICKOFF.md).
 
 ## Status
 
-The initial provider-neutral identities, dimension-aware prediction contract, managed-training provider boundary, and read-only Fireworks model preflight are in place. No training job has been launched and no production classifier has been selected.
+Provider-neutral identities, dimension-aware conversion, pinned ontology validation, deterministic Fireworks VLM JSONL generation, guarded managed-training operations, and read-only model preflight are in place. The first tracked experiment is configured but no training job or deployment has been launched.
 
 ## Development
 
@@ -24,21 +24,41 @@ The initial runtime dependencies are:
 
 - `fireworks-ai`, the official Fireworks Python SDK for inference and platform orchestration;
 - `datasets`, the Hugging Face library used to access and process the released image dataset;
+- `fsspec` and `pillow`, used to read and validate the pinned release images deterministically;
+- `edugraph-py`, installed from the official `v0.21.0` wheel and used as the ontology authority;
 - `python-dotenv`, used only at application entry points to load local configuration without overriding process-level environment variables.
 
 `uv.lock` is committed. Add or update dependencies with `uv add`/`uv remove` and commit the resulting `pyproject.toml` and lockfile together.
 
 The initial baseline data configuration pins `christian-bick/edugraph-exercises` tag `v0.21.0-01` at commit `ed47264f751a8a67c480dbe4eb7397e317a722eb` with ontology release `v0.21.0`. Dataset ingestion uses `datasets` directly rather than a provider adapter.
 
-## Read-only provider preflight
+## Provider preflight and first-run preparation
 
-Inspect the exact Fireworks model behind the Qwen3.5-9B hypothesis:
+Inspect the exact Fireworks model selected for the first run:
 
 ```bash
 uv run edugraph-classify preflight fireworks
 ```
 
 The command loads `.env` explicitly, preserves any variables already supplied by the process, and never prints secret values. An ineligible model produces structured diagnostic output and exit code `2`. The preflight is read-only; it does not launch training, create a deployment, upload data, or publish a model.
+
+Create deterministic provider-ready artifacts from the pinned public Hugging Face release:
+
+```bash
+uv run edugraph-classify run prepare
+```
+
+Preparation requires a clean committed worktree and writes its manifest, source audit data, profiles, and JSONL files under the gitignored `runs/` directory. It does not need a Hugging Face token for the public release and does not call Fireworks.
+
+Launching is a separate, cost-incurring command that rechecks the clean code commit, artifact hashes, exact live model eligibility, and resource-name collisions. It requires the prepared run ID as explicit confirmation:
+
+```bash
+uv run edugraph-classify run launch \
+  --manifest runs/edugraph-20260823-qwen3vl8b-sft-v1/manifest.json \
+  --confirm-run-id edugraph-20260823-qwen3vl8b-sft-v1
+```
+
+The launch creates and validates two Fireworks datasets and starts one supervised LoRA job. It records provider identifiers in `launch-record.json`; it does not create a deployment or publish the resulting model.
 
 ## Related projects
 

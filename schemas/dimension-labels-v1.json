@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edugraph.io/schemas/dimension-labels-v1.json",
+  "title": "EduGraph explicit label prediction",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["areas", "scopes", "abilities"],
+  "properties": {
+    "areas": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "scopes": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "abilities": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    }
+  }
+}
