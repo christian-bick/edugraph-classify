@@ -121,12 +121,15 @@ The original compute hypothesis was `g2-standard-12` with one 24 GB NVIDIA L4. T
 
 The direct Linux/amd64 trainer image digest was accepted by Vertex after an earlier multi-platform image-index issue was removed. Corrected L4 jobs then failed only because no L4 was provisioned within their two-hour Flex Start windows. The A100 job `edugraph-20260825-qwen35-4b-vertex-a100-smoke-v1` (`customJobs/5975489523914637312`) reached `RUNNING`, but its worker exited with status 1 and Vertex retried it four times. The old process boundary recorded only `trainer failed (RuntimeError)`, so the exact failing library call cannot be recovered retrospectively.
 
+The diagnostic replacement job `edugraph-q35-4b-a100-smoke-v2` (`customJobs/6981903303143587840`) provisioned an A100 in under six minutes. CUDA preflight, processor loading, quantized model loading, k-bit preparation, LoRA attachment, and trainer initialization all completed. Each worker attempt then failed deterministically on the first batch. Reproduction with the exact published image and pinned processor showed that the complete record contained expanded multimodal image tokens while its label-masking prefix was encoded with the text-only tokenizer. The two sequences diverged at the image placeholder and triggered the trainer's prefix invariant. The correction processes both the complete record and prompt prefix with the same images and multimodal processor, validates right-padded prefix identity, and derives each mask boundary from the prompt attention mask.
+
 The remediation is both diagnostic and preventive:
 
 - run a CUDA preflight before processor or model download and report only the pinned PyTorch version, compiled CUDA version, device count, device name, compute capability, and memory;
 - emit constant secret-safe stage names for dependency import, CUDA preflight, processor/model loading, quantized-model preparation, LoRA attachment, trainer initialization, training, model/processor save, and output upload;
 - preserve only the exception class for unexpected third-party failures, never its potentially sensitive message;
 - use the pinned NVIDIA CUDA 12.6/cuDNN base and PyTorch CUDA 12.6 wheels rather than a generic Python base with the default CUDA 13 wheel.
+- construct label-mask prefixes with the same multimodal processor and images as the complete records, because tokenizer-only prefixes do not include expanded vision tokens.
 
 The local Linux/amd64 container check must import the full training stack, report `torch.version.cuda == "12.6"`, validate the real 8+8 smoke JSONL without network access, and fail explicitly at `cuda_preflight` when deliberately run without GPU passthrough. Passing these checks does not replace a paid GPU smoke run; it only makes that run technically reviewable.
 

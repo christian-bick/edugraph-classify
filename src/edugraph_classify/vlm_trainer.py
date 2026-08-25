@@ -379,6 +379,33 @@ def load_training_records(
     return records
 
 
+def _validated_prompt_lengths(
+    full_input_ids: Sequence[Sequence[int]],
+    prompt_input_ids: Sequence[Sequence[int]],
+    prompt_attention_masks: Sequence[Sequence[int]],
+) -> tuple[int, ...]:
+    """Validate right-padded multimodal prompt prefixes and return their lengths."""
+
+    if not (
+        len(full_input_ids) == len(prompt_input_ids) == len(prompt_attention_masks)
+    ):
+        raise RuntimeError("training batch and prompt batch sizes do not match")
+    lengths: list[int] = []
+    for full_ids, prompt_ids, prompt_mask in zip(
+        full_input_ids, prompt_input_ids, prompt_attention_masks, strict=True
+    ):
+        if len(prompt_ids) != len(prompt_mask):
+            raise RuntimeError("prompt input IDs and attention mask sizes do not match")
+        prompt_length = sum(prompt_mask)
+        expected_mask = [1] * prompt_length + [0] * (len(prompt_mask) - prompt_length)
+        if list(prompt_mask) != expected_mask:
+            raise RuntimeError("prompt attention mask must use right padding")
+        if list(full_ids[:prompt_length]) != list(prompt_ids[:prompt_length]):
+            raise RuntimeError("chat-template prompt is not a prefix of its training record")
+        lengths.append(prompt_length)
+    return tuple(lengths)
+
+
 def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
     config: RuntimeConfig,
     train_records: list[dict[str, object]],
@@ -497,12 +524,20 @@ def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
             for item in messages
         ]
         batch = processor(text=full_texts, images=images, return_tensors="pt", padding=True)
-        prompt_ids = processor.tokenizer(prompt_texts, add_special_tokens=False)["input_ids"]
+        prompt_batch = processor(
+            text=prompt_texts,
+            images=images,
+            return_tensors="pt",
+            padding=True,
+        )
+        prompt_lengths = _validated_prompt_lengths(
+            batch["input_ids"].tolist(),
+            prompt_batch["input_ids"].tolist(),
+            prompt_batch["attention_mask"].tolist(),
+        )
         labels = batch["input_ids"].clone()
-        for index, ids in enumerate(prompt_ids):
-            if batch["input_ids"][index, : len(ids)].tolist() != ids:
-                raise RuntimeError("chat-template prompt is not a prefix of its training record")
-            labels[index, : len(ids)] = -100
+        for index, prompt_length in enumerate(prompt_lengths):
+            labels[index, :prompt_length] = -100
         labels[batch["attention_mask"] == 0] = -100
         batch["labels"] = labels
         return batch

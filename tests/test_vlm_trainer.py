@@ -284,6 +284,26 @@ def test_training_records_verify_hash_count_and_json(tmp_path: Path) -> None:
         load_training_records(RuntimeSplit(str(path), digest, 1))
 
 
+def test_prompt_lengths_require_matching_multimodal_expansion_and_right_padding() -> None:
+    full_ids = [[10, 20, 77, 77, 30, 40], [10, 77, 77, 77, 30, 40]]
+    expanded_prompts = [[10, 20, 77, 77, 30, 0], [10, 77, 77, 77, 30, 0]]
+    masks = [[1, 1, 1, 1, 1, 0], [1, 1, 1, 1, 1, 0]]
+
+    assert vlm_trainer._validated_prompt_lengths(
+        full_ids, expanded_prompts, masks
+    ) == (5, 5)
+
+    text_only_prompt = [[10, 20, 77, 30], [10, 77, 30, 0]]
+    with pytest.raises(RuntimeError, match="not a prefix"):
+        vlm_trainer._validated_prompt_lengths(
+            full_ids, text_only_prompt, [[1, 1, 1, 1], [1, 1, 1, 0]]
+        )
+    with pytest.raises(RuntimeError, match="right padding"):
+        vlm_trainer._validated_prompt_lengths(
+            full_ids[:1], expanded_prompts[:1], [[1, 1, 0, 1, 1, 0]]
+        )
+
+
 def test_non_validation_run_writes_result_and_delegates_gpu_and_upload(
     tmp_path: Path, monkeypatch
 ) -> None:
