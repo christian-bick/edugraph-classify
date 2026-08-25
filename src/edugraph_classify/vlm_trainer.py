@@ -12,7 +12,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, TypeVar
 
 from PIL import Image as PillowImage
 
@@ -24,9 +24,63 @@ class TrainerConfigError(ValueError):
     """Raised when the immutable runtime manifest or its data is invalid."""
 
 
+class TrainerRuntimeError(RuntimeError):
+    """Raised with a secret-safe stage name when the training runtime fails."""
+
+
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _COMMIT = re.compile(r"^[0-9a-f]{40}$")
 _DATA_URI = re.compile(r"^data:(image/[a-z0-9.+-]+);base64,([A-Za-z0-9+/]*={0,2})$")
+_T = TypeVar("_T")
+
+
+def _emit_runtime_event(event: str, **details: object) -> None:
+    print(
+        json.dumps({"event": event, **details}, ensure_ascii=True, sort_keys=True),
+        file=sys.stderr,
+        flush=True,
+    )
+
+
+def _run_stage(name: str, operation: Callable[[], _T]) -> _T:
+    """Run one named operation without exposing third-party exception messages."""
+
+    _emit_runtime_event("training_stage", stage=name, status="started")
+    try:
+        result = operation()
+    except TrainerRuntimeError:
+        raise
+    except Exception as error:
+        error_type = type(error).__name__
+        _emit_runtime_event(
+            "training_stage", stage=name, status="failed", error_type=error_type
+        )
+        raise TrainerRuntimeError(f"training stage {name} failed ({error_type})") from error
+    _emit_runtime_event("training_stage", stage=name, status="completed")
+    return result
+
+
+def _cuda_preflight(torch: Any) -> Mapping[str, object]:
+    """Emit non-secret CUDA compatibility facts and fail before model loading."""
+
+    available = bool(torch.cuda.is_available())
+    diagnostics: dict[str, object] = {
+        "torch_version": str(torch.__version__),
+        "torch_cuda_version": str(torch.version.cuda),
+        "cuda_available": available,
+        "cuda_device_count": int(torch.cuda.device_count()) if available else 0,
+    }
+    if available:
+        properties = torch.cuda.get_device_properties(0)
+        diagnostics.update(
+            device_name=str(properties.name),
+            compute_capability=f"{properties.major}.{properties.minor}",
+            device_memory_bytes=int(properties.total_memory),
+        )
+    _emit_runtime_event("cuda_preflight", **diagnostics)
+    if not available:
+        raise TrainerRuntimeError("CUDA preflight failed (device unavailable)")
+    return diagnostics
 
 
 def _exact(payload: Mapping[str, object], expected: set[str], name: str) -> None:
@@ -331,19 +385,32 @@ def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
     validation_records: list[dict[str, object]],
     output_dir: Path,
 ) -> Mapping[str, object]:
-    import torch
-    from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-    from torch.utils.data import Dataset
-    from transformers import (
-        AutoModelForMultimodalLM,
-        AutoProcessor,
-        BitsAndBytesConfig,
-        Trainer,
-        TrainingArguments,
-    )
+    _emit_runtime_event("training_stage", stage="dependency_import", status="started")
+    try:
+        import torch
+        from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+        from torch.utils.data import Dataset
+        from transformers import (
+            AutoModelForMultimodalLM,
+            AutoProcessor,
+            BitsAndBytesConfig,
+            Trainer,
+            TrainingArguments,
+        )
+    except Exception as error:
+        error_type = type(error).__name__
+        _emit_runtime_event(
+            "training_stage",
+            stage="dependency_import",
+            status="failed",
+            error_type=error_type,
+        )
+        raise TrainerRuntimeError(
+            f"training stage dependency_import failed ({error_type})"
+        ) from error
+    _emit_runtime_event("training_stage", stage="dependency_import", status="completed")
 
-    if not torch.cuda.is_available():
-        raise RuntimeError("QLoRA training requires an NVIDIA CUDA device")
+    _run_stage("cuda_preflight", lambda: _cuda_preflight(torch))
 
     class Records(Dataset):
         def __init__(self, values: list[dict[str, object]]) -> None:
@@ -355,9 +422,12 @@ def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
         def __getitem__(self, index: int) -> dict[str, object]:
             return self.values[index]
 
-    processor = AutoProcessor.from_pretrained(
-        config.model_repository,
-        revision=config.model_revision,
+    processor = _run_stage(
+        "processor_load",
+        lambda: AutoProcessor.from_pretrained(
+            config.model_repository,
+            revision=config.model_revision,
+        ),
     )
     processor.tokenizer.padding_side = "right"
     quantization = BitsAndBytesConfig(
@@ -367,28 +437,37 @@ def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
         bnb_4bit_compute_dtype=torch.bfloat16,
         bnb_4bit_quant_storage=torch.bfloat16,
     )
-    model = AutoModelForMultimodalLM.from_pretrained(
-        config.model_repository,
-        revision=config.model_revision,
-        quantization_config=quantization,
-        torch_dtype=torch.bfloat16,
-        device_map={"": 0},
-        attn_implementation="sdpa",
+    model = _run_stage(
+        "model_load",
+        lambda: AutoModelForMultimodalLM.from_pretrained(
+            config.model_repository,
+            revision=config.model_revision,
+            quantization_config=quantization,
+            torch_dtype=torch.bfloat16,
+            device_map={"": 0},
+            attn_implementation="sdpa",
+        ),
     )
-    model = prepare_model_for_kbit_training(
-        model,
-        use_gradient_checkpointing=True,
-        gradient_checkpointing_kwargs={"use_reentrant": False},
+    model = _run_stage(
+        "quantized_model_prepare",
+        lambda: prepare_model_for_kbit_training(
+            model,
+            use_gradient_checkpointing=True,
+            gradient_checkpointing_kwargs={"use_reentrant": False},
+        ),
     )
-    model = get_peft_model(
-        model,
-        LoraConfig(
-            r=config.recipe.lora_rank,
-            lora_alpha=config.recipe.lora_alpha,
-            lora_dropout=config.recipe.lora_dropout,
-            bias="none",
-            target_modules="all-linear",
-            task_type="CAUSAL_LM",
+    model = _run_stage(
+        "lora_attach",
+        lambda: get_peft_model(
+            model,
+            LoraConfig(
+                r=config.recipe.lora_rank,
+                lora_alpha=config.recipe.lora_alpha,
+                lora_dropout=config.recipe.lora_dropout,
+                bias="none",
+                target_modules="all-linear",
+                task_type="CAUSAL_LM",
+            ),
         ),
     )
     model.config.use_cache = False
@@ -448,17 +527,20 @@ def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
         seed=config.recipe.seed,
         data_seed=config.recipe.seed,
     )
-    trainer = Trainer(
-        model=model,
-        args=arguments,
-        train_dataset=Records(train_records),
-        eval_dataset=Records(validation_records),
-        data_collator=collate,
+    trainer = _run_stage(
+        "trainer_initialize",
+        lambda: Trainer(
+            model=model,
+            args=arguments,
+            train_dataset=Records(train_records),
+            eval_dataset=Records(validation_records),
+            data_collator=collate,
+        ),
     )
-    result = trainer.train()
+    result = _run_stage("training", trainer.train)
     model_dir = output_dir / "model"
-    trainer.save_model(str(model_dir))
-    processor.save_pretrained(str(model_dir))
+    _run_stage("model_save", lambda: trainer.save_model(str(model_dir)))
+    _run_stage("processor_save", lambda: processor.save_pretrained(str(model_dir)))
     return {"train_metrics": dict(result.metrics), "log_history": trainer.state.log_history}
 
 
@@ -501,7 +583,7 @@ def run(config_uri: str, work_dir: Path, *, validate_only: bool = False, client:
         encoding="utf-8",
         newline="\n",
     )
-    _upload_output(output_dir, config.output_uri, client)
+    _run_stage("output_upload", lambda: _upload_output(output_dir, config.output_uri, client))
     return {**summary, **metrics}
 
 
@@ -520,6 +602,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (TrainerConfigError, VertexArtifactError) as error:
         print(str(error), file=sys.stderr)
         return 2
+    except TrainerRuntimeError as error:
+        print(str(error), file=sys.stderr)
+        return 1
     except Exception as error:  # pragma: no cover - final secret-safe process boundary
         print(f"trainer failed ({type(error).__name__})", file=sys.stderr)
         return 1

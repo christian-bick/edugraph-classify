@@ -16,6 +16,7 @@ from edugraph_classify.vlm_trainer import (
     RuntimeConfig,
     RuntimeSplit,
     TrainerConfigError,
+    TrainerRuntimeError,
     load_runtime_config,
     load_training_records,
     normalize_chat_record,
@@ -339,3 +340,106 @@ def test_gcs_reader_and_process_boundary_use_safe_results(tmp_path: Path, capsys
     bad.write_text("[]", encoding="utf-8")
     assert vlm_trainer.main(["--runtime-manifest", str(bad), "--validate-only"]) == 2
     assert "must be an object" in capsys.readouterr().err
+
+
+def test_runtime_stage_reports_boundary_without_exception_message(capsys) -> None:
+    def fail() -> None:
+        raise RuntimeError("secret-value-must-not-be-printed")
+
+    with pytest.raises(
+        TrainerRuntimeError, match=r"training stage model_load failed \(RuntimeError\)"
+    ):
+        vlm_trainer._run_stage("model_load", fail)
+
+    error = capsys.readouterr().err
+    events = [json.loads(line) for line in error.splitlines()]
+    assert events == [
+        {"event": "training_stage", "stage": "model_load", "status": "started"},
+        {
+            "error_type": "RuntimeError",
+            "event": "training_stage",
+            "stage": "model_load",
+            "status": "failed",
+        },
+    ]
+    assert "secret-value" not in error
+
+
+def test_cuda_preflight_reports_only_compatibility_facts(capsys) -> None:
+    class Properties:
+        name = "NVIDIA A100-SXM4-40GB"
+        major = 8
+        minor = 0
+        total_memory = 40_000_000_000
+
+    class Cuda:
+        @staticmethod
+        def is_available() -> bool:
+            return True
+
+        @staticmethod
+        def device_count() -> int:
+            return 1
+
+        @staticmethod
+        def get_device_properties(index: int) -> Properties:
+            assert index == 0
+            return Properties()
+
+    class Version:
+        cuda = "12.6"
+
+    class Torch:
+        __version__ = "2.13.0+cu126"
+        version = Version()
+        cuda = Cuda()
+
+    diagnostics = vlm_trainer._cuda_preflight(Torch())
+
+    assert diagnostics == {
+        "torch_version": "2.13.0+cu126",
+        "torch_cuda_version": "12.6",
+        "cuda_available": True,
+        "cuda_device_count": 1,
+        "device_name": "NVIDIA A100-SXM4-40GB",
+        "compute_capability": "8.0",
+        "device_memory_bytes": 40_000_000_000,
+    }
+    assert json.loads(capsys.readouterr().err) == {"event": "cuda_preflight", **diagnostics}
+
+
+def test_cuda_preflight_fails_safely_when_device_is_unavailable(capsys) -> None:
+    class Cuda:
+        @staticmethod
+        def is_available() -> bool:
+            return False
+
+    class Version:
+        cuda = "12.6"
+
+    class Torch:
+        __version__ = "2.13.0+cu126"
+        version = Version()
+        cuda = Cuda()
+
+    with pytest.raises(TrainerRuntimeError, match="CUDA preflight failed"):
+        vlm_trainer._cuda_preflight(Torch())
+
+    assert json.loads(capsys.readouterr().err) == {
+        "cuda_available": False,
+        "cuda_device_count": 0,
+        "event": "cuda_preflight",
+        "torch_cuda_version": "12.6",
+        "torch_version": "2.13.0+cu126",
+    }
+
+
+def test_process_boundary_preserves_safe_runtime_stage(tmp_path: Path, monkeypatch, capsys) -> None:
+    manifest, _ = _runtime(tmp_path)
+
+    def fail(*args: object, **kwargs: object) -> None:
+        raise TrainerRuntimeError("training stage model_load failed (RuntimeError)")
+
+    monkeypatch.setattr(vlm_trainer, "run", fail)
+    assert vlm_trainer.main(["--runtime-manifest", str(manifest)]) == 1
+    assert capsys.readouterr().err == "training stage model_load failed (RuntimeError)\n"

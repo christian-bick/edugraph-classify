@@ -8,7 +8,7 @@ The accepted architecture and experiment rationale are recorded in [Project kick
 
 ## Status
 
-Provider-neutral identities, dimension-aware conversion, pinned ontology validation, deterministic VLM JSONL generation, guarded managed-training operations, Fireworks model preflight, and a Vertex AI CustomJob adapter are in place. The Fireworks technical smoke datasets reached `READY`, but Fireworks rejected Qwen3-VL-8B-Instruct at managed-job creation as unsupported. Vertex bootstrap now includes a dedicated keyless runtime identity, regional Artifact Registry repository, bucket-scoped IAM, an immutable GCS staging workflow, and a containerized QLoRA trainer. The first Vertex recipe pins the public 2026 `Qwen/Qwen3.5-4B` VLM revision. No Vertex training job has been submitted.
+Provider-neutral identities, dimension-aware conversion, pinned ontology validation, deterministic VLM JSONL generation, guarded managed-training operations, Fireworks model preflight, and a Vertex AI CustomJob adapter are in place. The Fireworks technical smoke datasets reached `READY`, but Fireworks rejected Qwen3-VL-8B-Instruct at managed-job creation as unsupported. Vertex bootstrap includes a dedicated keyless runtime identity, regional Artifact Registry repository, bucket-scoped IAM, immutable GCS staging, and a containerized QLoRA trainer for the pinned public 2026 `Qwen/Qwen3.5-4B` VLM revision. L4 Flex Start attempts exhausted their two-hour capacity wait; a subsequent A100 attempt provisioned successfully but exposed an application-runtime failure before training. The replacement trainer pins CUDA 12.6 and emits secret-safe stage and device diagnostics. No trained model has been produced, and a corrected paid run has not been submitted.
 
 ## Development
 

@@ -25,11 +25,11 @@ The project must have the Vertex AI API enabled. The chosen region also needs su
 
 ### Selected GCP setup
 
-The initial GCP project is `edugraph-438718` and the existing, currently empty staging bucket is `gs://edugraph-classify`. The bucket location is user-confirmed as `europe-west4`, matching the selected Vertex region. The first output prefix will therefore be `gs://edugraph-classify/runs/<job-id>`.
+The initial GCP project is `edugraph-438718` and the staging bucket is `gs://edugraph-classify`. The bucket location is user-confirmed as `europe-west4`, matching the selected Vertex region. Immutable smoke inputs and runtime manifests are staged under content-addressed prefixes, and job output belongs under `gs://edugraph-classify/runs/<job-id>`.
 
 The dedicated keyless runtime identity is `vertex-training@edugraph-438718.iam.gserviceaccount.com`, and the same-region standard Docker repository is `europe-west4-docker.pkg.dev/edugraph-438718/training`. Both were created with explicit approval. The runtime identity has `roles/storage.objectAdmin` only on `gs://edugraph-classify`, allowing the trainer to read inputs and update checkpoints and outputs without project-wide storage access. The submitting user has `roles/iam.serviceAccountUser` on this service account and effective `iam.serviceAccounts.actAs` permission.
 
-Vertex AI, Artifact Registry, and Cloud Storage APIs are enabled. Host Application Default Credentials are available, and the authenticated principal has the required project permissions to create/get/list CustomJobs, consume service quota, and upload Artifact Registry content, plus create/get/list object access on the staging bucket. The bucket uses uniform bucket-level access with public-access prevention enforced. The bootstrap created no service-account key; credentials remain with host ADC and the managed Vertex runtime identity. No image, dataset, model, or job was created or uploaded.
+Vertex AI, Artifact Registry, and Cloud Storage APIs are enabled. Host Application Default Credentials are available, and the authenticated principal has the required project permissions to create/get/list CustomJobs, consume service quota, and upload Artifact Registry content, plus create/get/list object access on the staging bucket. The bucket uses uniform bucket-level access with public-access prevention enforced. The bootstrap created no service-account key; credentials remain with host ADC and the managed Vertex runtime identity. Smoke inputs and trainer images have been uploaded and CustomJobs have been attempted, but no trained model has been produced.
 
 ## Resolved job configuration
 
@@ -113,9 +113,22 @@ The tracked run is `experiments/edugraph-20260823-qwen35-4b-vertex-smoke-v1.json
 - thinking disabled in the training chat template because the gold data contains final labels, not reasoning traces;
 - W&B disabled; outputs remain in the regional run prefix.
 
-The container uses the Python 3.12.13 base image by digest and resolves all Python packages from the committed `uv.lock`. The GPU runtime pins `torch==2.13.0`, `torchvision==0.28.0`, `transformers==5.15.1`, `peft==0.20.0`, `accelerate==1.14.0`, and `bitsandbytes==0.50.1`.
+The replacement container uses the official NVIDIA CUDA `12.6.3` cuDNN runtime for Ubuntu 24.04, pinned to its Linux/amd64 manifest digest. Python packages resolve exclusively from the committed `uv.lock`. `torch==2.13.0+cu126` and `torchvision==0.28.0+cu126` come from PyTorch's explicit CUDA 12.6 index; the remaining training pins are `transformers==5.15.1`, `peft==0.20.0`, `accelerate==1.14.0`, and `bitsandbytes==0.50.1`. This deliberately avoids PyPI's default CUDA 13 build and its newer host-driver requirement.
 
-The first compute hypothesis is `g2-standard-12` with one 24 GB NVIDIA L4, one replica, a 200 GB SSD boot disk, and Flex Start. Provisioning wait and execution are each bounded to two hours. This is expected to fit a 4-bit 4B VLM with batch size 1 and checkpointing, but remains an empirical smoke hypothesis; OOM must be recorded and resolved explicitly rather than by silent truncation.
+The original compute hypothesis was `g2-standard-12` with one 24 GB NVIDIA L4. Two corrected Flex Start requests exhausted their two-hour capacity wait without provisioning. A subsequent `a2-highgpu-1g` request with one 40 GB A100 provisioned in approximately three and a half minutes, establishing that this shape was available at that time. A100 remains the next smoke-test shape, not a permanent model-specific default. Provisioning wait and execution remain bounded to two hours; OOM must be recorded and resolved explicitly rather than by silent truncation.
+
+## Operational smoke history and runtime diagnosis
+
+The direct Linux/amd64 trainer image digest was accepted by Vertex after an earlier multi-platform image-index issue was removed. Corrected L4 jobs then failed only because no L4 was provisioned within their two-hour Flex Start windows. The A100 job `edugraph-20260825-qwen35-4b-vertex-a100-smoke-v1` (`customJobs/5975489523914637312`) reached `RUNNING`, but its worker exited with status 1 and Vertex retried it four times. The old process boundary recorded only `trainer failed (RuntimeError)`, so the exact failing library call cannot be recovered retrospectively.
+
+The remediation is both diagnostic and preventive:
+
+- run a CUDA preflight before processor or model download and report only the pinned PyTorch version, compiled CUDA version, device count, device name, compute capability, and memory;
+- emit constant secret-safe stage names for dependency import, CUDA preflight, processor/model loading, quantized-model preparation, LoRA attachment, trainer initialization, training, model/processor save, and output upload;
+- preserve only the exception class for unexpected third-party failures, never its potentially sensitive message;
+- use the pinned NVIDIA CUDA 12.6/cuDNN base and PyTorch CUDA 12.6 wheels rather than a generic Python base with the default CUDA 13 wheel.
+
+The local Linux/amd64 container check must import the full training stack, report `torch.version.cuda == "12.6"`, validate the real 8+8 smoke JSONL without network access, and fail explicitly at `cuda_preflight` when deliberately run without GPU passthrough. Passing these checks does not replace a paid GPU smoke run; it only makes that run technically reviewable.
 
 ## Preparation, staging, and image workflow
 
@@ -156,6 +169,6 @@ uv run edugraph-classify vertex configure \
   --output runs/edugraph-20260823-qwen35-4b-vertex-smoke-v1/vertex-job.json
 ```
 
-Then render and review the exact CustomJob request. Submission remains blocked until the local container smoke succeeds, the image digest and request are reviewed, a current cost bound is recorded, and the exact job ID is explicitly confirmed.
+Then render and review the exact CustomJob request. Submission remains blocked until the local container smoke succeeds, the image digest and request are reviewed, a current cost bound is recorded, and the exact job ID is explicitly confirmed. A failed or superseded image must never be reused merely because it remains present in Artifact Registry.
 
 Official references: [Qwen3.5-4B model card](https://huggingface.co/Qwen/Qwen3.5-4B), [Transformers Qwen3.5 architecture](https://huggingface.co/docs/transformers/model_doc/qwen3_5), [PEFT QLoRA guidance](https://huggingface.co/docs/peft/developer_guides/quantization), [create a serverless custom job](https://cloud.google.com/vertex-ai/docs/training/create-custom-job), [configure compute](https://cloud.google.com/vertex-ai/docs/training/configure-compute), [Vertex AI locations](https://cloud.google.com/vertex-ai/docs/general/locations), and [Flex Start scheduling](https://cloud.google.com/vertex-ai/docs/training/schedule-jobs-dws).
