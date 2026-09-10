@@ -6,6 +6,7 @@ import json
 from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image
@@ -310,7 +311,15 @@ def test_non_validation_run_writes_result_and_delegates_gpu_and_upload(
     manifest, _ = _runtime(tmp_path)
     observed: dict[str, object] = {}
 
-    def train(config: object, train: object, validation: object, output: Path) -> dict[str, object]:
+    def train(
+        config: object,
+        train: object,
+        validation: object,
+        output: Path,
+        *,
+        diagnostic_one_batch: bool,
+    ) -> dict[str, object]:
+        assert diagnostic_one_batch is False
         observed["output"] = output
         return {"train_metrics": {"loss": 1.0}, "log_history": []}
 
@@ -332,6 +341,43 @@ def test_non_validation_run_writes_result_and_delegates_gpu_and_upload(
         "upload": output,
         "uri": "gs://bucket-1/runs/vertex-smoke",
         "client": client,
+    }
+
+
+def test_diagnostic_run_is_bounded_and_uploads_its_result(
+    tmp_path: Path, monkeypatch
+) -> None:
+    manifest, _ = _runtime(tmp_path)
+    observed: dict[str, object] = {}
+
+    def train(
+        config: object,
+        train: object,
+        validation: object,
+        output: Path,
+        *,
+        diagnostic_one_batch: bool,
+    ) -> dict[str, object]:
+        observed["diagnostic"] = diagnostic_one_batch
+        return {"diagnostic": {"mode": "one_batch", "status": "completed"}}
+
+    def upload(output: Path, uri: str, client: object) -> None:
+        observed["uploaded"] = output
+
+    monkeypatch.setattr(vlm_trainer, "_train_qlora", train)
+    monkeypatch.setattr(vlm_trainer, "_upload_output", upload)
+    result = vlm_trainer.run(
+        str(manifest),
+        tmp_path / "work",
+        diagnostic_one_batch=True,
+        client=object(),
+    )
+
+    assert result["status"] == "diagnostic_completed"
+    assert result["diagnostic"] == {"mode": "one_batch", "status": "completed"}
+    assert observed == {
+        "diagnostic": True,
+        "uploaded": tmp_path / "work" / "vertex-smoke",
     }
 
 
@@ -383,6 +429,156 @@ def test_runtime_stage_reports_boundary_without_exception_message(capsys) -> Non
         },
     ]
     assert "secret-value" not in error
+
+
+def test_diagnostic_stage_emits_only_allowlisted_traceback_metadata(capsys) -> None:
+    def fail_in_trainer_module() -> None:
+        vlm_trainer._validated_prompt_lengths([], [[1]], [[1]])
+
+    with pytest.raises(TrainerRuntimeError, match="diagnostic_forward failed"):
+        vlm_trainer._run_stage(
+            "diagnostic_forward", fail_in_trainer_module, diagnostics=True
+        )
+
+    event = json.loads(capsys.readouterr().err.splitlines()[-1])
+    assert event == {
+        "error_type": "RuntimeError",
+        "event": "training_stage",
+        "stage": "diagnostic_forward",
+        "status": "failed",
+        "traceback": [
+            {
+                "function": "_validated_prompt_lengths",
+                "line": vlm_trainer._validated_prompt_lengths.__code__.co_firstlineno + 10,
+                "module": "vlm_trainer",
+                "package": "edugraph_classify",
+            }
+        ],
+    }
+    serialized = json.dumps(event)
+    assert "test_vlm_trainer" not in serialized
+    assert "training batch and prompt" not in serialized
+
+
+def test_one_batch_diagnostic_runs_each_stage_without_exposing_values(capsys) -> None:
+    operations: list[str] = []
+
+    class Tensor:
+        ndim = 0
+
+        def to(self, device: object) -> Tensor:
+            assert device == "cuda:0"
+            operations.append("device_transfer")
+            return self
+
+        def detach(self) -> Tensor:
+            return self
+
+        def all(self) -> Tensor:
+            return self
+
+        def item(self) -> bool:
+            return True
+
+        def backward(self) -> None:
+            operations.append("backward")
+
+    class Parameter:
+        requires_grad = True
+
+    class Model:
+        device = "cuda:0"
+
+        def parameters(self) -> list[Parameter]:
+            return [Parameter()]
+
+        def train(self) -> None:
+            operations.append("model_train")
+
+        def zero_grad(self, *, set_to_none: bool) -> None:
+            assert set_to_none is True
+            operations.append("gradient_reset")
+
+        def __call__(self, **batch: object) -> SimpleNamespace:
+            assert set(batch) == {"input_ids"}
+            operations.append("forward")
+            return SimpleNamespace(loss=Tensor())
+
+    class Optimizer:
+        def step(self) -> None:
+            operations.append("optimizer_step")
+
+    class AdamW:
+        def __new__(
+            cls, parameters: list[Parameter], *, lr: float, fused: bool
+        ) -> Optimizer:
+            assert len(parameters) == 1
+            assert lr == 0.00002
+            assert fused is True
+            operations.append("optimizer_initialize")
+            return Optimizer()
+
+    class Autocast:
+        def __enter__(self) -> None:
+            operations.append("autocast_enter")
+
+        def __exit__(self, *args: object) -> None:
+            operations.append("autocast_exit")
+
+    class Torch:
+        bfloat16 = "bfloat16"
+        optim = SimpleNamespace(AdamW=AdamW)
+
+        @staticmethod
+        def isfinite(value: Tensor) -> Tensor:
+            return value
+
+        @staticmethod
+        def autocast(*, device_type: str, dtype: str) -> Autocast:
+            assert device_type == "cuda"
+            assert dtype == "bfloat16"
+            return Autocast()
+
+    def collate(records: list[dict[str, object]]) -> dict[str, Tensor]:
+        assert records == [{"messages": []}]
+        operations.append("collate")
+        return {"input_ids": Tensor()}
+
+    result = vlm_trainer._run_one_batch_diagnostic(
+        Model(), collate, {"messages": []}, Torch(), 0.00002
+    )
+
+    assert result == {"diagnostic": {"mode": "one_batch", "status": "completed"}}
+    assert operations == [
+        "collate",
+        "device_transfer",
+        "model_train",
+        "optimizer_initialize",
+        "gradient_reset",
+        "autocast_enter",
+        "forward",
+        "autocast_exit",
+        "backward",
+        "optimizer_step",
+    ]
+    events = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
+    completed = [
+        event["stage"]
+        for event in events
+        if event.get("event") == "training_stage" and event.get("status") == "completed"
+    ]
+    assert completed == [
+        "diagnostic_collate",
+        "diagnostic_device_transfer",
+        "diagnostic_model_train",
+        "diagnostic_optimizer_initialize",
+        "diagnostic_gradient_reset",
+        "diagnostic_forward",
+        "diagnostic_loss_validate",
+        "diagnostic_backward",
+        "diagnostic_optimizer_step",
+    ]
+    assert events[-1] == {"event": "one_batch_diagnostic", "status": "completed"}
 
 
 def test_cuda_preflight_reports_only_compatibility_facts(capsys) -> None:

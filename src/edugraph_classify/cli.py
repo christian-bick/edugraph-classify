@@ -152,6 +152,7 @@ def run_vertex_configure(
     image_uri: str,
     output_path: str,
     *,
+    diagnostic_one_batch: bool = False,
     repo_root: Path | None = None,
     code_commit: str | None = None,
 ) -> tuple[int, dict[str, object]]:
@@ -165,7 +166,10 @@ def run_vertex_configure(
             "job configuration requires the same clean commit used for preparation"
         )
     config = build_vertex_job_config(
-        Path(manifest_path), Path(staging_record_path), image_uri
+        Path(manifest_path),
+        Path(staging_record_path),
+        image_uri,
+        diagnostic_one_batch=diagnostic_one_batch,
     )
     destination = Path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -426,6 +430,11 @@ def build_parser() -> argparse.ArgumentParser:
     configure.add_argument("--staging-record", required=True)
     configure.add_argument("--image-uri", required=True)
     configure.add_argument("--output", required=True)
+    configure.add_argument(
+        "--diagnostic-one-batch",
+        action="store_true",
+        help="configure a single staged diagnostic optimizer step",
+    )
     vertex_launch = vertex_actions.add_parser(
         "launch", help="submit one explicitly confirmed Vertex CustomJob"
     )
@@ -464,6 +473,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.staging_record,
                 args.image_uri,
                 args.output,
+                diagnostic_one_batch=args.diagnostic_one_batch,
             )
         else:
             exit_code, payload = run_vertex_launch(

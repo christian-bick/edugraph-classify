@@ -303,6 +303,8 @@ def build_vertex_job_config(
     manifest_path: Path,
     staging_record_path: Path,
     image_uri: str,
+    *,
+    diagnostic_one_batch: bool = False,
 ) -> dict[str, object]:
     """Resolve the fixed first-smoke compute shape after image publication."""
 
@@ -325,6 +327,9 @@ def build_vertex_job_config(
         or not isinstance(output_uri, str)
     ):
         raise VertexArtifactError("staging record has invalid runtime artifact identity")
+    container_args = ["--runtime-manifest", runtime_uri]
+    if diagnostic_one_batch:
+        container_args.append("--diagnostic-one-batch")
     config: dict[str, object] = {
         "provider_id": "gcp_vertex_ai",
         "training_execution_mode": "serverless",
@@ -338,7 +343,7 @@ def build_vertex_job_config(
         "container": {
             "image_uri": image_uri,
             "command": [],
-            "args": ["--runtime-manifest", runtime_uri],
+            "args": container_args,
             "environment": {"HF_HOME": "/tmp/huggingface"},
         },
         "compute": {

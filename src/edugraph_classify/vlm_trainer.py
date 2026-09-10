@@ -31,6 +31,18 @@ class TrainerRuntimeError(RuntimeError):
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _COMMIT = re.compile(r"^[0-9a-f]{40}$")
 _DATA_URI = re.compile(r"^data:(image/[a-z0-9.+-]+);base64,([A-Za-z0-9+/]*={0,2})$")
+_SAFE_TRACE_SYMBOL = re.compile(r"^[A-Za-z0-9_.<>-]+$")
+_SAFE_TRACE_PACKAGES = frozenset(
+    {
+        "accelerate",
+        "bitsandbytes",
+        "edugraph_classify",
+        "peft",
+        "torch",
+        "transformers",
+    }
+)
+_SAFE_TRACE_FRAME_LIMIT = 12
 _T = TypeVar("_T")
 
 
@@ -42,7 +54,42 @@ def _emit_runtime_event(event: str, **details: object) -> None:
     )
 
 
-def _run_stage(name: str, operation: Callable[[], _T]) -> _T:
+def _safe_traceback_frames(error: BaseException) -> list[dict[str, object]]:
+    """Return bounded code locations from explicitly allowlisted training packages."""
+
+    frames: list[dict[str, object]] = []
+    traceback = error.__traceback__
+    while traceback is not None:
+        frame = traceback.tb_frame
+        module_name = frame.f_globals.get("__name__")
+        function_name = frame.f_code.co_name
+        if isinstance(module_name, str):
+            package = module_name.partition(".")[0]
+            module = module_name.rpartition(".")[2]
+            if (
+                package in _SAFE_TRACE_PACKAGES
+                and function_name != "_run_stage"
+                and _SAFE_TRACE_SYMBOL.fullmatch(module) is not None
+                and _SAFE_TRACE_SYMBOL.fullmatch(function_name) is not None
+            ):
+                frames.append(
+                    {
+                        "package": package,
+                        "module": module,
+                        "function": function_name,
+                        "line": traceback.tb_lineno,
+                    }
+                )
+        traceback = traceback.tb_next
+    return frames[-_SAFE_TRACE_FRAME_LIMIT:]
+
+
+def _run_stage(
+    name: str,
+    operation: Callable[[], _T],
+    *,
+    diagnostics: bool = False,
+) -> _T:
     """Run one named operation without exposing third-party exception messages."""
 
     _emit_runtime_event("training_stage", stage=name, status="started")
@@ -52,9 +99,12 @@ def _run_stage(name: str, operation: Callable[[], _T]) -> _T:
         raise
     except Exception as error:
         error_type = type(error).__name__
-        _emit_runtime_event(
-            "training_stage", stage=name, status="failed", error_type=error_type
-        )
+        details: dict[str, object] = {"error_type": error_type}
+        if diagnostics:
+            frames = _safe_traceback_frames(error)
+            if frames:
+                details["traceback"] = frames
+        _emit_runtime_event("training_stage", stage=name, status="failed", **details)
         raise TrainerRuntimeError(f"training stage {name} failed ({error_type})") from error
     _emit_runtime_event("training_stage", stage=name, status="completed")
     return result
@@ -406,11 +456,80 @@ def _validated_prompt_lengths(
     return tuple(lengths)
 
 
+def _move_batch_to_device(batch: Mapping[str, Any], device: object) -> Mapping[str, Any]:
+    """Move a processor batch without inspecting or logging its values."""
+
+    move_batch = getattr(batch, "to", None)
+    if callable(move_batch):
+        moved = move_batch(device)
+        if not isinstance(moved, Mapping):
+            raise RuntimeError("processor batch device transfer returned an invalid value")
+        return moved
+    return {
+        key: value.to(device) if callable(getattr(value, "to", None)) else value
+        for key, value in batch.items()
+    }
+
+
+def _diagnostic_optimizer(model: Any, torch: Any, learning_rate: float) -> Any:
+    parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
+    if not parameters:
+        raise RuntimeError("diagnostic batch has no trainable parameters")
+    return torch.optim.AdamW(parameters, lr=learning_rate, fused=True)
+
+
+def _validated_loss(outputs: Any, torch: Any) -> Any:
+    loss = getattr(outputs, "loss", None)
+    if loss is None or getattr(loss, "ndim", None) != 0:
+        raise RuntimeError("diagnostic forward pass did not return a scalar loss")
+    if not bool(torch.isfinite(loss.detach()).all().item()):
+        raise RuntimeError("diagnostic forward pass returned a non-finite loss")
+    return loss
+
+
+def _run_one_batch_diagnostic(
+    model: Any,
+    collate: Callable[[list[dict[str, object]]], Mapping[str, Any]],
+    record: dict[str, object],
+    torch: Any,
+    learning_rate: float,
+) -> Mapping[str, object]:
+    """Exercise one optimizer step through secret-safe, independently reported stages."""
+
+    def stage(name: str, operation: Callable[[], _T]) -> _T:
+        return _run_stage(name, operation, diagnostics=True)
+
+    batch = stage("diagnostic_collate", lambda: collate([record]))
+    batch = stage(
+        "diagnostic_device_transfer",
+        lambda: _move_batch_to_device(batch, model.device),
+    )
+    stage("diagnostic_model_train", model.train)
+    optimizer = stage(
+        "diagnostic_optimizer_initialize",
+        lambda: _diagnostic_optimizer(model, torch, learning_rate),
+    )
+    stage("diagnostic_gradient_reset", lambda: model.zero_grad(set_to_none=True))
+
+    def forward() -> Any:
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            return model(**batch)
+
+    outputs = stage("diagnostic_forward", forward)
+    loss = stage("diagnostic_loss_validate", lambda: _validated_loss(outputs, torch))
+    stage("diagnostic_backward", loss.backward)
+    stage("diagnostic_optimizer_step", optimizer.step)
+    _emit_runtime_event("one_batch_diagnostic", status="completed")
+    return {"diagnostic": {"mode": "one_batch", "status": "completed"}}
+
+
 def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
     config: RuntimeConfig,
     train_records: list[dict[str, object]],
     validation_records: list[dict[str, object]],
     output_dir: Path,
+    *,
+    diagnostic_one_batch: bool = False,
 ) -> Mapping[str, object]:
     _emit_runtime_event("training_stage", stage="dependency_import", status="started")
     try:
@@ -426,18 +545,23 @@ def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
         )
     except Exception as error:
         error_type = type(error).__name__
+        details: dict[str, object] = {"error_type": error_type}
+        if diagnostic_one_batch:
+            frames = _safe_traceback_frames(error)
+            if frames:
+                details["traceback"] = frames
         _emit_runtime_event(
-            "training_stage",
-            stage="dependency_import",
-            status="failed",
-            error_type=error_type,
+            "training_stage", stage="dependency_import", status="failed", **details
         )
         raise TrainerRuntimeError(
             f"training stage dependency_import failed ({error_type})"
         ) from error
     _emit_runtime_event("training_stage", stage="dependency_import", status="completed")
 
-    _run_stage("cuda_preflight", lambda: _cuda_preflight(torch))
+    def run_stage(name: str, operation: Callable[[], _T]) -> _T:
+        return _run_stage(name, operation, diagnostics=diagnostic_one_batch)
+
+    run_stage("cuda_preflight", lambda: _cuda_preflight(torch))
 
     class Records(Dataset):
         def __init__(self, values: list[dict[str, object]]) -> None:
@@ -449,7 +573,7 @@ def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
         def __getitem__(self, index: int) -> dict[str, object]:
             return self.values[index]
 
-    processor = _run_stage(
+    processor = run_stage(
         "processor_load",
         lambda: AutoProcessor.from_pretrained(
             config.model_repository,
@@ -464,7 +588,7 @@ def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
         bnb_4bit_compute_dtype=torch.bfloat16,
         bnb_4bit_quant_storage=torch.bfloat16,
     )
-    model = _run_stage(
+    model = run_stage(
         "model_load",
         lambda: AutoModelForMultimodalLM.from_pretrained(
             config.model_repository,
@@ -475,7 +599,7 @@ def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
             attn_implementation="sdpa",
         ),
     )
-    model = _run_stage(
+    model = run_stage(
         "quantized_model_prepare",
         lambda: prepare_model_for_kbit_training(
             model,
@@ -483,7 +607,7 @@ def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
             gradient_checkpointing_kwargs={"use_reentrant": False},
         ),
     )
-    model = _run_stage(
+    model = run_stage(
         "lora_attach",
         lambda: get_peft_model(
             model,
@@ -542,6 +666,15 @@ def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
         batch["labels"] = labels
         return batch
 
+    if diagnostic_one_batch:
+        return _run_one_batch_diagnostic(
+            model,
+            collate,
+            train_records[0],
+            torch,
+            config.recipe.learning_rate,
+        )
+
     arguments = TrainingArguments(
         output_dir=str(output_dir / "checkpoints"),
         num_train_epochs=config.recipe.epochs,
@@ -562,7 +695,7 @@ def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
         seed=config.recipe.seed,
         data_seed=config.recipe.seed,
     )
-    trainer = _run_stage(
+    trainer = run_stage(
         "trainer_initialize",
         lambda: Trainer(
             model=model,
@@ -572,10 +705,10 @@ def _train_qlora(  # pragma: no cover - requires a CUDA training runtime
             data_collator=collate,
         ),
     )
-    result = _run_stage("training", trainer.train)
+    result = run_stage("training", trainer.train)
     model_dir = output_dir / "model"
-    _run_stage("model_save", lambda: trainer.save_model(str(model_dir)))
-    _run_stage("processor_save", lambda: processor.save_pretrained(str(model_dir)))
+    run_stage("model_save", lambda: trainer.save_model(str(model_dir)))
+    run_stage("processor_save", lambda: processor.save_pretrained(str(model_dir)))
     return {"train_metrics": dict(result.metrics), "log_history": trainer.state.log_history}
 
 
@@ -594,12 +727,25 @@ def _upload_output(local_dir: Path, output_uri: str, client: object | None = Non
         blob.upload_from_filename(str(path), if_generation_match=0, checksum="crc32c")
 
 
-def run(config_uri: str, work_dir: Path, *, validate_only: bool = False, client: object | None = None) -> dict[str, object]:
+def run(
+    config_uri: str,
+    work_dir: Path,
+    *,
+    validate_only: bool = False,
+    diagnostic_one_batch: bool = False,
+    client: object | None = None,
+) -> dict[str, object]:
     config = load_runtime_config(config_uri, client)
     train_records = load_training_records(config.train, client)
     validation_records = load_training_records(config.validation, client)
     summary: dict[str, object] = {
-        "status": "validated" if validate_only else "completed",
+        "status": (
+            "validated"
+            if validate_only
+            else "diagnostic_completed"
+            if diagnostic_one_batch
+            else "completed"
+        ),
         "run_id": config.run_id,
         "code_commit": config.code_commit,
         "model": {"repository": config.model_repository, "revision": config.model_revision},
@@ -611,7 +757,13 @@ def run(config_uri: str, work_dir: Path, *, validate_only: bool = False, client:
         return summary
     output_dir = work_dir / config.run_id
     output_dir.mkdir(parents=True, exist_ok=True)
-    metrics = _train_qlora(config, train_records, validation_records, output_dir)
+    metrics = _train_qlora(
+        config,
+        train_records,
+        validation_records,
+        output_dir,
+        diagnostic_one_batch=diagnostic_one_batch,
+    )
     result_path = output_dir / "run-result.json"
     result_path.write_text(
         json.dumps({**summary, **metrics}, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -626,14 +778,25 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Train an EduGraph VLM adapter")
     parser.add_argument("--runtime-manifest", required=True)
     parser.add_argument("--work-dir", default="/tmp/edugraph-training")
-    parser.add_argument("--validate-only", action="store_true")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--validate-only", action="store_true")
+    modes.add_argument(
+        "--diagnostic-one-batch",
+        action="store_true",
+        help="run one staged forward/backward/optimizer step and exit",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        result = run(args.runtime_manifest, Path(args.work_dir), validate_only=args.validate_only)
+        result = run(
+            args.runtime_manifest,
+            Path(args.work_dir),
+            validate_only=args.validate_only,
+            diagnostic_one_batch=args.diagnostic_one_batch,
+        )
     except (TrainerConfigError, VertexArtifactError) as error:
         print(str(error), file=sys.stderr)
         return 2

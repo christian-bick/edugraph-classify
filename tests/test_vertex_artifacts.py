@@ -303,6 +303,15 @@ def test_job_configuration_is_derived_from_completed_staging(tmp_path: Path) -> 
     assert config["compute"]["accelerator_type"] == "NVIDIA_L4"  # type: ignore[index]
     assert config["scheduling"]["strategy"] == "FLEX_START"  # type: ignore[index]
 
+    diagnostic = build_vertex_job_config(
+        manifest, staging, image, diagnostic_one_batch=True
+    )
+    assert diagnostic["container"]["args"] == [  # type: ignore[index]
+        "--runtime-manifest",
+        plan.runtime_manifest_uri,
+        "--diagnostic-one-batch",
+    ]
+
     staging.write_text('{"status":"pending"}', encoding="utf-8")
     with pytest.raises(VertexArtifactError, match="not complete"):
         build_vertex_job_config(manifest, staging, image)

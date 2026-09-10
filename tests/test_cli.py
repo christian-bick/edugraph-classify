@@ -577,7 +577,13 @@ def test_vertex_configure_requires_prepared_commit_and_writes_validated_file(
     staging = tmp_path / "staging.json"
     staging.write_text("{}", encoding="utf-8")
     config = vertex_config()
-    monkeypatch.setattr(cli, "build_vertex_job_config", lambda *args: config)
+    observed: dict[str, object] = {}
+
+    def build(*args: object, **kwargs: object) -> dict[str, object]:
+        observed.update(kwargs)
+        return config
+
+    monkeypatch.setattr(cli, "build_vertex_job_config", build)
 
     with pytest.raises(VertexArtifactError, match="same clean commit"):
         cli.run_vertex_configure(
@@ -587,11 +593,12 @@ def test_vertex_configure_requires_prepared_commit_and_writes_validated_file(
 
     exit_code, payload = cli.run_vertex_configure(
         str(manifest), str(staging), config["container"]["image_uri"],  # type: ignore[index]
-        str(tmp_path / "job.json"), code_commit="a" * 40,
+        str(tmp_path / "job.json"), diagnostic_one_batch=True, code_commit="a" * 40,
     )
     assert exit_code == 0
     assert payload["status"] == "configured"
     assert (tmp_path / "job.json").is_file()
+    assert observed == {"diagnostic_one_batch": True}
 
 
 def test_main_routes_vertex_commands(monkeypatch, capsys) -> None:
@@ -630,13 +637,19 @@ def test_main_routes_vertex_commands(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         cli,
         "run_vertex_configure",
-        lambda manifest, staging, image, output: (0, {"status": "configured"}),
+        lambda manifest, staging, image, output, **kwargs: (
+            0,
+            {"status": "configured", "diagnostic": kwargs["diagnostic_one_batch"]},
+        ),
     )
     assert cli.main(
         [
             "vertex", "configure", "--manifest", "manifest.json",
             "--staging-record", "staging.json", "--image-uri",
             "example.com/vlm@sha256:" + "a" * 64, "--output", "job.json",
+            "--diagnostic-one-batch",
         ]
     ) == 0
-    assert "configured" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "configured" in output
+    assert '"diagnostic": true' in output

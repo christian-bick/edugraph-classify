@@ -133,6 +133,25 @@ The remediation is both diagnostic and preventive:
 - use the pinned NVIDIA CUDA 12.6/cuDNN base and PyTorch CUDA 12.6 wheels rather than a generic Python base with the default CUDA 13 wheel.
 - construct label-mask prefixes with the same multimodal processor and images as the complete records, because tokenizer-only prefixes do not include expanded vision tokens.
 
+### Bounded one-batch diagnostic
+
+The trainer exposes an opt-in `--diagnostic-one-batch` mode for the next A100 investigation. It retains the pinned model, quantization, LoRA, gradient-checkpointing, prompt construction, and optimizer choice, but replaces the opaque full `Trainer.train()` call with exactly one manually staged optimizer step. The stages are collation, device transfer, training-mode selection, fused AdamW initialization, gradient reset, forward, scalar finite-loss validation, backward, and optimizer step. A successful diagnostic writes and uploads only its small run result; it does not evaluate, save a checkpoint, or save a model.
+
+Every diagnostic stage emits a constant start/completion event. A failed stage records only the exception class and at most twelve traceback code locations from the allowlisted `edugraph_classify`, Transformers, PEFT, Accelerate, bitsandbytes, and PyTorch packages. Each location contains only package name, module basename, function name, and line number. Exception messages, source lines, filesystem paths, tensor values, local variables, images, prompts, labels, environment values, and credentials remain suppressed.
+
+Configure this mode offline by adding the diagnostic flag:
+
+```bash
+uv run edugraph-classify vertex configure \
+  --manifest runs/<job-id>/manifest.json \
+  --staging-record runs/<job-id>/vertex-staging-record.json \
+  --image-uri europe-west4-docker.pkg.dev/edugraph-438718/training/vlm@sha256:<digest> \
+  --output runs/<job-id>/vertex-job.json \
+  --diagnostic-one-batch
+```
+
+The resulting immutable job configuration passes the same flag to the container. This is a diagnostic configuration, not launch authorization: image publication, any required immutable staging, and the paid A100 CustomJob still require their separate explicit confirmations. Use a new run and job ID so its output and launch records cannot collide with earlier attempts.
+
 The local Linux/amd64 container check must import the full training stack, report `torch.version.cuda == "12.6"`, validate the real 8+8 smoke JSONL without network access, and fail explicitly at `cuda_preflight` when deliberately run without GPU passthrough. Passing these checks does not replace a paid GPU smoke run; it only makes that run technically reviewable.
 
 ## Preparation, staging, and image workflow
