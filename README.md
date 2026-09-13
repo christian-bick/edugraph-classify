@@ -27,14 +27,14 @@ The initial runtime dependencies are:
 - `google-cloud-storage`, used for immutable, hash-checked run staging and artifact transfer;
 - `datasets`, the Hugging Face library used to access and process the released image dataset;
 - `fsspec` and `pillow`, used to read and validate the pinned release images deterministically;
-- `edugraph-py`, installed from the official `v0.26.0` wheel and used as the ontology authority;
+- `edugraph-py`, installed from the official `v0.27.0` wheel and used as the ontology authority;
 - `python-dotenv`, used only at application entry points to load local configuration without overriding process-level environment variables.
 
 `uv.lock` is committed. Add or update dependencies with `uv add`/`uv remove` and commit the resulting `pyproject.toml` and lockfile together.
 
-The development ontology is **v0.26.0**. The catalog rejects organizational nodes as direct labels and fingerprints definitions and relations. [Ontology migration notes](docs/ONTOLOGY-UPGRADE-0.26.md) record the upstream changes.
+The development ontology client is **v0.27.0**. The catalog uses its released eligibility API, rejects organizational nodes as direct labels, and fingerprints definitions and relations. The authored ontology is unchanged from v0.26.0; [the v0.27.0 adoption notes](docs/ONTOLOGY-UPGRADE-0.27.md) record the package migration, while [the v0.26.0 migration](docs/ONTOLOGY-UPGRADE-0.26.md) records the latest semantic changes.
 
-The default preparation recipe pins dataset **v0.26.0-01** at `cee47a3b49503e2637759a8a0e59e071c271b415` with ontology v0.26.0 and explicitly selects its `labels` metadata field. All 1,944 rows pass ontology eligibility and image-integrity checks, with no duplicate image bytes across official splits. One duplicate training image has different gold sets and is preserved and reported. See [Dataset upgrade and release audit](docs/DATASET-UPGRADE-0.26.0-01.md). Historical configurations retain their v0.21.0 dataset/ontology pins and require their original code commit and lockfile.
+The default preparation recipe pins dataset **v0.26.0-01** at `cee47a3b49503e2637759a8a0e59e071c271b415`, records its source ontology v0.26.0, and validates it with the semantically identical v0.27.0 client while explicitly selecting its `labels` metadata field. All 1,944 rows pass ontology eligibility and image-integrity checks, with no duplicate image bytes across official splits. One duplicate training image has different gold sets and is preserved and reported. See [Dataset upgrade and release audit](docs/DATASET-UPGRADE-0.26.0-01.md). Historical configurations retain their v0.21.0 dataset/ontology pins and require their original code commit and lockfile.
 
 Local training targets **Qwen3.5-9B on both RTX 3090s from the first training diagnostic**, using DDP with QLoRA; see [Local Docker training](docs/LOCAL-TRAINING.md) for the pinned model revision and recipe. Only training compute moves to the box; GCP remains the provider for surrounding services, including Artifact Registry, staged inputs, and model upload after training. The preparation recipe is implemented; the distributed job adapter, shared GCS staging, and coordinated checkpoint recovery remain planned work. The single-GPU milestone is removed.
 

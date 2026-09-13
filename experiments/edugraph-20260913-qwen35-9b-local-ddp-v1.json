@@ -3,14 +3,15 @@
   "dataset": {
     "repository": "christian-bick/edugraph-exercises",
     "release_tag": "v0.26.0-01",
+    "source_ontology_version": "0.26.0",
     "revision": "cee47a3b49503e2637759a8a0e59e071c271b415",
     "label_field": "labels",
     "splits": ["train", "validation"]
   },
   "ontology": {
     "package": "edugraph-py",
-    "version": "0.26.0",
-    "release_asset_sha256": "596f7845de647ec23f8724b6c4aa99085846043cc5b9fd6350a455bd1c663b71"
+    "version": "0.27.0",
+    "release_asset_sha256": "5c519aad8cc5370a70ad58697c99c90ab7e3f77d155a2a5bb403a996f14ef160"
   },
   "prompt": {
     "path": "prompts/direct-label-v1.json",

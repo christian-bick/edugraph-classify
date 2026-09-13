@@ -198,10 +198,11 @@ def test_current_recipe_prepares_labels_for_two_gpu_local_training(
     )
     manifest = json.loads(prepared.manifest_path.read_text(encoding="utf-8"))
     assert manifest["dataset"]["release_tag"] == "v0.26.0-01"
+    assert manifest["dataset"]["source_ontology_version"] == "0.26.0"
     assert manifest["dataset"]["label_field"] == "labels"
     assert "selection" not in manifest["dataset"]
     assert [split.example_count for split in prepared.conversion.splits] == [4, 4]
-    assert manifest["ontology"]["version"] == "0.26.0"
+    assert manifest["ontology"]["version"] == "0.27.0"
     assert manifest["model"]["repository"] == "Qwen/Qwen3.5-9B"
     assert manifest["model"]["revision"] == "c202236235762e1c871ad0ccb60c8ee5ba337b9a"
     assert manifest["provider"] == config["provider"]
@@ -274,7 +275,7 @@ def test_prepare_run_pins_every_identity_and_hashes_generated_artifacts(
         },
         "ontology": {
             "package": "edugraph-py",
-            "version": "0.26.0",
+            "version": "0.27.0",
             "release_asset_sha256": "c" * 64,
         },
         "prompt": {
@@ -358,7 +359,7 @@ def test_prepare_run_rejects_uncommitted_identity_and_escaping_paths(tmp_path: P
     config = {
         "run_id": "run-1",
         "dataset": {"repository": "owner/data", "revision": "b" * 40},
-        "ontology": {"version": "0.26.0"},
+        "ontology": {"version": "0.27.0"},
         "prompt": {"path": "../outside.json", "prompt_id": "x", "version": "1"},
         "schema": {"path": "schema.json"},
         "provider": {},
@@ -385,7 +386,7 @@ def test_prepare_run_validates_smoke_selection_contract(
             "revision": "b" * 40,
             "selection": {"mode": "random", "limits": {"train": 3, "validation": 3}},
         },
-        "ontology": {"version": "0.26.0"},
+        "ontology": {"version": "0.27.0"},
         "prompt": {"path": "prompt.json", "prompt_id": "x", "version": "1"},
         "schema": {"path": "schema.json"},
         "provider": {},

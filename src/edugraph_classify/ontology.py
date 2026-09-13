@@ -9,7 +9,7 @@ from importlib.metadata import version
 from types import MappingProxyType
 from typing import ClassVar, Mapping
 
-from edugraph import Ability, Area, Scope, relations
+from edugraph import Ability, Area, Scope, is_label_eligible, relations
 
 from .contracts import LabelSet
 
@@ -52,9 +52,7 @@ class OntologyCatalog:
                 dimensions[member.name] = field_name
                 iris[member.name] = member.value
                 descriptor_relations = relations(member)
-                # ONT-E7: constituent children make a node organizational.
-                # Specialization children do not prevent direct labeling.
-                eligible = not descriptor_relations.get("hasPart")
+                eligible = is_label_eligible(member)
                 if eligible:
                     eligible_labels.add(member.name)
                 snapshot.append(

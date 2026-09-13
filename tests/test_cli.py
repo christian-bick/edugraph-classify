@@ -163,7 +163,7 @@ def test_historical_preparation_reports_version_mismatch_before_loading_data(
         "run", "prepare", "--config", str(config_path), "--runs-root", str(runs_root)
     ]) == 2
     error = json.loads(capsys.readouterr().err)
-    assert error["message"] == "expected edugraph-py 0.21.0, found 0.26.0"
+    assert error["message"] == "expected edugraph-py 0.21.0, found 0.27.0"
     assert not runs_root.exists()
 
 

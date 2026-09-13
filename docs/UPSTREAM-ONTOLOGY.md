@@ -2,7 +2,7 @@
 
 This document explains the stable classifier-facing concepts of [`edugraph-ontology`](https://github.com/christian-bick/edugraph-ontology).
 
-Reviewed against release **v0.26.0** on 2026-09-13. See [the migration assessment](ONTOLOGY-UPGRADE-0.26.md) for the changes since v0.21.0 and implemented adaptations, and [the dataset upgrade](DATASET-UPGRADE-0.26.0-01.md) for the aligned release audit.
+Reviewed against release **v0.27.0** on 2026-09-13. Its authored ontology is unchanged from v0.26.0. See [the v0.27.0 adoption notes](ONTOLOGY-UPGRADE-0.27.md), [the v0.26.0 semantic migration](ONTOLOGY-UPGRADE-0.26.md), and [the dataset upgrade](DATASET-UPGRADE-0.26.0-01.md).
 
 ## 1. Purpose and representation
 
@@ -63,9 +63,9 @@ Names are identifiers, while `rdfs:isDefinedBy` and related annotations carry me
 
 For example, `Square specializes Rectangle`, whereas `HalfCircle partOf CircularShapes` does not imply `Circle`. Use the pinned client's `specializes_transitive` for broader concept claims and `structures_transitive` only for structural context. A path containing `partOf` must not be used to remove a supposedly redundant broader label.
 
-Under upstream [ONT-E7](https://github.com/christian-bick/edugraph-ontology/blob/v0.26.0/docs/content-evidence.md#ont-e7--label-observable-descriptors-not-organizational-nodes), a descriptor with constituent children (`hasPart`) is organizational and cannot be a direct content label. Specialization children alone do not disqualify it: `Rectangle` and `ProofMethod` remain eligible. Inspect the complete pinned graph, including generated inverse relations, rather than a filtered tree. Eligibility does not establish image evidence.
+Under upstream [ONT-E7](https://github.com/christian-bick/edugraph-ontology/blob/v0.27.0/docs/content-evidence.md#ont-e7--label-observable-descriptors-not-organizational-nodes), a descriptor with constituent children (`hasPart`) is organizational and cannot be a direct content label. Specialization children alone do not disqualify it: `Rectangle` and `ProofMethod` remain eligible. Inspect the complete pinned graph, including generated inverse relations, rather than a filtered tree. Eligibility does not establish image evidence.
 
-The catalog retains all descriptors for lookup and derives `eligible_labels` from the released relation map. `labels()` rejects organizational labels instead of dropping them or replacing them with arbitrary children. Optional specialization-derived labels remain separate from explicit targets and metrics; the current converter performs no closure or ancestor pruning.
+The catalog retains all descriptors for lookup and derives `eligible_labels` through the released Python client's `is_label_eligible()` API. `labels()` rejects organizational labels instead of dropping them or replacing them with arbitrary children. Optional specialization-derived labels remain separate from explicit targets and metrics; the current converter performs no closure or ancestor pruning.
 
 ## 5. Logical constraint relations
 
@@ -182,7 +182,7 @@ Every run manifest must record the exact ontology release or package artifact an
 
 The current `descriptor-semantics-v2` snapshot hashes sorted dimension/name/IRI records, definitions, generated direct relation views, and direct-label eligibility. Relation targets are deduplicated and sorted by full IRI. The manifest records `normalized_snapshot_format` alongside `normalized_snapshot_sha256`. Historical hashes without that format describe the old identifier-only snapshot and must not be compared as semantic fingerprints. The released wheel SHA-256 in `uv.lock` independently pins the entire package. Generated relation views include inverse and superproperty facts; this snapshot is not an authored-RDF or general OWL-reasoner snapshot.
 
-v0.26.0's portable snapshot/parser/assessment APIs are TypeScript functionality. The Python package remains the descriptor/relation client used here. This classifier does not need a TypeScript runtime or the upstream authoring validator to load a released ontology. Full logical prediction validation and derived closure remain future classifier work.
+Since v0.27.0, Python exposes typed immutable snapshot contexts, authored and entailed relation access, traversal, eligibility, compatibility, and the existing deduction helpers. The classifier uses the released eligibility helper now; the context API can support later canonicalization and derived-label work without local graph indexing. Optional RDF parsing is not installed because this repository consumes the bundled released ontology rather than authoring Turtle. Ontology authoring validation and assessment remain TypeScript-only.
 
 ## 12. Assumptions that are intentionally not stable
 

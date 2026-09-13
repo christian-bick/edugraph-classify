@@ -760,7 +760,7 @@ training = [
 [package.metadata]
 requires-dist = [
     { name = "datasets", specifier = ">=5.0.1" },
-    { name = "edugraph-py", url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.26.0/edugraph_py-0.26.0-py3-none-any.whl" },
+    { name = "edugraph-py", url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.27.0/edugraph_py-0.27.0-py3-none-any.whl" },
     { name = "fireworks-ai", specifier = ">=1.2.9" },
     { name = "fsspec", specifier = ">=2026.6.0" },
     { name = "google-cloud-aiplatform", specifier = ">=1.122.0,<2" },
@@ -785,11 +785,15 @@ training = [
 
 [[package]]
 name = "edugraph-py"
-version = "0.26.0"
-source = { url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.26.0/edugraph_py-0.26.0-py3-none-any.whl" }
+version = "0.27.0"
+source = { url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.27.0/edugraph_py-0.27.0-py3-none-any.whl" }
 wheels = [
-    { url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.26.0/edugraph_py-0.26.0-py3-none-any.whl", hash = "sha256:596f7845de647ec23f8724b6c4aa99085846043cc5b9fd6350a455bd1c663b71" },
+    { url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.27.0/edugraph_py-0.27.0-py3-none-any.whl", hash = "sha256:5c519aad8cc5370a70ad58697c99c90ab7e3f77d155a2a5bb403a996f14ef160" },
 ]
+
+[package.metadata]
+requires-dist = [{ name = "pyoxigraph", marker = "extra == 'rdf'", specifier = ">=0.5.11,<0.6" }]
+provides-extras = ["rdf"]
 
 [[package]]
 name = "filelock"
