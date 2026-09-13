@@ -460,6 +460,56 @@ def test_diagnostic_stage_emits_only_allowlisted_traceback_metadata(capsys) -> N
     assert "training batch and prompt" not in serialized
 
 
+@pytest.mark.parametrize(
+    ("message", "category"),
+    [
+        ("CUDA error: an illegal memory access was encountered secret", "cuda_illegal_memory_access"),
+        ("Triton compilation failed for secret kernel", "triton_compilation"),
+        ("ptxas exited with secret arguments", "triton_compilation"),
+        ("Expected all tensors to be on the same device: secret", "device_mismatch"),
+    ],
+)
+def test_diagnostic_stage_classifies_accelerator_errors_without_message(
+    message: str, category: str, capsys
+) -> None:
+    def fail() -> None:
+        raise RuntimeError(message)
+
+    with pytest.raises(TrainerRuntimeError):
+        vlm_trainer._run_stage("diagnostic_forward", fail, diagnostics=True)
+
+    event = json.loads(capsys.readouterr().err.splitlines()[-1])
+    assert event["error_category"] == category
+    assert "secret" not in json.dumps(event)
+
+
+def test_safe_batch_metadata_reports_only_allowlisted_tensor_structure() -> None:
+    class Device:
+        type = "cuda"
+        index = 0
+
+    class Tensor:
+        shape = (1, 128)
+        dtype = "torch.int64"
+        device = Device()
+
+        @staticmethod
+        def stride() -> tuple[int, int]:
+            return (128, 1)
+
+    metadata = vlm_trainer._safe_batch_metadata(
+        {"input_ids": Tensor(), "private_value": Tensor()}
+    )
+    assert metadata == {
+        "input_ids": {
+            "shape": [1, 128],
+            "dtype": "int64",
+            "device": "cuda:0",
+            "stride": [128, 1],
+        }
+    }
+
+
 def test_one_batch_diagnostic_runs_each_stage_without_exposing_values(capsys) -> None:
     operations: list[str] = []
 

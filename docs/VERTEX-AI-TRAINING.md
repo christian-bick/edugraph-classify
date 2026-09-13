@@ -151,10 +151,15 @@ uv run edugraph-classify vertex configure \
   --staging-record runs/<job-id>/vertex-staging-record.json \
   --image-uri europe-west4-docker.pkg.dev/edugraph-438718/training/vlm@sha256:<digest> \
   --output runs/<job-id>/vertex-job.json \
-  --diagnostic-one-batch
+  --diagnostic-one-batch \
+  --disable-native-jit
 ```
 
-The resulting immutable job configuration passes the same flag to the container. This is a diagnostic configuration, not launch authorization: image publication, any required immutable staging, and the paid A100 CustomJob still require their separate explicit confirmations. Use a new run and job ID so its output and launch records cannot collide with earlier attempts.
+The resulting immutable job configuration passes the diagnostic flag to the container and sets `TORCH_DISABLE_NATIVE_JIT=1`, routing PyTorch native-JIT operations through their stable fallback. This is a diagnostic configuration, not launch authorization: image publication, any required immutable staging, and the paid A100 CustomJob still require their separate explicit confirmations. Use a new run and job ID so its output and launch records cannot collide with earlier attempts.
+
+The first execution of the bounded diagnostic was `edugraph-q35-4b-a100-diagnostic-v5` (`customJobs/8884715927149477888`). It provisioned one A100 40 GB, passed CUDA preflight, processor and model loading, quantized preparation, LoRA attachment, collation, device transfer, training-mode selection, fused AdamW initialization, and gradient reset. Three worker attempts failed deterministically during `diagnostic_forward`. The allowlisted traceback localized the error to Qwen3.5 text rotary-position computation and PyTorch 2.13's native Triton `bmm` outer-product kernel. Cloud Logging contained no GPU-driver, VM, Vertex infrastructure, NCCL, or explicit out-of-memory error, and the failed diagnostic uploaded no output object.
+
+The exact third-party exception message was intentionally suppressed, so the next diagnostic records only allowlisted batch tensor shapes, dtypes, devices, and strides plus constant accelerator error categories. It also uses `TORCH_DISABLE_NATIVE_JIT=1` as a controlled A/B test. A successful forward with this flag identifies the native Triton route as the cause without changing the model, data, quantization, or optimizer recipe.
 
 The local Linux/amd64 container check must import the full training stack, report `torch.version.cuda == "12.6"`, validate the real 8+8 smoke JSONL without network access, and fail explicitly at `cuda_preflight` when deliberately run without GPU passthrough. Passing these checks does not replace a paid GPU smoke run; it only makes that run technically reviewable.
 

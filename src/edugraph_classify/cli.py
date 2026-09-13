@@ -154,6 +154,7 @@ def run_vertex_configure(
     output_path: str,
     *,
     diagnostic_one_batch: bool = False,
+    disable_native_jit: bool = False,
     repo_root: Path | None = None,
     code_commit: str | None = None,
 ) -> tuple[int, dict[str, object]]:
@@ -171,6 +172,7 @@ def run_vertex_configure(
         Path(staging_record_path),
         image_uri,
         diagnostic_one_batch=diagnostic_one_batch,
+        disable_native_jit=disable_native_jit,
     )
     destination = Path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -436,6 +438,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="configure a single staged diagnostic optimizer step",
     )
+    configure.add_argument(
+        "--disable-native-jit",
+        action="store_true",
+        help="route PyTorch native-JIT operations through their stable fallback",
+    )
     vertex_launch = vertex_actions.add_parser(
         "launch", help="submit one explicitly confirmed Vertex CustomJob"
     )
@@ -475,6 +482,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.image_uri,
                 args.output,
                 diagnostic_one_batch=args.diagnostic_one_batch,
+                disable_native_jit=args.disable_native_jit,
             )
         else:
             exit_code, payload = run_vertex_launch(

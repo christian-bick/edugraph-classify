@@ -43,6 +43,18 @@ _SAFE_TRACE_PACKAGES = frozenset(
     }
 )
 _SAFE_TRACE_FRAME_LIMIT = 12
+_SAFE_DIAGNOSTIC_BATCH_KEYS = frozenset(
+    {
+        "attention_mask",
+        "image_grid_thw",
+        "input_ids",
+        "labels",
+        "pixel_values",
+        "pixel_values_videos",
+        "position_ids",
+        "video_grid_thw",
+    }
+)
 _T = TypeVar("_T")
 
 
@@ -84,6 +96,70 @@ def _safe_traceback_frames(error: BaseException) -> list[dict[str, object]]:
     return frames[-_SAFE_TRACE_FRAME_LIMIT:]
 
 
+def _safe_runtime_error_category(error: BaseException) -> str | None:
+    """Classify selected accelerator failures without emitting exception text."""
+
+    if not isinstance(error, RuntimeError):
+        return None
+    message = str(error).casefold()
+    categories = (
+        (("cuda", "out of memory"), "cuda_out_of_memory"),
+        (("cuda", "illegal memory access"), "cuda_illegal_memory_access"),
+        (("cuda", "no kernel image"), "cuda_no_kernel_image"),
+        (("cuda", "invalid argument"), "cuda_invalid_argument"),
+        (("expected all tensors", "same device"), "device_mismatch"),
+        (("triton", "out of resource"), "triton_out_of_resources"),
+        (("triton", "compil"), "triton_compilation"),
+        (("ptxas",), "triton_compilation"),
+    )
+    for markers, category in categories:
+        if all(marker in message for marker in markers):
+            return category
+    return None
+
+
+def _safe_tensor_metadata(value: object) -> dict[str, object] | None:
+    shape = getattr(value, "shape", None)
+    if shape is None:
+        return None
+    try:
+        dimensions = [int(dimension) for dimension in shape]
+    except (TypeError, ValueError):
+        return None
+    if len(dimensions) > 8 or any(dimension < 0 for dimension in dimensions):
+        return None
+
+    metadata: dict[str, object] = {"shape": dimensions}
+    dtype = str(getattr(value, "dtype", "")).removeprefix("torch.")
+    if re.fullmatch(r"[a-z0-9_]{1,32}", dtype):
+        metadata["dtype"] = dtype
+    device = getattr(value, "device", None)
+    device_type = getattr(device, "type", None)
+    device_index = getattr(device, "index", None)
+    if device_type in {"cpu", "cuda"}:
+        metadata["device"] = (
+            device_type if device_index is None else f"{device_type}:{int(device_index)}"
+        )
+    stride = getattr(value, "stride", None)
+    if callable(stride):
+        try:
+            strides = [int(item) for item in stride()]
+        except (TypeError, ValueError):
+            strides = []
+        if len(strides) == len(dimensions):
+            metadata["stride"] = strides
+    return metadata
+
+
+def _safe_batch_metadata(batch: Mapping[str, object]) -> dict[str, object]:
+    tensors: dict[str, object] = {}
+    for name in sorted(_SAFE_DIAGNOSTIC_BATCH_KEYS.intersection(batch)):
+        metadata = _safe_tensor_metadata(batch[name])
+        if metadata is not None:
+            tensors[name] = metadata
+    return tensors
+
+
 def _run_stage(
     name: str,
     operation: Callable[[], _T],
@@ -101,6 +177,9 @@ def _run_stage(
         error_type = type(error).__name__
         details: dict[str, object] = {"error_type": error_type}
         if diagnostics:
+            category = _safe_runtime_error_category(error)
+            if category is not None:
+                details["error_category"] = category
             frames = _safe_traceback_frames(error)
             if frames:
                 details["traceback"] = frames
@@ -504,6 +583,7 @@ def _run_one_batch_diagnostic(
         "diagnostic_device_transfer",
         lambda: _move_batch_to_device(batch, model.device),
     )
+    _emit_runtime_event("diagnostic_batch_metadata", tensors=_safe_batch_metadata(batch))
     stage("diagnostic_model_train", model.train)
     optimizer = stage(
         "diagnostic_optimizer_initialize",

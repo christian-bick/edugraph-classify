@@ -620,12 +620,15 @@ def test_vertex_configure_requires_prepared_commit_and_writes_validated_file(
 
     exit_code, payload = cli.run_vertex_configure(
         str(manifest), str(staging), config["container"]["image_uri"],  # type: ignore[index]
-        str(tmp_path / "job.json"), diagnostic_one_batch=True, code_commit="a" * 40,
+        str(tmp_path / "job.json"),
+        diagnostic_one_batch=True,
+        disable_native_jit=True,
+        code_commit="a" * 40,
     )
     assert exit_code == 0
     assert payload["status"] == "configured"
     assert (tmp_path / "job.json").is_file()
-    assert observed == {"diagnostic_one_batch": True}
+    assert observed == {"diagnostic_one_batch": True, "disable_native_jit": True}
 
 
 def test_main_routes_vertex_commands(monkeypatch, capsys) -> None:
@@ -666,7 +669,11 @@ def test_main_routes_vertex_commands(monkeypatch, capsys) -> None:
         "run_vertex_configure",
         lambda manifest, staging, image, output, **kwargs: (
             0,
-            {"status": "configured", "diagnostic": kwargs["diagnostic_one_batch"]},
+            {
+                "status": "configured",
+                "diagnostic": kwargs["diagnostic_one_batch"],
+                "native_jit_disabled": kwargs["disable_native_jit"],
+            },
         ),
     )
     assert cli.main(
@@ -675,8 +682,10 @@ def test_main_routes_vertex_commands(monkeypatch, capsys) -> None:
             "--staging-record", "staging.json", "--image-uri",
             "example.com/vlm@sha256:" + "a" * 64, "--output", "job.json",
             "--diagnostic-one-batch",
+            "--disable-native-jit",
         ]
     ) == 0
     output = capsys.readouterr().out
     assert "configured" in output
     assert '"diagnostic": true' in output
+    assert '"native_jit_disabled": true' in output

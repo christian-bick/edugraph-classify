@@ -305,6 +305,7 @@ def build_vertex_job_config(
     image_uri: str,
     *,
     diagnostic_one_batch: bool = False,
+    disable_native_jit: bool = False,
 ) -> dict[str, object]:
     """Resolve the fixed first-smoke compute shape after image publication."""
 
@@ -330,6 +331,9 @@ def build_vertex_job_config(
     container_args = ["--runtime-manifest", runtime_uri]
     if diagnostic_one_batch:
         container_args.append("--diagnostic-one-batch")
+    environment = {"HF_HOME": "/tmp/huggingface"}
+    if disable_native_jit:
+        environment["TORCH_DISABLE_NATIVE_JIT"] = "1"
     config: dict[str, object] = {
         "provider_id": "gcp_vertex_ai",
         "training_execution_mode": "serverless",
@@ -344,7 +348,7 @@ def build_vertex_job_config(
             "image_uri": image_uri,
             "command": [],
             "args": container_args,
-            "environment": {"HF_HOME": "/tmp/huggingface"},
+            "environment": environment,
         },
         "compute": {
             "machine_type": "g2-standard-12",
