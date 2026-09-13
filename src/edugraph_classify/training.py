@@ -255,6 +255,7 @@ def prepare_run(
         "dataset": {**dataset_config, "conversion": conversion.to_mapping()},
         "ontology": {
             **ontology_config,
+            "normalized_snapshot_format": catalog.snapshot_format,
             "normalized_snapshot_sha256": catalog.snapshot_sha256,
         },
         "prompt": {**prompt_config, "sha256": prompt.sha256},

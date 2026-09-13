@@ -13,6 +13,7 @@ from typing import Any
 
 from .configuration import load_local_environment
 from .dataset import DatasetConversionError, file_sha256
+from .ontology import OntologyError
 from .preflight import EligibilityStatus, PreflightError
 from .providers.fireworks import (
     FireworksTrainingProvider,
@@ -485,6 +486,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (
         PreflightError,
         DatasetConversionError,
+        OntologyError,
         TrainingConfigError,
         TrainingLaunchError,
         VertexConfigError,

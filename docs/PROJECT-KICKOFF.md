@@ -8,6 +8,8 @@ Initial managed provider: Fireworks AI
 
 First executable baseline: Qwen3-VL-8B-Instruct
 
+Current local-training plan (2026-09-13): user-selected Qwen3.5-9B, revision `c202236235762e1c871ad0ccb60c8ee5ba337b9a`, with QLoRA on both RTX 3090s from the first diagnostic. DDP is the initial backend; two-GPU FSDP-QLoRA is the memory fallback. There is no preceding single-GPU or 4B training milestone. GCP remains responsible for surrounding services and completed model uploads. This updates the planned local path; the managed-run history below retains its original identities. See [Local Docker training](LOCAL-TRAINING.md).
+
 ## 1. Core decision
 
 Start with the smallest credible experiment: fine-tune a vision-language model to assign the explicit EduGraph ontology labels supported by one isolated educational task.
@@ -48,7 +50,7 @@ Area, Scope, and Ability are strongly correlated. The model should learn their j
 
 The classifier predicts the most specific concepts independently demonstrated by the task. It should not repeat broader facts that can be recovered mechanically from the pinned ontology.
 
-Raw predictions, validated explicit predictions, and any ontology-derived expansion remain separate. In particular, `partOf` can support ancestor handling, while `integrates` describes composition and must not be treated as automatic logical entailment.
+Raw predictions, validated explicit predictions, and any ontology-derived expansion remain separate. Under the current ontology, only pure `specializes` paths support inheritance; `partOf` provides structural context. Neither `partOf` nor progression relations such as `integrates` justify automatic label addition or removal. Nodes with constituent children are organizational and are ineligible for direct labeling.
 
 ## 3. Starting model hypothesis
 
@@ -74,6 +76,8 @@ serverless  dedicated     owned runtime
 ```
 
 The neutral core owns dataset ingestion, ontology validation, prediction contracts, canonicalization, metrics, and reproducibility metadata. A provider adapter translates those contracts into model discovery, training, inference, artifact, and deployment operations for a particular provider.
+
+Provider choice may differ by operation. For the local training path, the accepted boundary is `local_docker` / `self_hosted` for training compute, with GCP retained for surrounding services such as container images, input staging, model/artifact upload, and downstream evaluation or serving. Record these responsibilities separately; GCS use does not make a training run a Vertex job. Shared GCP artifact operations should be reusable by either training executor.
 
 Execution mode is recorded separately from provider identity:
 
@@ -165,6 +169,8 @@ The following decisions define the initial implementation without changing the d
 Use the latest public `christian-bick/edugraph-exercises` release on Hugging Face as the baseline source. Resolve the moving release reference to its full immutable Hub commit before conversion and record that commit in every run identity. Use the exact ontology release declared by the dataset; fail closed if its ontology provenance cannot be resolved rather than validating against an unpinned latest ontology.
 
 The initial baseline pair is dataset tag `v0.21.0-01` at commit `ed47264f751a8a67c480dbe4eb7397e317a722eb` with ontology release `v0.21.0`. Treat this pair as run configuration and consume it directly through the dataset library; Hugging Face is a data source, not a classifier provider adapter.
+
+As of 2026-09-13 the development package pins ontology v0.26.0. The initial experiment files retain their historical v0.21.0 pins and fail the version check in the current environment. Neither the initial dataset nor the newer v0.22.2 dataset is approved as v0.26.0 gold data; see [the migration assessment](ONTOLOGY-UPGRADE-0.26.md). Historical reproduction requires the corresponding code commit and lockfile. The [local Docker training assessment](LOCAL-TRAINING.md) proposes a `local_docker` / `self_hosted` training adapter while retaining GCP for all surrounding services, including model upload after training. The assessment does not launch a run.
 
 Public dataset discovery and download do not require a Hugging Face credential. Authentication is introduced only if a future source is private or gated, or when an explicit model-publication step is approved.
 

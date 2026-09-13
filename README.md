@@ -27,12 +27,16 @@ The initial runtime dependencies are:
 - `google-cloud-storage`, used for immutable, hash-checked run staging and artifact transfer;
 - `datasets`, the Hugging Face library used to access and process the released image dataset;
 - `fsspec` and `pillow`, used to read and validate the pinned release images deterministically;
-- `edugraph-py`, installed from the official `v0.21.0` wheel and used as the ontology authority;
+- `edugraph-py`, installed from the official `v0.26.0` wheel and used as the ontology authority;
 - `python-dotenv`, used only at application entry points to load local configuration without overriding process-level environment variables.
 
 `uv.lock` is committed. Add or update dependencies with `uv add`/`uv remove` and commit the resulting `pyproject.toml` and lockfile together.
 
-The initial baseline data configuration pins `christian-bick/edugraph-exercises` tag `v0.21.0-01` at commit `ed47264f751a8a67c480dbe4eb7397e317a722eb` with ontology release `v0.21.0`. Dataset ingestion uses `datasets` directly rather than a provider adapter.
+The development ontology is **v0.26.0**. The catalog now rejects organizational nodes as direct labels and fingerprints definitions and relations. [Ontology migration notes](docs/ONTOLOGY-UPGRADE-0.26.md) record the upstream changes and required dataset work.
+
+The historical experiment configurations still pin `christian-bick/edugraph-exercises` tag `v0.21.0-01` at commit `ed47264f751a8a67c480dbe4eb7397e317a722eb` with ontology v0.21.0. **Preparing those configurations, including the default `run prepare`, intentionally fails the ontology version check in the current environment.** Reproduce historical runs with their original code commit and lockfile. New v0.26.0 experiments require an aligned upstream dataset; the newest public v0.22.2 release also needs label review and a `labels` field adapter. Dataset ingestion remains provider-independent.
+
+Local training targets **Qwen3.5-9B on both RTX 3090s from the first training diagnostic**, using DDP with QLoRA; see [Local Docker training](docs/LOCAL-TRAINING.md) for the pinned model revision and recipe. Only training compute moves to the box; GCP remains the provider for surrounding services, including Artifact Registry, staged inputs, and model upload after training. The initial implementation includes the distributed job adapter, shared GCS staging, and coordinated checkpoint recovery. The single-GPU milestone is removed.
 
 ## Provider preflight and first-run preparation
 
@@ -44,7 +48,7 @@ uv run edugraph-classify preflight fireworks
 
 The command loads `.env` explicitly, preserves any variables already supplied by the process, and never prints secret values. An ineligible model produces structured diagnostic output and exit code `2`. The preflight is read-only; it does not launch training, create a deployment, upload data, or publish a model.
 
-Create deterministic provider-ready artifacts from the pinned public Hugging Face release:
+The following preparation and launch examples document historical runs and require their original environment. Create deterministic provider-ready artifacts from the pinned public Hugging Face release:
 
 ```bash
 uv run edugraph-classify run prepare

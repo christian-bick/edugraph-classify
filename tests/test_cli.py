@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from edugraph_classify import cli
+from edugraph_classify import cli, training
 from edugraph_classify.contracts import ModelIdentity
 from edugraph_classify.preflight import EligibilityStatus
 from edugraph_classify.providers.fireworks import ModelResolutionError, TrainingLaunchError
@@ -138,6 +138,32 @@ def test_run_prepare_passes_a_pinned_commit_to_preparation(monkeypatch, tmp_path
     assert payload == {"run_id": "run-1"}
     assert observed["code_commit"] == "a" * 40
     assert observed["workers"] == 3
+
+
+@pytest.mark.parametrize(
+    "config_path",
+    sorted(
+        path for path in (Path(__file__).resolve().parents[1] / "experiments").glob("edugraph-20260823-*.json")
+        if not path.name.endswith(".record.json")
+    ),
+    ids=lambda path: path.stem,
+)
+def test_historical_preparation_reports_version_mismatch_before_loading_data(
+    config_path: Path, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(cli, "_code_commit", lambda root: "a" * 40)
+    monkeypatch.setattr(
+        training,
+        "load_released_splits",
+        lambda *args, **kwargs: pytest.fail("version mismatch must precede dataset access"),
+    )
+    runs_root = tmp_path / "runs"
+    assert cli.main([
+        "run", "prepare", "--config", str(config_path), "--runs-root", str(runs_root)
+    ]) == 2
+    error = json.loads(capsys.readouterr().err)
+    assert error["message"] == "expected edugraph-py 0.21.0, found 0.26.0"
+    assert not runs_root.exists()
 
 
 def test_run_launch_requires_exact_confirmation_and_records_external_ids(

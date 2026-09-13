@@ -4,6 +4,8 @@ This document transports the stable consumer-facing contract of [`edugraph-datas
 
 The pinned upstream release remains authoritative. If this summary and a released artifact disagree, the released artifact and its documentation win.
 
+**Release compatibility, checked 2026-09-13:** the implemented importer and compact `tags` shape below describe v0.21.0-01. The latest public release, v0.22.2-01 at `5e81395636f1f83c522b04866e7e8aa341d37521`, uses `labels` in its actual metadata, although its README still says `tags`. Adopting it requires an explicit versioned field adapter and fixtures; the current importer rejects that shape. Neither release is aligned with the development ontology v0.26.0. See [the metadata audit and migration requirements](ONTOLOGY-UPGRADE-0.26.md#dataset-compatibility).
+
 ## 1. Purpose and ownership
 
 `edugraph-dataset` publishes synthetic images of educational tasks with EduGraph ontology labels. It owns:

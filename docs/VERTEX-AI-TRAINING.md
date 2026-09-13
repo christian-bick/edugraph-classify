@@ -2,9 +2,13 @@
 
 ## Scope
 
+The recipes below retain their historical ontology v0.21.0 provenance. With the current v0.26.0 dependency, preparation fails closed; use the matching historical code/lockfile to reproduce those runs. A new run requires the dataset work in [the ontology migration assessment](ONTOLOGY-UPGRADE-0.26.md). For the proposed standalone GPU host, see [Local Docker training](LOCAL-TRAINING.md).
+
 The GCP adapter submits custom-container training through Vertex AI CustomJob. Vertex owns provisioning, monitoring, and teardown, so this repository records the execution mode as `serverless`. A job still specifies ephemeral machine, GPU, disk, replica, timeout, and scheduling values; “serverless” does not mean that compute choices or GPU quota disappear.
 
 This boundary is model-agnostic. It can run a pinned Qwen, Gemma, or DeepSeek VLM trainer without teaching the provider adapter about a particular model framework. Dataset conversion, ontology validation, metrics, and model selection remain outside the adapter.
+
+The proposed local training path targets Qwen3.5-9B with both RTX 3090s from its first diagnostic and retains the GCP services described here: Artifact Registry supplies the container, GCS holds staged inputs, and completed models/artifacts upload to GCS after training on the standalone box. It replaces the CustomJob training executor with Docker. Shared staging currently requires a Vertex serverless identity and must be separated from job validation before that reuse; local execution is recorded as `self_hosted`. The historical 4B run below is not a prerequisite milestone for this new plan. See [the revised local assessment](LOCAL-TRAINING.md#gcp-and-local-responsibilities).
 
 ## Regional and identity policy
 

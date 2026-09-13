@@ -54,7 +54,7 @@ def test_conversion_is_deterministic_and_keeps_dimension_aware_targets(tmp_path:
             row("validation", 1, 4),
         ],
     }
-    catalog = OntologyCatalog.load("0.21.0")
+    catalog = OntologyCatalog.load("0.26.0")
 
     first = convert_dataset(
         splits,
@@ -105,7 +105,7 @@ def test_conversion_fails_closed_on_cross_split_duplicate_bytes(tmp_path: Path) 
             splits,
             repo_id=REPO,
             revision=REVISION,
-            catalog=OntologyCatalog.load("0.21.0"),
+            catalog=OntologyCatalog.load("0.26.0"),
             prompt=prompt(),
             output_dir=tmp_path / "duplicate",
         )
@@ -127,7 +127,7 @@ def test_conversion_preserves_and_reports_within_split_gold_conflicts(
         },
         repo_id=REPO,
         revision=REVISION,
-        catalog=OntologyCatalog.load("0.21.0"),
+        catalog=OntologyCatalog.load("0.26.0"),
         prompt=prompt(),
         output_dir=tmp_path / "within-split",
     )
@@ -222,7 +222,7 @@ def test_image_validation_and_remote_read_fail_closed(monkeypatch) -> None:
 def test_conversion_rejects_bad_split_shape_workers_labels_paths_and_counts(
     tmp_path: Path,
 ) -> None:
-    catalog = OntologyCatalog.load("0.21.0")
+    catalog = OntologyCatalog.load("0.26.0")
     with pytest.raises(DatasetConversionError, match="exactly train"):
         convert_dataset(
             {"train": []},
@@ -347,7 +347,7 @@ def test_prompt_and_dataset_loader_contracts(tmp_path: Path, monkeypatch) -> Non
             },
             repo_id=REPO,
             revision=REVISION,
-            catalog=OntologyCatalog.load("0.21.0"),
+            catalog=OntologyCatalog.load("0.26.0"),
             prompt=prompt(),
             output_dir=tmp_path / "escaped",
         )

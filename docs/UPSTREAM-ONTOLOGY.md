@@ -2,6 +2,8 @@
 
 This document explains the stable classifier-facing concepts of [`edugraph-ontology`](https://github.com/christian-bick/edugraph-ontology).
 
+Reviewed against release **v0.26.0** on 2026-09-13. See [the migration assessment](ONTOLOGY-UPGRADE-0.26.md) for the changes since v0.21.0, implemented adaptations, and dataset blockers.
+
 ## 1. Purpose and representation
 
 EduGraph is an OWL/RDF ontology for describing educational content with small, reusable, observable descriptors and explicit relations. Its source is authored in Turtle and release artifacts include machine-readable ontology formats plus generated client libraries.
@@ -27,7 +29,7 @@ All classifier labels belong to one of three subclasses of `CompetencyDescriptor
 
 Abilities are deliberately domain-general. An Area-Ability pairing common in one dataset is a statistical correlation, not an ontological rule that the Ability belongs only to that Area.
 
-`CompetencyDescription` is a `CompetencyEntity` defined through `involves` restrictions with at least one Area, one Scope, and one Ability. These are existential requirements, not “exactly one” cardinalities. A content item can truthfully carry several descriptors from the same dimension.
+`CompetencyDescription` remains a `CompetencyEntity`, but since v0.24.0 it has no ontology-wide descriptor-presence or cardinality requirements. Applications define their own completeness policy. Several descriptors in one dimension apply conjunctively; no dimension or primary Ability is mandatory. The classifier keeps all three JSON fields for a stable output shape and permits empty arrays.
 
 The released visual dataset exposes descriptor local names rather than `CompetencyDescription` individuals. Classifier code groups those descriptors by dimension using the pinned ontology package.
 
@@ -53,23 +55,17 @@ Names are identifiers, while `rdfs:isDefinedBy` and related annotations carry me
 
 ## 4. Structural relations
 
-### `partOf` and `hasPart`
+| Relation | Inverse | Meaning and classifier use |
+|---|---|---|
+| `partOf` | `hasPart` | Constituent to containing field; navigation only, with no inheritance or label substitution |
+| `specializes` | `specializedBy` | Narrower form of the same concept; a pure specialization chain supports the broader claim |
+| `structures` | `structuredBy` | Shared structural parent of both relations; combined navigation does not establish inheritance |
 
-`A partOf B` means A is a more specific member of the taxonomy represented by B and inherits B's attributes and relations. `hasPart` is the inverse direction.
+For example, `Square specializes Rectangle`, whereas `HalfCircle partOf CircularShapes` does not imply `Circle`. Use the pinned client's `specializes_transitive` for broader concept claims and `structures_transitive` only for structural context. A path containing `partOf` must not be used to remove a supposedly redundant broader label.
 
-```text
-specific A --partOf--> broader B
-broader B --hasPart--> specific A
-```
+Under upstream [ONT-E7](https://github.com/christian-bick/edugraph-ontology/blob/v0.26.0/docs/content-evidence.md#ont-e7--label-observable-descriptors-not-organizational-nodes), a descriptor with constituent children (`hasPart`) is organizational and cannot be a direct content label. Specialization children alone do not disqualify it: `Rectangle` and `ProofMethod` remain eligible. Inspect the complete pinned graph, including generated inverse relations, rather than a filtered tree. Eligibility does not establish image evidence.
 
-Safe classifier uses:
-
-- determine whether one label is equal to or more specific than another;
-- compute an ancestor closure for search, reporting, or broad indexing;
-- detect redundant explicit predictions when both a descriptor and its ancestor are emitted;
-- construct graph neighborhoods for later reranking.
-
-The explicit classifier target should remain separate from its ancestor closure. If a task is labeled with a specific descriptor, the broader ancestors are derived facts, not additional model successes.
+The catalog retains all descriptors for lookup and derives `eligible_labels` from the released relation map. `labels()` rejects organizational labels instead of dropping them or replacing them with arbitrary children. Optional specialization-derived labels remain separate from explicit targets and metrics; the current converter performs no closure or ancestor pruning.
 
 ## 5. Logical constraint relations
 
@@ -139,7 +135,7 @@ derived labels
   = deterministic closure or graph facts computed from explicit labels
 ```
 
-Examples of derived information include taxonomy ancestors and logically implied bounds. Keeping the views separate ensures that:
+Examples of derived information include specialization ancestors and logically implied bounds. Structural context reached through `partOf` is navigation metadata. Keeping the views separate ensures that:
 
 - exact-set metrics measure what the model was asked to predict;
 - consumers can choose their preferred closure depth;
@@ -155,7 +151,7 @@ The ontology supplies facts; `edugraph-classify` supplies the explicit-output po
 1. validate identifier membership in the pinned ontology;
 2. resolve Area, Scope, and Ability dimensions;
 3. remove exact duplicates and impose serialization order;
-4. flag or remove redundant ancestors according to the documented minimal-label contract;
+4. flag or remove redundant specialization ancestors according to the documented minimal-label contract;
 5. reject logically incompatible sets using implication-aware contradiction checks;
 6. compute optional derived closures without mixing them into explicit output.
 
@@ -163,6 +159,7 @@ It may not:
 
 - map an unknown label to a similar-sounding known label;
 - infer dimension from the identifier's English name;
+- use `partOf` or combined `structures` paths as inheritance or an ancestor-removal rule;
 - use `expands`, `integrates`, `inverts`, or `translates` as automatic add/drop rules;
 - treat observed training co-occurrence as ontology truth;
 - hide changes by discarding the raw prediction.
@@ -182,6 +179,10 @@ Ontology releases publish machine-readable ontology assets and generated languag
 Classifier implementation should prefer a pinned generated client or a normalized snapshot derived from one immutable release. It should not scrape the ontology browser, use an unversioned checkout, or combine identifiers from one release with definitions/relations from another.
 
 Every run manifest must record the exact ontology release or package artifact and a content hash of the normalized label/definition/relation snapshot used by conversion and evaluation.
+
+The current `descriptor-semantics-v2` snapshot hashes sorted dimension/name/IRI records, definitions, generated direct relation views, and direct-label eligibility. Relation targets are deduplicated and sorted by full IRI. The manifest records `normalized_snapshot_format` alongside `normalized_snapshot_sha256`. Historical hashes without that format describe the old identifier-only snapshot and must not be compared as semantic fingerprints. The released wheel SHA-256 in `uv.lock` independently pins the entire package. Generated relation views include inverse and superproperty facts; this snapshot is not an authored-RDF or general OWL-reasoner snapshot.
+
+v0.26.0's portable snapshot/parser/assessment APIs are TypeScript functionality. The Python package remains the descriptor/relation client used here. This classifier does not need a TypeScript runtime or the upstream authoring validator to load a released ontology. Full logical prediction validation and derived closure remain future classifier work.
 
 ## 12. Assumptions that are intentionally not stable
 

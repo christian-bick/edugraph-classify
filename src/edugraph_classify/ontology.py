@@ -7,9 +7,9 @@ import json
 from dataclasses import dataclass
 from importlib.metadata import version
 from types import MappingProxyType
-from typing import Mapping
+from typing import ClassVar, Mapping
 
-from edugraph import Ability, Area, Scope
+from edugraph import Ability, Area, Scope, relations
 
 from .contracts import LabelSet
 
@@ -20,9 +20,11 @@ class OntologyError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class OntologyCatalog:
+    snapshot_format: ClassVar[str] = "descriptor-semantics-v2"
     package_version: str
     dimensions: Mapping[str, str]
     iris: Mapping[str, str]
+    eligible_labels: frozenset[str]
     snapshot_sha256: str
 
     @classmethod
@@ -35,7 +37,8 @@ class OntologyCatalog:
 
         dimensions: dict[str, str] = {}
         iris: dict[str, str] = {}
-        snapshot: list[dict[str, str]] = []
+        eligible_labels: set[str] = set()
+        snapshot: list[dict[str, object]] = []
         for field_name, enum_type in (
             ("areas", Area),
             ("scopes", Scope),
@@ -48,23 +51,43 @@ class OntologyCatalog:
                     )
                 dimensions[member.name] = field_name
                 iris[member.name] = member.value
+                descriptor_relations = relations(member)
+                # ONT-E7: constituent children make a node organizational.
+                # Specialization children do not prevent direct labeling.
+                eligible = not descriptor_relations.get("hasPart")
+                if eligible:
+                    eligible_labels.add(member.name)
                 snapshot.append(
                     {
                         "dimension": field_name,
                         "local_name": member.name,
                         "iri": member.value,
+                        "definition": member.definition,
+                        "relations": {
+                            name: sorted({target.value for target in targets})
+                            for name, targets in descriptor_relations.items()
+                            if name != "definition"
+                        },
+                        "eligible_for_direct_labeling": eligible,
                     }
                 )
 
         serialized = json.dumps(
-            sorted(snapshot, key=lambda item: (item["dimension"], item["local_name"])),
+            {
+                "format": cls.snapshot_format,
+                "descriptors": sorted(
+                    snapshot, key=lambda item: (item["dimension"], item["local_name"])
+                ),
+            },
             ensure_ascii=False,
+            sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
         return cls(
             package_version=package_version,
             dimensions=MappingProxyType(dimensions),
             iris=MappingProxyType(iris),
+            eligible_labels=frozenset(eligible_labels),
             snapshot_sha256=hashlib.sha256(serialized).hexdigest(),
         )
 
@@ -87,6 +110,11 @@ class OntologyCatalog:
             dimension = self.dimensions.get(tag)
             if dimension is None:
                 raise OntologyError(f"unknown ontology label {tag!r}")
+            if tag not in self.eligible_labels:
+                raise OntologyError(
+                    f"ontology label {tag!r} is organizational (hasPart children); "
+                    "not eligible for direct labeling"
+                )
             grouped[dimension].append(tag)
 
         return LabelSet(

@@ -187,13 +187,13 @@ def test_prepare_run_pins_every_identity_and_hashes_generated_artifacts(
         "run_id": "run-1",
         "dataset": {
             "repository": "owner/data",
-            "release_tag": "v0.21.0-01",
+            "release_tag": "v0.26.0-01",
             "revision": revision,
             "splits": ["train", "validation"],
         },
         "ontology": {
             "package": "edugraph-py",
-            "version": "0.21.0",
+            "version": "0.26.0",
             "release_asset_sha256": "c" * 64,
         },
         "prompt": {
@@ -256,6 +256,7 @@ def test_prepare_run_pins_every_identity_and_hashes_generated_artifacts(
     assert manifest["code_commit"] == "a" * 40
     assert manifest["dataset"]["conversion"]["splits"][0]["example_count"] == 3
     assert len(manifest["ontology"]["normalized_snapshot_sha256"]) == 64
+    assert manifest["ontology"]["normalized_snapshot_format"] == "descriptor-semantics-v2"
     assert len(manifest["prompt"]["sha256"]) == 64
     assert len(manifest["schema"]["sha256"]) == 64
     assert manifest["model"]["revision"] == "d" * 40
@@ -273,7 +274,7 @@ def test_prepare_run_rejects_uncommitted_identity_and_escaping_paths(tmp_path: P
     config = {
         "run_id": "run-1",
         "dataset": {"repository": "owner/data", "revision": "b" * 40},
-        "ontology": {"version": "0.21.0"},
+        "ontology": {"version": "0.26.0"},
         "prompt": {"path": "../outside.json", "prompt_id": "x", "version": "1"},
         "schema": {"path": "schema.json"},
         "provider": {},
@@ -300,7 +301,7 @@ def test_prepare_run_validates_smoke_selection_contract(
             "revision": "b" * 40,
             "selection": {"mode": "random", "limits": {"train": 3, "validation": 3}},
         },
-        "ontology": {"version": "0.21.0"},
+        "ontology": {"version": "0.26.0"},
         "prompt": {"path": "prompt.json", "prompt_id": "x", "version": "1"},
         "schema": {"path": "schema.json"},
         "provider": {},
