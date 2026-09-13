@@ -32,11 +32,11 @@ The initial runtime dependencies are:
 
 `uv.lock` is committed. Add or update dependencies with `uv add`/`uv remove` and commit the resulting `pyproject.toml` and lockfile together.
 
-The development ontology is **v0.26.0**. The catalog now rejects organizational nodes as direct labels and fingerprints definitions and relations. [Ontology migration notes](docs/ONTOLOGY-UPGRADE-0.26.md) record the upstream changes and required dataset work.
+The development ontology is **v0.26.0**. The catalog rejects organizational nodes as direct labels and fingerprints definitions and relations. [Ontology migration notes](docs/ONTOLOGY-UPGRADE-0.26.md) record the upstream changes.
 
-The historical experiment configurations still pin `christian-bick/edugraph-exercises` tag `v0.21.0-01` at commit `ed47264f751a8a67c480dbe4eb7397e317a722eb` with ontology v0.21.0. **Preparing those configurations, including the default `run prepare`, intentionally fails the ontology version check in the current environment.** Reproduce historical runs with their original code commit and lockfile. New v0.26.0 experiments require an aligned upstream dataset; the newest public v0.22.2 release also needs label review and a `labels` field adapter. Dataset ingestion remains provider-independent.
+The default preparation recipe pins dataset **v0.26.0-01** at `cee47a3b49503e2637759a8a0e59e071c271b415` with ontology v0.26.0 and explicitly selects its `labels` metadata field. All 1,944 rows pass ontology eligibility and image-integrity checks, with no duplicate image bytes across official splits. One duplicate training image has different gold sets and is preserved and reported. See [Dataset upgrade and release audit](docs/DATASET-UPGRADE-0.26.0-01.md). Historical configurations retain their v0.21.0 dataset/ontology pins and require their original code commit and lockfile.
 
-Local training targets **Qwen3.5-9B on both RTX 3090s from the first training diagnostic**, using DDP with QLoRA; see [Local Docker training](docs/LOCAL-TRAINING.md) for the pinned model revision and recipe. Only training compute moves to the box; GCP remains the provider for surrounding services, including Artifact Registry, staged inputs, and model upload after training. The initial implementation includes the distributed job adapter, shared GCS staging, and coordinated checkpoint recovery. The single-GPU milestone is removed.
+Local training targets **Qwen3.5-9B on both RTX 3090s from the first training diagnostic**, using DDP with QLoRA; see [Local Docker training](docs/LOCAL-TRAINING.md) for the pinned model revision and recipe. Only training compute moves to the box; GCP remains the provider for surrounding services, including Artifact Registry, staged inputs, and model upload after training. The preparation recipe is implemented; the distributed job adapter, shared GCS staging, and coordinated checkpoint recovery remain planned work. The single-GPU milestone is removed.
 
 ## Provider preflight and first-run preparation
 
@@ -48,15 +48,15 @@ uv run edugraph-classify preflight fireworks
 
 The command loads `.env` explicitly, preserves any variables already supplied by the process, and never prints secret values. An ineligible model produces structured diagnostic output and exit code `2`. The preflight is read-only; it does not launch training, create a deployment, upload data, or publish a model.
 
-The following preparation and launch examples document historical runs and require their original environment. Create deterministic provider-ready artifacts from the pinned public Hugging Face release:
+Create deterministic training artifacts from the current pinned public Hugging Face release:
 
 ```bash
 uv run edugraph-classify run prepare
 ```
 
-Preparation requires a clean committed worktree and writes its manifest, source audit data, profiles, and JSONL files under the gitignored `runs/` directory. It does not need a Hugging Face token for the public release and does not call Fireworks.
+Preparation defaults to `experiments/edugraph-20260913-qwen35-9b-local-ddp-v1.json`, requires a clean committed worktree, and writes its manifest, source audit data, profiles, and JSONL files under the gitignored `runs/` directory. It does not need a Hugging Face token for the public release and does not call a training provider. Local Docker launch is not implemented yet.
 
-Launching is a separate, cost-incurring command that rechecks the clean code commit, artifact hashes, exact live model eligibility, and resource-name collisions. It requires the prepared run ID as explicit confirmation:
+The following Fireworks launch and smoke examples document historical runs and require their original environment. `run launch` accepts only Fireworks manifests. Launching is a separate, cost-incurring command that rechecks the clean code commit, artifact hashes, exact live model eligibility, and resource-name collisions. It requires the prepared run ID as explicit confirmation:
 
 ```bash
 uv run edugraph-classify run launch \
@@ -66,7 +66,7 @@ uv run edugraph-classify run launch \
 
 The launch creates and validates two Fireworks datasets and starts one supervised LoRA job. It records provider identifiers in `launch-record.json`; it does not create a deployment or publish the resulting model.
 
-The full pinned release currently fails the required cross-split image-byte safeguard. A separate tracked eight-example-per-split smoke configuration exists solely to verify managed-training plumbing and must not be treated as a quality baseline:
+The historical v0.21.0-01 full release failed the required cross-split image-byte safeguard. A separate tracked eight-example-per-split smoke configuration was used solely to verify managed-training plumbing and must not be treated as a quality baseline:
 
 ```bash
 uv run edugraph-classify run prepare \

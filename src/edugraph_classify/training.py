@@ -206,6 +206,9 @@ def prepare_run(
         raise TrainingConfigError("dataset repository and revision must be strings")
     if not isinstance(ontology_version, str):
         raise TrainingConfigError("ontology version must be a string")
+    label_field = dataset_config.get("label_field", "tags")
+    if label_field not in ("tags", "labels"):
+        raise TrainingConfigError("dataset.label_field must be tags or labels")
 
     prompt_path = _resolve_tracked_path(repo_root, prompt_config.get("path"), "prompt.path")
     schema_path = _resolve_tracked_path(repo_root, schema_config.get("path"), "schema.path")
@@ -241,6 +244,7 @@ def prepare_run(
         catalog=catalog,
         prompt=prompt,
         output_dir=data_dir,
+        label_field=label_field,
         workers=workers,
     )
 
@@ -252,7 +256,11 @@ def prepare_run(
             "path": str(config_path),
             "sha256": _sha256_json(config_path),
         },
-        "dataset": {**dataset_config, "conversion": conversion.to_mapping()},
+        "dataset": {
+            **dataset_config,
+            "label_field": label_field,
+            "conversion": conversion.to_mapping(),
+        },
         "ontology": {
             **ontology_config,
             "normalized_snapshot_format": catalog.snapshot_format,
@@ -286,6 +294,8 @@ def prepare_run(
 def launch_specs(manifest_path: Path) -> tuple[tuple[DatasetUploadSpec, ...], SupervisedFineTuningSpec]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     provider = manifest["provider"]
+    if provider.get("provider_id", "fireworks") != "fireworks":
+        raise TrainingConfigError("run launch supports only Fireworks training manifests")
     training = manifest["training"]
     split_records = {
         record["split"]: record for record in manifest["dataset"]["conversion"]["splits"]

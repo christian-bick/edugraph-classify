@@ -12,6 +12,8 @@ Current local-training plan (2026-09-13): user-selected Qwen3.5-9B, revision `c2
 
 ## 1. Core decision
 
+Current data preparation (2026-09-13): the new local 9B recipe pins dataset v0.26.0-01 at `cee47a3b49503e2637759a8a0e59e071c271b415` with ontology v0.26.0, uses the explicit `labels` field, and preserves the full official splits. All 1,944 images convert, all labels are eligible, and no image bytes cross splits. One within-training duplicate with different gold sets is preserved and recorded in the [release audit](DATASET-UPGRADE-0.26.0-01.md). Historical managed recipes below keep their original data and ontology provenance.
+
 Start with the smallest credible experiment: fine-tune a vision-language model to assign the explicit EduGraph ontology labels supported by one isolated educational task.
 
 ```text

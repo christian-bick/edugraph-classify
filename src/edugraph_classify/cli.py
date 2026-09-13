@@ -399,7 +399,7 @@ def build_parser() -> argparse.ArgumentParser:
     prepare = actions.add_parser("prepare", help="convert and validate provider-ready data")
     prepare.add_argument(
         "--config",
-        default="experiments/edugraph-20260823-qwen3vl8b-sft-v1.json",
+        default="experiments/edugraph-20260913-qwen35-9b-local-ddp-v1.json",
     )
     prepare.add_argument("--runs-root", default="runs")
     prepare.add_argument("--workers", type=int, default=8)

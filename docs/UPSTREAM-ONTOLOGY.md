@@ -2,7 +2,7 @@
 
 This document explains the stable classifier-facing concepts of [`edugraph-ontology`](https://github.com/christian-bick/edugraph-ontology).
 
-Reviewed against release **v0.26.0** on 2026-09-13. See [the migration assessment](ONTOLOGY-UPGRADE-0.26.md) for the changes since v0.21.0, implemented adaptations, and dataset blockers.
+Reviewed against release **v0.26.0** on 2026-09-13. See [the migration assessment](ONTOLOGY-UPGRADE-0.26.md) for the changes since v0.21.0 and implemented adaptations, and [the dataset upgrade](DATASET-UPGRADE-0.26.0-01.md) for the aligned release audit.
 
 ## 1. Purpose and representation
 

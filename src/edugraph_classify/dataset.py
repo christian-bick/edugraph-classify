@@ -121,8 +121,9 @@ def _source_example(
     row: Mapping[str, object],
     split: str,
     expected_uri_prefix: str,
+    label_field: str = "tags",
 ) -> SourceExample:
-    if set(row) != {"image", "tags", "solution"}:
+    if set(row) != {"image", label_field, "solution"}:
         raise DatasetConversionError(f"{split} row has unexpected fields")
     image = row["image"]
     if not isinstance(image, Mapping) or set(image) != {"bytes", "path"}:
@@ -137,9 +138,9 @@ def _source_example(
         raise DatasetConversionError(f"{split} row image URI escapes its official split")
     if inline_image is not None and not isinstance(inline_image, bytes):
         raise DatasetConversionError(f"{split} row image bytes are invalid")
-    tags = row["tags"]
+    tags = row[label_field]
     if not isinstance(tags, list) or any(not isinstance(tag, str) for tag in tags):
-        raise DatasetConversionError(f"{split} row tags must be an array of strings")
+        raise DatasetConversionError(f"{split} row {label_field} must be an array of strings")
     solution = row["solution"]
     if not isinstance(solution, bool):
         raise DatasetConversionError(f"{split} row solution must be a boolean")
@@ -239,6 +240,7 @@ def convert_dataset(
     catalog: OntologyCatalog,
     prompt: PromptTemplate,
     output_dir: Path,
+    label_field: str = "tags",
     read_image: Callable[[SourceExample], bytes] = _read_image,
     workers: int = 8,
 ) -> ConversionResult:
@@ -248,6 +250,8 @@ def convert_dataset(
         raise DatasetConversionError("dataset must expose exactly train and validation splits")
     if workers < 1:
         raise DatasetConversionError("workers must be positive")
+    if label_field not in ("tags", "labels"):
+        raise DatasetConversionError("label_field must be tags or labels")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     split_paths = {split: output_dir / f"{split}.jsonl" for split in sorted(splits)}
@@ -273,7 +277,7 @@ def convert_dataset(
             for split in sorted(splits):
                 sources = sorted(
                     (
-                        _source_example(row, split, expected_uri_prefix)
+                        _source_example(row, split, expected_uri_prefix, label_field)
                         for row in splits[split]
                     ),
                     key=lambda item: item.source_path,

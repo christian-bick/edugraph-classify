@@ -163,8 +163,89 @@ def image_bytes(color: int) -> bytes:
     return stream.getvalue()
 
 
+def test_current_recipe_prepares_labels_for_two_gpu_local_training(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    config_path = repo_root / "experiments/edugraph-20260913-qwen35-9b-local-ddp-v1.json"
+    config = load_experiment_config(config_path)
+    revision = "cee47a3b49503e2637759a8a0e59e071c271b415"
+
+    def released_rows(repo_id: str, source_revision: str, **kwargs):
+        assert repo_id == "christian-bick/edugraph-exercises"
+        assert source_revision == revision
+        return {
+            split: [
+                {
+                    "image": {
+                        "path": f"hf://datasets/{repo_id}@{revision}/{split}/{index}.png",
+                        "bytes": image_bytes(offset + index),
+                    },
+                    "labels": ["AngleConcept", "Circle", "DegreeScale", "Interpretation"],
+                    "solution": bool(index % 2),
+                }
+                for index in range(4)
+            ]
+            for split, offset in (("train", 0), ("validation", 10))
+        }
+
+    monkeypatch.setattr(training, "load_released_splits", released_rows)
+    prepared = prepare_run(
+        config_path,
+        repo_root=repo_root,
+        runs_root=tmp_path,
+        code_commit="a" * 40,
+    )
+    manifest = json.loads(prepared.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["dataset"]["release_tag"] == "v0.26.0-01"
+    assert manifest["dataset"]["label_field"] == "labels"
+    assert "selection" not in manifest["dataset"]
+    assert [split.example_count for split in prepared.conversion.splits] == [4, 4]
+    assert manifest["ontology"]["version"] == "0.26.0"
+    assert manifest["model"]["repository"] == "Qwen/Qwen3.5-9B"
+    assert manifest["model"]["revision"] == "c202236235762e1c871ad0ccb60c8ee5ba337b9a"
+    assert manifest["provider"] == config["provider"]
+    assert manifest["provider"]["provider_id"] == "local_docker"
+    assert manifest["provider"]["training_execution_mode"] == "self_hosted"
+    assert manifest["provider"]["hardware"]["accelerator_count"] == 2
+    assert manifest["provider"]["artifact_services"]["bucket_uri"] == "gs://edugraph-classify"
+    recipe = manifest["training"]
+    assert recipe == config["training"]
+    assert recipe["distributed"] == {"backend": "ddp", "world_size": 2}
+    assert recipe["train_batch_size"] * recipe["gradient_accumulation_steps"] * 2 == 4
+    target = json.loads(Path(prepared.conversion.splits[0].jsonl_path).read_text().splitlines()[0])
+    assert json.loads(target["messages"][-1]["content"]) == {
+        "areas": ["AngleConcept", "Circle"],
+        "scopes": ["DegreeScale"],
+        "abilities": ["Interpretation"],
+    }
+    with pytest.raises(TrainingConfigError, match="only Fireworks"):
+        launch_specs(prepared.manifest_path)
+
+
+@pytest.mark.parametrize("label_field", ["auto", None, ["labels"]])
+def test_prepare_rejects_invalid_label_field_before_data_access(
+    tmp_path: Path, monkeypatch, label_field: object,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    config = dict(load_experiment_config(
+        repo_root / "experiments/edugraph-20260913-qwen35-9b-local-ddp-v1.json"
+    ))
+    config["dataset"]["label_field"] = label_field
+    path = tmp_path / "invalid.json"
+    path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(
+        training, "load_released_splits",
+        lambda *args, **kwargs: pytest.fail("invalid field must fail before dataset access"),
+    )
+    with pytest.raises(TrainingConfigError, match="dataset.label_field must be tags or labels"):
+        prepare_run(path, repo_root=repo_root, runs_root=tmp_path / "runs", code_commit="a" * 40)
+    assert not (tmp_path / "runs").exists()
+
+
+@pytest.mark.parametrize("label_field", [None, "tags", "labels"])
 def test_prepare_run_pins_every_identity_and_hashes_generated_artifacts(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch, label_field: str | None,
 ) -> None:
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
@@ -219,6 +300,8 @@ def test_prepare_run_pins_every_identity_and_hashes_generated_artifacts(
         },
     }
     config_path = repo_root / "experiment.json"
+    if label_field is not None:
+        config["dataset"]["label_field"] = label_field
     config_path.write_text(json.dumps(config), encoding="utf-8")
 
     def rows(split: str, offset: int) -> list[dict[str, object]]:
@@ -228,7 +311,7 @@ def test_prepare_run_pins_every_identity_and_hashes_generated_artifacts(
                     "path": f"hf://datasets/owner/data@{revision}/{split}/{index}.png",
                     "bytes": image_bytes(offset + index),
                 },
-                "tags": ["Addition", "DegreeScale", "ProcedureUnderstanding"],
+                label_field or "tags": ["Addition", "DegreeScale", "ProcedureUnderstanding"],
                 "solution": bool(index % 2),
             }
             for index in range(3)
@@ -254,6 +337,7 @@ def test_prepare_run_pins_every_identity_and_hashes_generated_artifacts(
     manifest = json.loads(prepared.manifest_path.read_text(encoding="utf-8"))
     assert prepared.to_mapping()["run_id"] == "run-1"
     assert manifest["code_commit"] == "a" * 40
+    assert manifest["dataset"]["label_field"] == (label_field or "tags")
     assert manifest["dataset"]["conversion"]["splits"][0]["example_count"] == 3
     assert len(manifest["ontology"]["normalized_snapshot_sha256"]) == 64
     assert manifest["ontology"]["normalized_snapshot_format"] == "descriptor-semantics-v2"

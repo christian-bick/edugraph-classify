@@ -30,7 +30,7 @@ The user selected Qwen3.5-9B after clarification of the model name. The official
 
 The revision and architecture were verified through the [model API](https://huggingface.co/api/models/Qwen/Qwen3.5-9B) and [pinned configuration](https://huggingface.co/Qwen/Qwen3.5-9B/blob/c202236235762e1c871ad0ccb60c8ee5ba337b9a/config.json). Start implementation against the repository's locked training dependencies and verify model-class resolution, multimodal processing, quantization, and distributed kernels in the actual image. Sharing the `qwen3_5` architecture with the old 4B checkpoint does not establish runtime compatibility or memory fit.
 
-These are planning values, not a runnable experiment configuration. Use a new experiment/run ID once the aligned dataset is available; preserve the historical 4B configurations and their model revisions. Fix image-pixel and expanded-token limits from a representative data/processor profile before launching, and record those limits and any recipe change in the new configuration.
+The new [`edugraph-20260913-qwen35-9b-local-ddp-v1.json`](../experiments/edugraph-20260913-qwen35-9b-local-ddp-v1.json) recipe pins these identities with dataset v0.26.0-01 and ontology v0.26.0. It supports provider-neutral preparation of the full official splits; it is not yet a launchable local job. The [dataset audit](DATASET-UPGRADE-0.26.0-01.md) confirms eligibility and image integrity and records the remaining within-training gold-set inconsistency. Historical 4B configurations and revisions remain intact. Fix image-pixel and expanded-token limits from a representative data/processor profile before launching, and record those limits and any recipe change in a new configuration.
 
 ## GCP and local responsibilities
 
@@ -45,7 +45,7 @@ These are planning values, not a runnable experiment configuration. Use a new ex
 
 The intended flow is GCS inputs and an Artifact Registry image → local training → GCS model/artifact upload → downstream GCP workflows. Local disk is working and recovery storage; an entirely local artifact backend is no longer required for the first milestone. The public upstream model and dataset identities remain pinned regardless of where their copies are stored.
 
-Record training execution and artifact services separately. `local_docker` / `self_hosted` identifies the training executor, while the GCP project, bucket, and image registry identify its supporting services. Do not label a local run as `gcp_vertex_ai` / `serverless` merely to pass the existing staging validator. This separation is a proposed configuration change, not a schema the current CLI already accepts.
+Record training execution and artifact services separately. `local_docker` / `self_hosted` identifies the training executor, while the GCP project, bucket, and image registry identify its supporting services. The preparation recipe carries the latter under `provider.artifact_services` and hardware under `provider.hardware`; the manifest preserves both as configuration data. Strict local launch validation and shared staging remain to be implemented. Do not label a local run as `gcp_vertex_ai` / `serverless` merely to pass the existing staging validator.
 
 ## Hardware fit
 
@@ -80,7 +80,7 @@ The box needs two authentication paths: Docker authentication to pull the privat
 | Boundary | Current implementation | Required local support |
 |---|---|---|
 | Provider identity | `ExecutionMode.SELF_HOSTED` and generic model/run identities already exist | Identify local training independently of its GCP storage, registry, and downstream services |
-| Preparation | `prepare_run` produces deterministic JSONL and hashes; provider settings are carried as data | Reuse it with a new aligned dataset/ontology configuration and distinct training-executor/GCP-service settings |
+| Preparation | `prepare_run` supports the aligned v0.26.0-01 dataset through explicit `labels` selection; the new recipe records the 9B/two-GPU executor and GCP service settings | Reuse the prepared bundle in shared staging; choose and record runtime image-pixel/token limits before launch |
 | Artifact transport | `build_vertex_staging_plan` couples reusable GCS staging to a strict `gcp_vertex_ai` / `serverless` provider check | Extract shared GCS staging/runtime-manifest construction; preserve Vertex-specific validation at the Vertex job boundary |
 | Runtime output | `RuntimeConfig.from_mapping` accepts GCS output; `run` already uploads the saved model and results | Retain GCS output, provide ADC, persist the working directory, and make publication retryable without retraining |
 | Container | `containers/vertex-trainer/Dockerfile` is already a Linux/amd64 CUDA image using the locked Python stack | Pull the pinned image from Artifact Registry; share the image recipe and training loop |
@@ -110,4 +110,4 @@ The existing one-batch diagnostic bypasses `Trainer.train()` and manually perfor
 5. **GCP model handoff:** verify complete publication of the adapter, processor, pinned base-model identity, manifests, and results. Exercise interrupted upload/retry without repeating training. Verify canonical JSON generation and explicit-label validity in the downstream GCP evaluation workflow.
 6. **Quality evaluation:** report exact-set match, precision/recall/F1, per-dimension, question/solution, frequency, invalid-output, latency, and cost/energy diagnostics. Any memory-driven backend or precision change receives a new recorded configuration and another two-GPU diagnostic.
 
-The first milestone includes distributed training: a two-GPU executor, shared GCP staging, host authentication, coordinated diagnostics and recovery, and reliable model upload. The unresolved model runtime failure and the missing v0.26.0-aligned dataset remain independent dependencies; diagnose runtime behavior directly on the chosen model and both GPUs. Evaluation tooling also remains incomplete, so successful training establishes the execution path before it establishes model quality.
+The first milestone includes distributed training: a two-GPU executor, shared GCP staging, host authentication, coordinated diagnostics and recovery, and reliable model upload. The aligned dataset is now available and validated. The unresolved model runtime failure remains to be diagnosed directly on the chosen model and both GPUs. Evaluation tooling also remains incomplete, so successful training establishes the execution path before it establishes model quality.

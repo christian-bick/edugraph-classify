@@ -64,6 +64,7 @@ def test_parser_defaults_to_accepted_provider_hypothesis() -> None:
     args = cli.build_parser().parse_args(["run", "prepare"])
     assert args.workers == 8
     assert args.runs_root == "runs"
+    assert args.config == "experiments/edugraph-20260913-qwen35-9b-local-ddp-v1.json"
 
 
 def test_main_prints_payload_and_preserves_preflight_exit_code(monkeypatch, capsys) -> None:

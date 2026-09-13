@@ -4,7 +4,7 @@ This document transports the stable consumer-facing contract of [`edugraph-datas
 
 The pinned upstream release remains authoritative. If this summary and a released artifact disagree, the released artifact and its documentation win.
 
-**Release compatibility, checked 2026-09-13:** the implemented importer and compact `tags` shape below describe v0.21.0-01. The latest public release, v0.22.2-01 at `5e81395636f1f83c522b04866e7e8aa341d37521`, uses `labels` in its actual metadata, although its README still says `tags`. Adopting it requires an explicit versioned field adapter and fixtures; the current importer rejects that shape. Neither release is aligned with the development ontology v0.26.0. See [the metadata audit and migration requirements](ONTOLOGY-UPGRADE-0.26.md#dataset-compatibility).
+**Release compatibility, checked 2026-09-13:** the current recipe pins v0.26.0-01 at `cee47a3b49503e2637759a8a0e59e071c271b415` together with ontology v0.26.0. Its actual metadata uses `labels`, although the pinned dataset README still says `tags`. The importer selects the field explicitly through `dataset.label_field`; old configurations without it retain the `tags` contract. It rejects missing, unexpected, or simultaneous fields without guessing or merging. See [the release audit](DATASET-UPGRADE-0.26.0-01.md) for measured compatibility and data-quality findings.
 
 ## 1. Purpose and ownership
 
@@ -47,7 +47,7 @@ Each nonblank JSONL line has the compact training-facing shape:
 ```json
 {
   "file_name": "<path relative to the split directory>",
-  "tags": ["<ontology-local-name>", "<ontology-local-name>"],
+  "labels": ["<ontology-local-name>", "<ontology-local-name>"],
   "solution": false
 }
 ```
@@ -55,12 +55,12 @@ Each nonblank JSONL line has the compact training-facing shape:
 | Field | Stable meaning | Consumer rule |
 |---|---|---|
 | `file_name` | Image path relative to the containing split root | Resolve it as a relative path and treat the name itself as opaque |
-| `tags` | Complete explicit ontology-label set asserted for the image | Treat it as a mathematical set, regardless of serialized order |
+| `labels` (`tags` in historical releases) | Complete explicit ontology-label set asserted for the image | Pin the field name in the experiment; treat its value as a mathematical set, regardless of serialized order |
 | `solution` | Whether the image presents a solution rather than an unsolved task | Preserve it in manifests and evaluation slices |
 
 The public contract does not expose curriculum provenance or an identity that links related rows. Do not extract semantics from filename components. Filenames are locators, not a supported metadata API.
 
-Released `tags` are shortened ontology individual identifiers such as `Addition`, not programming-language expressions such as `Area.Addition` and not full IRIs. Resolve each tag's dimension through the exact pinned ontology package rather than its spelling.
+Released labels are shortened ontology individual identifiers such as `Addition`, not programming-language expressions such as `Area.Addition` and not full IRIs. Resolve each label's dimension through the exact pinned ontology package rather than its spelling.
 
 ## 4. Label-set meaning
 
@@ -82,7 +82,7 @@ The gold set describes the concrete artifact being classified. It should not be 
 
 Upstream labels follow a minimal-explicit-label convention: use the most specific descriptor that remains true without repeating broader facts already carried by the ontology.
 
-Classifier ingestion should therefore preserve `tags` exactly as the explicit gold set. Information computed mechanically from the ontology belongs in a separate derived representation:
+Classifier ingestion must preserve the released label array exactly as the explicit gold set. Organizational descriptors with `hasPart` children are ineligible under ontology v0.26.0; reject and report them rather than dropping them or substituting descendants. Specialization children alone do not disqualify a broader descriptor. Information computed mechanically from the ontology belongs in a separate derived representation:
 
 ```text
 explicit gold labels
@@ -136,7 +136,7 @@ Classifier ingestion should still fail closed on:
 - identical image bytes appearing across splits;
 - malformed metadata;
 - an unknown ontology identifier;
-- a tag whose dimension cannot be resolved.
+- a label whose dimension cannot be resolved or which is structurally ineligible as a direct label.
 
 These checks detect packaging or ingestion mistakes; they do not redefine the upstream split policy.
 
@@ -154,7 +154,7 @@ Every dataset release is tied to the ontology version used to label and validate
 
 Every classifier run must record at least:
 
-- immutable dataset repository and release/revision;
+- immutable dataset repository and release/revision, with its metadata label field;
 - split names and source-content hashes;
 - ontology release/package associated with the dataset;
 - conversion code commit and generated-artifact hashes.
@@ -169,8 +169,8 @@ A correct dataset adapter should:
 2. parse every nonblank JSONL row strictly;
 3. reject absolute or split-escaping `file_name` paths;
 4. verify every referenced image exists and record its content hash;
-5. treat `tags` as an unordered set and reject non-string values;
-6. validate every tag's existence and dimension against the pinned ontology;
+5. read the configured `labels` or historical `tags` field as an unordered set and reject non-string or repeated values;
+6. validate every label's existence, dimension, and direct-label eligibility against the pinned ontology;
 7. preserve the official split and `solution` flag;
 8. serialize exactly one canonical classifier target for each explicit set;
 9. profile counts, frequencies, cardinalities, and coverage from the release rather than hard-coding them;

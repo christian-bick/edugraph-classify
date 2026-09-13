@@ -39,7 +39,9 @@ The current prompt does not embed ontology definitions or a candidate vocabulary
 
 ## Dataset compatibility
 
-The [public dataset refs](https://huggingface.co/api/datasets/christian-bick/edugraph-exercises/refs) showed no v0.26.0 release on the assessment date. The most recent tag is `v0.22.2-01`, at immutable commit `5e81395636f1f83c522b04866e7e8aa341d37521`. Its [pinned card](https://huggingface.co/datasets/christian-bick/edugraph-exercises/blob/5e81395636f1f83c522b04866e7e8aa341d37521/README.md) ties dataset versions to the ontology used for generation.
+**Resolved later on 2026-09-13:** dataset v0.26.0-01 is now pinned in a new preparation recipe. All 1,944 rows pass ontology eligibility and full conversion, with no cross-split duplicate image bytes. The `labels` adapter is implemented. See [the release audit](DATASET-UPGRADE-0.26.0-01.md), including a separate within-training gold-set consistency observation. The earlier audit below remains historical evidence for why the older datasets were not relabeled locally.
+
+At the initial assessment, the [public dataset refs](https://huggingface.co/api/datasets/christian-bick/edugraph-exercises/refs) showed no v0.26.0 release. The most recent tag was `v0.22.2-01`, at immutable commit `5e81395636f1f83c522b04866e7e8aa341d37521`. Its [pinned card](https://huggingface.co/datasets/christian-bick/edugraph-exercises/blob/5e81395636f1f83c522b04866e7e8aa341d37521/README.md) ties dataset versions to the ontology used for generation.
 
 An audit downloaded only the four pinned metadata JSONL files, without loading images or evaluating their evidence:
 
@@ -52,7 +54,7 @@ An audit downloaded only the four pinned metadata JSONL files, without loading i
 
 All local names in these files still resolve in v0.26.0, but existence alone is insufficient. Organizational labels include `AngleMeasurement`, `LengthMeasurement`, `NumericComparison`, and `ShapeIdentity`. `Circle`, whose definition changed since v0.21.0, is also present. These observations assess compatibility with the new ontology, not correctness under each dataset's original ontology.
 
-The newest dataset's actual metadata uses `labels`, despite its README still documenting `tags`. The current importer deliberately implements the old `tags` contract and will reject the new shape. The metadata files are reproducibly identified by these SHA-256 values:
+The v0.22.2-01 metadata uses `labels`, despite its README still documenting `tags`. At the initial assessment the importer implemented only the old `tags` contract. The metadata files are reproducibly identified by these SHA-256 values:
 
 | Release / split | SHA-256 |
 |---|---|
@@ -61,7 +63,7 @@ The newest dataset's actual metadata uses `labels`, despite its README still doc
 | v0.22.2-01 / train | `f07d91c4beeedfd7fe3c80259993f62909adfc1581acb85fe68dd53768e9ee46` |
 | v0.22.2-01 / validation | `a467a9910967d64a4356650d477acde5db668bb6c6f07f228c0a283e38cba903` |
 
-Before a new v0.26.0 training experiment:
+The initial migration checklist was:
 
 1. Have the upstream dataset owner review affected labels against each image and publish an aligned release with official splits. Do not drop organizational labels or substitute their children automatically.
 2. Pin the new release commit and ontology wheel hash together under a new experiment/run ID. Old experiments remain reproducible with their original code commit and `uv.lock`; the current version guard rejects them before downloading data.
@@ -69,7 +71,7 @@ Before a new v0.26.0 training experiment:
 4. Regenerate conversion artifacts, semantic fingerprints, and profiles; rerun image integrity and cross-split leakage checks. This metadata audit does not establish whether the earlier byte-leakage problem is fixed in the newest dataset.
 5. Reevaluate exact-set, dimension, frequency, invalid-output, and view metrics under the new label policy. Keep historical raw predictions and evaluation settings intact; measure any later post-processing changes separately.
 
-There is intentionally no new runnable v0.26.0 experiment pointing at either older dataset. Dependency support is updated; the aligned training-data release remains an upstream prerequisite.
+Items 1–4 are now satisfied by v0.26.0-01 and its full conversion audit. Model quality evaluation remains future work. No v0.26.0 experiment points at either older dataset.
 
 ## Verification
 

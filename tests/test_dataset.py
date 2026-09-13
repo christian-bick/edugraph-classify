@@ -30,13 +30,13 @@ def png(red: int) -> bytes:
     return stream.getvalue()
 
 
-def row(split: str, index: int, color: int) -> dict[str, object]:
+def row(split: str, index: int, color: int, label_field: str = "tags") -> dict[str, object]:
     return {
         "image": {
             "path": f"hf://datasets/{REPO}@{REVISION}/{split}/group/{index}.png",
             "bytes": png(color),
         },
-        "tags": ["ProcedureUnderstanding", "Addition", "DegreeScale"],
+        label_field: ["ProcedureUnderstanding", "Addition", "DegreeScale"],
         "solution": bool(index % 2),
     }
 
@@ -45,7 +45,10 @@ def prompt() -> PromptTemplate:
     return PromptTemplate("direct-label", "1", "system", "user")
 
 
-def test_conversion_is_deterministic_and_keeps_dimension_aware_targets(tmp_path: Path) -> None:
+@pytest.mark.parametrize("label_field", ["tags", "labels"])
+def test_conversion_is_deterministic_and_keeps_dimension_aware_targets(
+    tmp_path: Path, label_field: str,
+) -> None:
     splits = {
         "train": [row("train", 2, 2), row("train", 0, 0), row("train", 1, 1)],
         "validation": [
@@ -55,6 +58,10 @@ def test_conversion_is_deterministic_and_keeps_dimension_aware_targets(tmp_path:
         ],
     }
     catalog = OntologyCatalog.load("0.26.0")
+    if label_field == "labels":
+        for rows in splits.values():
+            for source in rows:
+                source["labels"] = source.pop("tags")
 
     first = convert_dataset(
         splits,
@@ -63,6 +70,7 @@ def test_conversion_is_deterministic_and_keeps_dimension_aware_targets(tmp_path:
         catalog=catalog,
         prompt=prompt(),
         output_dir=tmp_path / "one",
+        label_field=label_field,
         workers=2,
     )
     second = convert_dataset(
@@ -72,7 +80,8 @@ def test_conversion_is_deterministic_and_keeps_dimension_aware_targets(tmp_path:
         catalog=catalog,
         prompt=prompt(),
         output_dir=tmp_path / "two",
-        workers=2,
+        label_field=label_field,
+        workers=4,
     )
 
     assert [item.jsonl_sha256 for item in first.splits] == [
@@ -94,11 +103,14 @@ def test_conversion_is_deterministic_and_keeps_dimension_aware_targets(tmp_path:
     )
 
 
-def test_conversion_fails_closed_on_cross_split_duplicate_bytes(tmp_path: Path) -> None:
-    duplicate = row("validation", 0, 1)
+@pytest.mark.parametrize("label_field", ["tags", "labels"])
+def test_conversion_fails_closed_on_cross_split_duplicate_bytes(
+    tmp_path: Path, label_field: str,
+) -> None:
+    duplicate = row("validation", 0, 1, label_field)
     splits = {
-        "train": [row("train", 0, 1), row("train", 1, 2), row("train", 2, 3)],
-        "validation": [duplicate, row("validation", 1, 4), row("validation", 2, 5)],
+        "train": [row("train", i, i + 1, label_field) for i in range(3)],
+        "validation": [duplicate, row("validation", 1, 4, label_field), row("validation", 2, 5, label_field)],
     }
     with pytest.raises(DatasetConversionError, match="duplicate image bytes"):
         convert_dataset(
@@ -108,7 +120,44 @@ def test_conversion_fails_closed_on_cross_split_duplicate_bytes(tmp_path: Path) 
             catalog=OntologyCatalog.load("0.26.0"),
             prompt=prompt(),
             output_dir=tmp_path / "duplicate",
+            label_field=label_field,
         )
+
+
+@pytest.mark.parametrize(
+    ("fields", "label_field", "message"),
+    [
+        ({"labels": ["Addition"]}, "tags", "unexpected fields"),
+        ({"tags": ["Addition"]}, "labels", "unexpected fields"),
+        ({"tags": ["Addition"], "labels": ["Addition"]}, "labels", "unexpected fields"),
+        ({"tags": ["Addition"], "labels": ["Circle"]}, "tags", "unexpected fields"),
+        ({}, "labels", "unexpected fields"),
+        ({"labels": "Addition"}, "labels", "labels must be an array of strings"),
+        ({"labels": [1]}, "labels", "labels must be an array of strings"),
+        ({"labels": ["UnknownLabel"]}, "labels", "unknown ontology"),
+        ({"labels": ["Addition", "Addition"]}, "labels", "repeats ontology label"),
+        ({"labels": ["AngleMeasurement"]}, "labels", "organizational"),
+        ({"labels": ["Addition"]}, "auto", "label_field must be tags or labels"),
+    ],
+)
+def test_label_field_contract_rejects_bad_metadata_before_image_reads(
+    tmp_path: Path, fields: dict[str, object], label_field: str, message: str,
+) -> None:
+    source = row("train", 0, 0)
+    source.pop("tags")
+    source.update(fields)
+    with pytest.raises(DatasetConversionError, match=message):
+        convert_dataset(
+            {"train": [source], "validation": []},
+            repo_id=REPO,
+            revision=REVISION,
+            catalog=OntologyCatalog.load("0.26.0"),
+            prompt=prompt(),
+            output_dir=tmp_path / "invalid",
+            label_field=label_field,
+            read_image=lambda _: pytest.fail("invalid metadata must fail before image access"),
+        )
+    assert not list((tmp_path / "invalid").glob("*.jsonl*"))
 
 
 def test_conversion_preserves_and_reports_within_split_gold_conflicts(

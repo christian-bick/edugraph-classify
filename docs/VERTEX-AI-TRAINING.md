@@ -2,7 +2,7 @@
 
 ## Scope
 
-The recipes below retain their historical ontology v0.21.0 provenance. With the current v0.26.0 dependency, preparation fails closed; use the matching historical code/lockfile to reproduce those runs. A new run requires the dataset work in [the ontology migration assessment](ONTOLOGY-UPGRADE-0.26.md). For the proposed standalone GPU host, see [Local Docker training](LOCAL-TRAINING.md).
+The recipes below retain their historical ontology v0.21.0 provenance. With the current v0.26.0 dependency, preparation fails closed; use the matching historical code/lockfile to reproduce those runs. The current dataset v0.26.0-01 is now aligned and validated in a separate preparation recipe; see [the dataset upgrade](DATASET-UPGRADE-0.26.0-01.md). For the proposed standalone GPU host, see [Local Docker training](LOCAL-TRAINING.md).
 
 The GCP adapter submits custom-container training through Vertex AI CustomJob. Vertex owns provisioning, monitoring, and teardown, so this repository records the execution mode as `serverless`. A job still specifies ephemeral machine, GPU, disk, replica, timeout, and scheduling values; “serverless” does not mean that compute choices or GPU quota disappear.
 
