@@ -1,5 +1,5 @@
 {
-  "run_id": "edugraph-20260923-qwen35-4b-vertex-diagnostic-v1",
+  "run_id": "edugraph-q35-4b-a100-diagnostic-v6",
   "dataset": {
     "repository": "christian-bick/edugraph-exercises",
     "release_tag": "v0.26.0-01",
