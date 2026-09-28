@@ -157,6 +157,20 @@ def test_recipe_rejects_unsafe_or_unpinned_runs(tmp_path, mutate):
         learning_data.load_recipe(path)
 
 
+def test_epoch_evaluation_requires_valid_patience(tmp_path):
+    for value in (0, -1, 1.5, True):
+        config = recipe()
+        config["training"]["early_stop_patience"] = value
+        path = tmp_path / "recipe.json"
+        learning_data.write_json(path, config)
+        with pytest.raises(ValueError, match="early_stop_patience"):
+            learning_data.load_recipe(path)
+    config["evaluation"]["every_epoch"] = True
+    config["training"]["early_stop_patience"] = 1
+    learning_data.write_json(path, config)
+    assert learning_data.load_recipe(path)["training"]["early_stop_patience"] == 1
+
+
 def test_metadata_and_balanced_selection_do_not_depend_on_input_order():
     catalog = OntologyCatalog.load("0.30.0")
     rows = [{"file_name": f"{i}.png", "labels": ["Addition"], "solution": bool(i % 2)} for i in range(20)]
@@ -270,6 +284,28 @@ class FakeAdapter:
         self.closed = True
 
 
+class EpochAdapter(FakeAdapter):
+    def predict(self, example, config):
+        text = json.dumps(GOLD) if self.sampling_checkpoint == "epoch1-eval-checkpoint" else "garbage"
+        return {"text": text, "latency_seconds": .1,
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5}, "raw": {}}
+
+    def retain_checkpoint(self, path, name):
+        self.retained_path = path
+        return super().retain_checkpoint(path, name)
+
+
+def epoch_prepared(prepared, *, patience=1):
+    config = recipe()
+    config["run_id"] = "epoch-test"
+    config["training"].update(epochs=3, early_stop_patience=patience)
+    config["evaluation"]["every_epoch"] = True
+    run = prepared.run.parent / "epoch-run"
+    manifest = learning_data.prepare_learning(config, ROOT, run, prepared.processor, "a" * 40,
+        prepared.fetch, {"read_only": True}, renderer_factory)
+    return NS(run=run, manifest=manifest, path=run / "manifest.json")
+
+
 def execute(prepared, adapter, **kwargs):
     return learning_run.execute_learning(prepared.path, prepared.manifest["run_id"], "a" * 40,
         lambda *args: adapter, lambda model: {"trainingContextLength": 100000},
@@ -287,6 +323,50 @@ def test_complete_run_compares_identical_cohorts_and_prevents_paid_replay(prepar
     with pytest.raises(FileExistsError):
         execute(prepared, adapter)
     assert adapter.steps == 4
+
+
+def test_epoch_selection_and_patience_stop_use_best_validation_checkpoint(prepared):
+    cohort = epoch_prepared(prepared)
+    adapter = EpochAdapter()
+    result = execute(cohort, adapter)
+    assert result["completed_steps"] == 4
+    assert adapter.retained_path == "epoch1-eval-checkpoint"
+    assert any(event["stage"] == "stopped_after_no_validation_gain" for event in result["events"])
+    comparison = json.loads((cohort.run / "comparison.json").read_text())
+    assert comparison["selected_epoch"] == 1 and comparison["completed_epochs"] == 2
+    assert comparison["all_sampling_usage"] == {"prompt_tokens": 180, "completion_tokens": 90}
+    assert comparison["base"]["exact_set_match"] == 0
+    assert comparison["tuned"]["exact_set_match"] == 1
+    assert json.loads((cohort.run / "tuned-predictions.json").read_text()) == json.loads(
+        (cohort.run / "epoch1-predictions.json").read_text())
+    assert (cohort.run / "epoch2-predictions.json").exists()
+
+
+def test_cooperative_stop_is_local_and_checked_at_checkpoint(prepared, monkeypatch):
+    cohort = epoch_prepared(prepared, patience=3)
+    adapter = EpochAdapter()
+    with pytest.raises(ValueError, match="active"):
+        learning_run.request_learning_stop(cohort.path, cohort.manifest["run_id"])
+    with pytest.raises(ValueError, match="confirmation"):
+        learning_run.request_learning_stop(cohort.path, "wrong")
+    events = []
+    def progress(message):
+        event = json.loads(message)
+        events.append(event)
+        if event["stage"] == "training_state_saved":
+            request = learning_run.request_learning_stop(cohort.path, cohort.manifest["run_id"])
+            assert request["action"] == "stop_at_next_checkpoint"
+    result = learning_run.execute_learning(cohort.path, cohort.manifest["run_id"], "a" * 40,
+        lambda *args: adapter, lambda model: {"trainingContextLength": 100000},
+        renderer_factory=renderer_factory, progress=progress)
+    assert result["completed_steps"] == 2
+    assert any(event["stage"] == "stop_requested_at_checkpoint" for event in events)
+    with pytest.raises(ValueError, match="active"):
+        learning_run.request_learning_stop(cohort.path, cohort.manifest["run_id"])
+    monkeypatch.delenv("FIREWORKS_API_KEY", raising=False)
+    args = NS(action="request-stop", manifest=str(cohort.path), confirm_run_id=cohort.manifest["run_id"])
+    with pytest.raises(ValueError, match="active"):
+        learning_cli.run_learning_command(args, None)
 
 
 def test_failed_run_closes_and_never_logs_exception_payload(prepared):

@@ -11,7 +11,7 @@ import httpx
 
 from .configuration import load_local_environment
 from .learning_data import load_recipe, prepare_learning
-from .learning_run import execute_learning
+from .learning_run import execute_learning, request_learning_stop
 from .providers.fireworks_training_api import FireworksTrainingAPI, inspect_training_model
 
 
@@ -26,9 +26,17 @@ def add_learning_parser(commands) -> None:
     launch.add_argument("--manifest", required=True)
     launch.add_argument("--confirm-run-id", required=True)
     launch.add_argument("--env-file", default=".env")
+    stop = actions.add_parser("request-stop", help="finish the active run at its next durable epoch checkpoint")
+    stop.add_argument("--manifest", required=True)
+    stop.add_argument("--confirm-run-id", required=True)
 
 
-def run_learning_command(args, code_commit: str) -> tuple[int, dict]:
+def run_learning_command(args, code_commit: str | None) -> tuple[int, dict]:
+    if args.action == "request-stop":
+        request = request_learning_stop(Path(args.manifest), args.confirm_run_id)
+        return 0, {"status": "stop_requested", **request}
+    if code_commit is None:
+        raise ValueError("preparation and launch require a pinned clean commit")
     load_local_environment(args.env_file)
     key = os.environ["FIREWORKS_API_KEY"]
     previous_logging = logging.root.manager.disable

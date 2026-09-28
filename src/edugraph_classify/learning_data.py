@@ -64,6 +64,11 @@ def load_recipe(path: Path) -> dict:
         raise ValueError("paired learning evaluation requires greedy sampling")
     if config["evaluation"].get("output_mode", "raw") not in ("raw", "json_schema"):
         raise ValueError("evaluation.output_mode must be raw or json_schema")
+    if "every_epoch" in config["evaluation"] and type(config["evaluation"]["every_epoch"]) is not bool:
+        raise ValueError("evaluation.every_epoch must be boolean")
+    patience = config["training"].get("early_stop_patience")
+    if patience is not None and (type(patience) is not int or patience <= 0 or not config["evaluation"].get("every_epoch", False)):
+        raise ValueError("early_stop_patience requires every-epoch evaluation and a positive integer")
     targets = config["training"].get("expected_target_modules")
     if targets is not None and (not isinstance(targets, list) or any(not isinstance(v, str) for v in targets)):
         raise ValueError("training.expected_target_modules must be a list of module names")
@@ -175,8 +180,9 @@ def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_
     write_json(run / "examples.json", examples)
     sampling = validation + diagnostic
     training_tokens = sum(row["training_tokens"] for row in train) * config["training"]["epochs"]
-    prefill_tokens = 2 * sum(row["prompt_tokens"] for row in sampling)
-    output_tokens = 2 * len(sampling) * config["evaluation"]["max_tokens"]
+    evaluation_rounds = 1 + (config["training"]["epochs"] if config["evaluation"].get("every_epoch", False) else 1)
+    prefill_tokens = evaluation_rounds * sum(row["prompt_tokens"] for row in sampling)
+    output_tokens = evaluation_rounds * len(sampling) * config["evaluation"]["max_tokens"]
     price = config["pricing"]
     cost = (training_tokens * price["train"] + prefill_tokens * price["prefill"] + output_tokens * price["sample"]) / 1_000_000
     if cost > config["estimated_cost_limit_usd"]:

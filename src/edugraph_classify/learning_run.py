@@ -16,6 +16,31 @@ from .qwen_training_policy import audit_qwen_language_targets
 from .qwen_rendering import QwenVisionRenderer
 
 
+def requested_stop(path: Path, run_id: str) -> dict | None:
+    """Read a create-only stop request at a saved checkpoint boundary."""
+    if not path.exists():
+        return None
+    request = json.loads(path.read_text(encoding="utf-8"))
+    if request != {"run_id": run_id, "action": "stop_at_next_checkpoint"}:
+        raise ValueError("stop request does not match this run")
+    return request
+
+
+def request_learning_stop(manifest_path: Path, confirmation: str) -> dict:
+    pinned_commit = json.loads(manifest_path.read_text(encoding="utf-8"))["code_commit"]
+    manifest, _ = verify_prepared(manifest_path, pinned_commit)
+    if confirmation != manifest["run_id"]:
+        raise ValueError("confirmation must match the prepared run_id")
+    run = manifest_path.parent
+    record_path = run / "execution.json"
+    if not record_path.exists() or json.loads(record_path.read_text(encoding="utf-8"))["status"] != "started":
+        raise ValueError("a training execution must be active to request a stop")
+    request = {"run_id": manifest["run_id"], "action": "stop_at_next_checkpoint"}
+    with (run / "stop-request.json").open("x", encoding="utf-8") as output:
+        json.dump(request, output)
+    return request
+
+
 def render_prepared(run: Path, config: dict, examples: list[dict], renderer) -> dict:
     rendered = {}
     for row in examples:
@@ -93,6 +118,9 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
         adapter.use_sampler()
         baseline = sample_phase("base")
         batch_size = config["training"]["batch_size"]
+        every_epoch = config["evaluation"].get("every_epoch", False)
+        best = None
+        stale_epochs = 0
         for epoch in range(config["training"]["epochs"]):
             order = list(train)
             random.Random(config["training"]["seed"] + epoch).shuffle(order)
@@ -102,27 +130,65 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
                 supervised = sum(len(row.completion) for row in batch)
                 record["completed_steps"] += 1
                 event("optimizer_step", step=record["completed_steps"], epoch=epoch + 1, metrics=metrics,
+                      training_tokens=sum(row.training_tokens for row in batch),
                       supervised_tokens=supervised, mean_nll=metrics.get("loss:sum", 0.0) / supervised)
             state = adapter.checkpoint(f"epoch{epoch + 1}")
             event("training_state_saved", epoch=epoch + 1, path=state)
-        checkpoint = adapter.checkpoint("final", sampler=True)
+            if every_epoch:
+                epoch_checkpoint = adapter.checkpoint(f"epoch{epoch + 1}-eval", sampler=True)
+                adapter.use_sampler(epoch_checkpoint)
+                epoch_metrics = sample_phase(f"epoch{epoch + 1}")
+                outcome = epoch_metrics["validation"]["explicit"]
+                score = (outcome["exact_set_match"], outcome["f1"])
+                if best is None or score > best["score"]:
+                    best = {"epoch": epoch + 1, "checkpoint": epoch_checkpoint, "metrics": epoch_metrics,
+                            "score": score}
+                    stale_epochs = 0
+                else:
+                    stale_epochs += 1
+                event("checkpoint_scored", epoch=epoch + 1, path=epoch_checkpoint,
+                      exact_set_match=score[0], f1=score[1], selected_epoch=best["epoch"])
+            stop = requested_stop(run / "stop-request.json", manifest["run_id"])
+            if stop is not None:
+                event("stop_requested_at_checkpoint", epoch=epoch + 1, path=state)
+                break
+            if every_epoch and stale_epochs >= config["training"].get("early_stop_patience", config["training"]["epochs"]):
+                event("stopped_after_no_validation_gain", epoch=epoch + 1, selected_epoch=best["epoch"])
+                break
+        checkpoint = best["checkpoint"] if best is not None else adapter.checkpoint("final", sampler=True)
         record["sampler_checkpoint"] = checkpoint
         event("sampler_checkpoint_saved", path=checkpoint)
         # Retain before evaluation so an inference failure cannot discard training.
         record["retained_model"] = adapter.retain_checkpoint(checkpoint, config["run_id"])
         event("experimental_adapter_retained", model=record["retained_model"])
-        adapter.use_sampler(checkpoint)
-        tuned = sample_phase("tuned")
+        if best is None:
+            adapter.use_sampler(checkpoint)
+            tuned = sample_phase("tuned")
+        else:
+            tuned = best["metrics"]
+            for suffix in ("predictions", "metrics"):
+                write_json(run / f"tuned-{suffix}.json", json.loads(
+                    (run / f"epoch{best['epoch']}-{suffix}.json").read_text(encoding="utf-8")))
+            record["selected_epoch"] = best["epoch"]
+            event("best_checkpoint_selected", epoch=best["epoch"], path=checkpoint)
         price = config["pricing"]
-        usage = {key: sum(v[cohort]["usage"][key] for v in (baseline, tuned) for cohort in ("validation", "train_diagnostic"))
-                 for key in ("prompt_tokens", "completion_tokens")}
-        estimated_cost = (manifest["token_budget"]["train"] * price["train"] + usage["prompt_tokens"] * price["prefill"] + usage["completion_tokens"] * price["sample"]) / 1_000_000
+        train_tokens = sum(e["metrics"].get("total_tokens:sum", e["training_tokens"])
+                           for e in record["events"] if e["stage"] == "optimizer_step")
+        sample_phases = ["base", *([f"epoch{n}" for n in range(1, epoch + 2)] if every_epoch else ["tuned"])]
+        sampling_usage = {key: sum(json.loads((run / f"{phase}-metrics.json").read_text(encoding="utf-8"))[cohort]["usage"][key]
+                                   for phase in sample_phases for cohort in ("validation", "train_diagnostic"))
+                          for key in ("prompt_tokens", "completion_tokens")}
+        estimated_cost = (train_tokens * price["train"] + sampling_usage["prompt_tokens"] * price["prefill"]
+                          + sampling_usage["completion_tokens"] * price["sample"]) / 1_000_000
         comparison = {
             "base": baseline["validation"]["explicit"], "tuned": tuned["validation"]["explicit"],
             "delta": {key: tuned["validation"]["explicit"][key] - baseline["validation"]["explicit"][key]
                       for key in ("exact_set_match", "precision", "recall", "f1")},
             "base_invalid_rate": baseline["validation"]["invalid_output_rate"],
             "tuned_invalid_rate": tuned["validation"]["invalid_output_rate"],
+            "completed_training_tokens": train_tokens, "all_sampling_usage": sampling_usage,
+            "selected_epoch": best["epoch"] if best is not None else epoch + 1,
+            "completed_epochs": epoch + 1,
             "estimated_token_cost_usd": estimated_cost, "billing_verified": False,
             "quality_promotion": False,
             "scope": "Paired descriptive smoke evaluation; small balanced official-validation subset, no held-out test or significance claim.",

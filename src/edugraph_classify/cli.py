@@ -459,7 +459,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.command == "training-api":
-            exit_code, payload = run_learning_command(args, _code_commit(Path.cwd()))
+            commit = None if args.action == "request-stop" else _code_commit(Path.cwd())
+            exit_code, payload = run_learning_command(args, commit)
         elif args.command == "preflight":
             exit_code, payload = run_fireworks_preflight(args.hypothesis, args.env_file)
         elif args.command == "run" and args.action == "prepare":
