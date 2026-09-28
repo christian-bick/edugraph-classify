@@ -14,6 +14,7 @@ from .learning_data import conflicting_duplicate_images, verify_prepared, write_
 from .ontology import OntologyCatalog
 from .qwen_training_policy import audit_qwen_language_targets
 from .qwen_rendering import QwenVisionRenderer
+from .learning_resume import verify_resume_source
 
 
 def requested_stop(path: Path, run_id: str) -> dict | None:
@@ -53,7 +54,8 @@ def render_prepared(run: Path, config: dict, examples: list[dict], renderer) -> 
 
 
 def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, adapter_factory,
-                     inspect_model, *, renderer_factory=QwenVisionRenderer.load, progress=print) -> dict:
+                     inspect_model, *, resume_execution: Path | None = None, resume_epoch: int | None = None,
+                     renderer_factory=QwenVisionRenderer.load, progress=print) -> dict:
     manifest, examples = verify_prepared(manifest_path, code_commit)
     config, run = manifest["recipe"], manifest_path.parent
     if confirmation != manifest["run_id"]:
@@ -63,6 +65,11 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
         raise ValueError("training-data conflict audit differs from the prepared manifest")
     if conflicts:
         raise ValueError("identical training images have conflicting gold labels; resolve upstream before launch")
+    if (resume_execution is None) != (resume_epoch is None):
+        raise ValueError("resume execution and epoch must be supplied together")
+    resume = (verify_resume_source(manifest, examples, resume_execution, resume_epoch)
+              if resume_execution is not None else None)
+    start_epoch = resume["source_epoch"] if resume is not None else 0
     catalog = OntologyCatalog.load(config["ontology_version"])
     if any(version(name) != pinned for name, pinned in manifest["runtime_versions"].items()):
         raise ValueError("installed runtime differs from preparation; sync the pinned lockfile")
@@ -89,7 +96,7 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
     # Exclusive creation prevents paid replays, including after ambiguous failures.
     record = {"status": "started", "run_id": manifest["run_id"], "manifest_sha256": file_sha256(manifest_path),
               "started_at_utc": datetime.now(timezone.utc).isoformat(), "capabilities": capabilities,
-              "completed_steps": 0, "events": []}
+              "completed_steps": 0, "resume": resume, "events": []}
     with record_path.open("x", encoding="utf-8") as output:
         json.dump(record, output)
 
@@ -100,8 +107,12 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
 
     adapter = adapter_factory(config["model"]["id"], renderer.tokenizer)
     try:
-        record["provider"] = adapter.start(config["training"])
+        record["provider"] = (adapter.start(config["training"], resume_state=resume["training_state_path"])
+                              if resume is not None else adapter.start(config["training"]))
         event("session_started", **record["provider"])
+        if resume is not None:
+            event("training_state_restored", source_run_id=resume["source_run_id"],
+                  source_epoch=start_epoch, path=resume["training_state_path"])
 
         def sample_phase(phase, cohorts):
             evaluations = [row for _, cohort in cohorts for row in cohort]
@@ -123,13 +134,22 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
             return metrics
 
         selection_cohorts = (("validation", validation), ("train_diagnostic", diagnostic))
-        adapter.use_sampler()
+        if resume is None:
+            adapter.use_sampler()
+        else:
+            baseline_checkpoint = adapter.checkpoint("resume-base", sampler=True)
+            adapter.use_sampler(baseline_checkpoint)
+            event("resumed_baseline_saved", path=baseline_checkpoint, epoch=start_epoch)
         baseline = sample_phase("base", selection_cohorts)
         batch_size = config["training"]["batch_size"]
         every_epoch = config["evaluation"].get("every_epoch", False)
         best = None
+        if resume is not None:
+            outcome = baseline["validation"]["explicit"]
+            best = {"epoch": start_epoch, "checkpoint": baseline_checkpoint, "metrics": baseline,
+                    "score": (outcome["exact_set_match"], outcome["f1"])}
         stale_epochs = 0
-        for epoch in range(config["training"]["epochs"]):
+        for epoch in range(start_epoch, start_epoch + config["training"]["epochs"]):
             order = list(train)
             random.Random(config["training"]["seed"] + epoch).shuffle(order)
             for offset in range(0, len(order), batch_size):
@@ -174,9 +194,10 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
             tuned = sample_phase("tuned", selection_cohorts)
         else:
             tuned = best["metrics"]
+            selected_phase = "base" if resume is not None and best["epoch"] == start_epoch else f"epoch{best['epoch']}"
             for suffix in ("predictions", "metrics"):
                 write_json(run / f"tuned-{suffix}.json", json.loads(
-                    (run / f"epoch{best['epoch']}-{suffix}.json").read_text(encoding="utf-8")))
+                    (run / f"{selected_phase}-{suffix}.json").read_text(encoding="utf-8")))
             record["selected_epoch"] = best["epoch"]
             event("best_checkpoint_selected", epoch=best["epoch"], path=checkpoint)
         final_metrics = None
@@ -186,7 +207,7 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
         price = config["pricing"]
         train_tokens = sum(e["metrics"].get("total_tokens:sum", e["training_tokens"])
                            for e in record["events"] if e["stage"] == "optimizer_step")
-        sample_phases = ["base", *([f"epoch{n}" for n in range(1, epoch + 2)] if every_epoch else ["tuned"])]
+        sample_phases = ["base", *([f"epoch{n}" for n in range(start_epoch + 1, epoch + 2)] if every_epoch else ["tuned"])]
         if final_metrics is not None:
             sample_phases.append("final")
         sampling_usage = {key: sum(report["usage"][key]
@@ -203,7 +224,9 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
             "tuned_invalid_rate": tuned["validation"]["invalid_output_rate"],
             "completed_training_tokens": train_tokens, "all_sampling_usage": sampling_usage,
             "selected_epoch": best["epoch"] if best is not None else epoch + 1,
-            "completed_epochs": epoch + 1,
+            "completed_epochs": epoch - start_epoch + 1,
+            "cumulative_epochs": epoch + 1,
+            "baseline_kind": "resumed_training_state" if resume is not None else "base_model",
             "estimated_token_cost_usd": estimated_cost, "billing_verified": False,
             "quality_promotion": False,
             "scope": "Paired descriptive smoke evaluation; small balanced official-validation subset, no held-out test or significance claim.",

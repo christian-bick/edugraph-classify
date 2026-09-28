@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import random
 import sys
 from copy import deepcopy
 from pathlib import Path
@@ -17,6 +18,7 @@ from edugraph_classify import cli, learning_cli, learning_data, learning_run
 from edugraph_classify.evaluation import evaluate, parse_prediction
 from edugraph_classify.ontology import OntologyCatalog
 from edugraph_classify.output_contract import closed_vocabulary_schema
+from edugraph_classify.learning_resume import verify_resume_source
 from edugraph_classify.providers.fireworks_training_api import FireworksTrainingAPI, inspect_training_model, to_datum
 from edugraph_classify.qwen_training_policy import assess_language_targets
 from edugraph_classify.qwen_rendering import IMAGE_MARKER, QwenVisionRenderer, VisionExample, fixed_system_template
@@ -340,6 +342,44 @@ class EpochAdapter(FakeAdapter):
         return super().retain_checkpoint(path, name)
 
 
+class ResumeAdapter(FakeAdapter):
+    def start(self, config, *, resume_state=None):
+        self.resume_state = resume_state
+        return {"training_session_id": "ts-fake", "run_id": "run-fake"}
+
+    def checkpoint(self, name, sampler=False):
+        return f"account/run-fake/{name}{'-sampler' if sampler else ''}"
+
+    def train_batch(self, batch, config):
+        self.batches = getattr(self, "batches", []) + [[row.fingerprint() for row in batch]]
+        return super().train_batch(batch, config)
+
+    def predict(self, example, config):
+        good = self.resume_state is None or "resume-base" in str(self.sampling_checkpoint)
+        return {"text": json.dumps(GOLD) if good else "garbage", "latency_seconds": .1,
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5}, "raw": {}}
+
+
+def resume_prepared_pair(prepared):
+    config = recipe()
+    config["run_id"] = "resume-source"
+    config["selection"]["validation"] = 2
+    config["training"]["epochs"] = 1
+    config["evaluation"]["every_epoch"] = True
+    source_run = prepared.run.parent / "resume-source"
+    source_manifest = learning_data.prepare_learning(config, ROOT, source_run, prepared.processor, "a" * 40,
+        prepared.fetch, {"read_only": True}, renderer_factory)
+    continuation = deepcopy(config)
+    continuation["run_id"] = "resume-target"
+    continuation["selection"]["final_validation"] = 2
+    target_run = prepared.run.parent / "resume-target"
+    target_manifest = learning_data.prepare_learning(continuation, ROOT, target_run, prepared.processor,
+        "a" * 40, prepared.fetch, {"read_only": True}, renderer_factory)
+    source = NS(run=source_run, manifest=source_manifest, path=source_run / "manifest.json")
+    target = NS(run=target_run, manifest=target_manifest, path=target_run / "manifest.json")
+    return source, target
+
+
 def epoch_prepared(prepared, *, patience=1):
     config = recipe()
     config["run_id"] = "epoch-test"
@@ -414,6 +454,109 @@ def test_cooperative_stop_is_local_and_checked_at_checkpoint(prepared, monkeypat
         learning_cli.run_learning_command(args, None)
 
 
+def test_resume_restores_optimizer_and_selects_saved_baseline(prepared, monkeypatch):
+    source, target = resume_prepared_pair(prepared)
+    source_adapter = ResumeAdapter()
+    execute(source, source_adapter)
+    adapter = ResumeAdapter()
+    record = execute(target, adapter, resume_execution=source.run / "execution.json", resume_epoch=1)
+    assert adapter.resume_state == "account/run-fake/epoch1"
+    assert record["resume"]["source_run_id"] == "resume-source"
+    assert any(event["stage"] == "training_state_restored" for event in record["events"])
+    assert [event["epoch"] for event in record["events"] if event["stage"] == "optimizer_step"] == [2, 2]
+    assert adapter.steps == 2 and adapter.closed
+    _, rows = learning_data.verify_prepared(target.path, "a" * 40)
+    expected = [row["render_sha256"] for row in rows if row["split"] == "train"]
+    random.Random(recipe()["training"]["seed"] + 1).shuffle(expected)
+    assert [item for batch in adapter.batches for item in batch] == expected
+    comparison = json.loads((target.run / "comparison.json").read_text())
+    assert comparison["selected_epoch"] == 1 and comparison["completed_epochs"] == 1
+    assert comparison["cumulative_epochs"] == 2 and comparison["baseline_kind"] == "resumed_training_state"
+    assert comparison["base"]["exact_set_match"] == comparison["tuned"]["exact_set_match"] == 1
+    assert comparison["final_validation"]["exact_set_match"] == 1
+    assert json.loads((target.run / "tuned-predictions.json").read_text()) == json.loads(
+        (target.run / "base-predictions.json").read_text())
+    with pytest.raises(FileExistsError):
+        execute(target, adapter, resume_execution=source.run / "execution.json", resume_epoch=1)
+    monkeypatch.delenv("FIREWORKS_API_KEY", raising=False)
+    args = cli.build_parser().parse_args(["training-api", "resume-check", "--manifest", str(target.path),
+        "--source-execution", str(source.run / "execution.json"), "--source-epoch", "1",
+        "--confirm-run-id", "resume-target"])
+    assert learning_cli.run_learning_command(args, "a" * 40)[1]["status"] == "resume_ready"
+
+
+def test_resume_rejects_mismatched_cohort_policy_and_source_state(prepared):
+    source, target = resume_prepared_pair(prepared)
+    execute(source, ResumeAdapter())
+    _, rows = learning_data.verify_prepared(target.path, "a" * 40)
+    source_path = source.run / "execution.json"
+    assert verify_resume_source(target.manifest, rows, source_path, 1)["training_state_path"] == "account/run-fake/epoch1"
+    for field, value in (("model", {"id": "other"}), ("training", {"learning_rate": 2e-5}),
+                         ("selection", {"seed": 99}), ("evaluation", {"output_mode": "json_schema"})):
+        changed = deepcopy(target.manifest)
+        changed["recipe"][field].update(value)
+        with pytest.raises(ValueError, match="resume"):
+            verify_resume_source(changed, rows, source_path, 1)
+    bad_rows = deepcopy(rows)
+    bad_rows[0]["image_sha256"] = "different"
+    with pytest.raises(ValueError, match="examples differ"):
+        verify_resume_source(target.manifest, bad_rows, source_path, 1)
+    with pytest.raises(ValueError, match="training-state checkpoint"):
+        verify_resume_source(target.manifest, rows, source_path, 2)
+    with pytest.raises(ValueError, match="positive integer"):
+        verify_resume_source(target.manifest, rows, source_path, 0)
+    same_id = deepcopy(target.manifest)
+    same_id["run_id"] = source.manifest["run_id"]
+    with pytest.raises(ValueError, match="new run_id"):
+        verify_resume_source(same_id, rows, source_path, 1)
+    no_epoch_scoring = deepcopy(target.manifest)
+    no_epoch_scoring["recipe"]["evaluation"]["every_epoch"] = False
+    with pytest.raises(ValueError, match="every-epoch"):
+        verify_resume_source(no_epoch_scoring, rows, source_path, 1)
+    wrong_runtime = deepcopy(target.manifest)
+    wrong_runtime["language_target_audit"] = {"changed": True}
+    with pytest.raises(ValueError, match="runtime"):
+        verify_resume_source(wrong_runtime, rows, source_path, 1)
+    wrong_processor = deepcopy(target.manifest)
+    wrong_processor["files_sha256"]["processor/config.json"] = "different"
+    with pytest.raises(ValueError, match="processor"):
+        verify_resume_source(wrong_processor, rows, source_path, 1)
+    wrong_prompt = deepcopy(target.manifest)
+    wrong_prompt["files_sha256"]["prompt.json"] = "different"
+    with pytest.raises(ValueError, match="prompt"):
+        verify_resume_source(wrong_prompt, rows, source_path, 1)
+    conflict_rows = deepcopy(rows)
+    train_rows = [row for row in conflict_rows if row["split"] == "train"]
+    train_rows[1]["image_sha256"] = train_rows[0]["image_sha256"]
+    train_rows[1]["target"] = '{"areas":["Subtraction"],"scopes":[],"abilities":[]}'
+    with pytest.raises(ValueError, match="conflicting identical"):
+        verify_resume_source(target.manifest, conflict_rows, source_path, 1)
+    execution = json.loads(source_path.read_text())
+    execution["manifest_sha256"] = "different"
+    learning_data.write_json(source_path, execution)
+    with pytest.raises(ValueError, match="no longer matches"):
+        verify_resume_source(target.manifest, rows, source_path, 1)
+    execution["manifest_sha256"] = learning_data.file_sha256(source.path)
+    execution["events"] = [{**event, "path": "unqualified"} if event.get("stage") == "training_state_saved" else event
+                           for event in execution["events"]]
+    learning_data.write_json(source_path, execution)
+    with pytest.raises(ValueError, match="fully qualified"):
+        verify_resume_source(target.manifest, rows, source_path, 1)
+    execution = json.loads(source_path.read_text())
+    execution["status"] = "failed"
+    learning_data.write_json(source_path, execution)
+    with pytest.raises(ValueError, match="completed"):
+        verify_resume_source(target.manifest, rows, source_path, 1)
+
+
+def test_resume_requires_both_source_arguments_before_provider_start(prepared):
+    factory = Mock()
+    with pytest.raises(ValueError, match="together"):
+        learning_run.execute_learning(prepared.path, prepared.manifest["run_id"], "a" * 40,
+            factory, Mock(), resume_epoch=1, renderer_factory=renderer_factory)
+    factory.assert_not_called()
+
+
 def test_failed_run_closes_and_never_logs_exception_payload(prepared):
     adapter = FakeAdapter(fail=True)
     with pytest.raises(RuntimeError):
@@ -462,7 +605,8 @@ def sdk_adapter():
         assert kwargs["images"][0].startswith("data:image/jpeg;base64,")
         return {"choices": [{"text": json.dumps(GOLD), "finish_reason": "stop"}], "usage": {"prompt_tokens": 20}}, None
     sampler = NS(close=Mock(), deployment_sampler=NS(async_completions_stream=completion))
-    service = NS(create_lora_training_client=Mock(return_value=training), training_session_id="ts-fake",
+    service = NS(create_lora_training_client=Mock(return_value=training),
+        create_training_client_from_state_with_optimizer=Mock(return_value=training), training_session_id="ts-fake",
         training_session_name="accounts/a/trainingSessions/ts-fake", create_sampling_client=Mock(return_value=sampler), close=Mock(), holder=NS(close=Mock()))
     platform = NS(list_training_session_checkpoints=Mock(return_value=[{"name": "accounts/a/trainingSessions/ts-fake/checkpoints/run-final-cp", "promotable": True}]),
                   promote_session_checkpoint=Mock(return_value={"name": "model", "public": False}))
@@ -526,6 +670,15 @@ def test_sdk_adapter_passes_closed_schema_and_checks_retained_target_modules():
     adapter.close()
 
 
+def test_sdk_resume_uses_training_state_and_optimizer_instead_of_new_lora():
+    adapter, service, _, _, _ = sdk_adapter()
+    result = adapter.start(recipe()["training"], resume_state="account/run-source/epoch1")
+    service.create_training_client_from_state_with_optimizer.assert_called_once_with("account/run-source/epoch1")
+    service.create_lora_training_client.assert_not_called()
+    assert result["resumed_from_training_state"] == "account/run-source/epoch1"
+    adapter.close()
+
+
 def test_default_sdk_imports_are_lazy_and_do_not_start_compute(monkeypatch):
     monkeypatch.setitem(sys.modules, "fireworks.training.sdk", NS(FiretitanServiceClient=Mock()))
     monkeypatch.setitem(sys.modules, "fireworks.training.sdk.fireworks_client", NS(FireworksClient=Mock()))
@@ -553,10 +706,16 @@ def test_cli_prepare_and_launch_wiring_without_network(tmp_path, monkeypatch):
         monkeypatch.setattr(learning_cli, "FireworksTrainingAPI", lambda *args: "adapter")
         assert factory("model", "tokenizer") == "adapter"
         assert inspect("model") == {"ok": True}
+        if confirmation == "new":
+            assert kwargs["resume_execution"] == Path("runs/old/execution.json")
+            assert kwargs["resume_epoch"] == 1
         kwargs["progress"]("progress")
         return {"status": "completed", "completed_steps": 120, "retained_model": {}}
     monkeypatch.setattr(learning_cli, "execute_learning", execute)
     args = cli.build_parser().parse_args(["training-api", "launch", "--manifest", "runs/x/manifest.json", "--confirm-run-id", "x"])
+    assert learning_cli.run_learning_command(args, "a" * 40)[1]["completed_steps"] == 120
+    args = cli.build_parser().parse_args(["training-api", "resume", "--manifest", "runs/new/manifest.json",
+        "--source-execution", "runs/old/execution.json", "--source-epoch", "1", "--confirm-run-id", "new"])
     assert learning_cli.run_learning_command(args, "a" * 40)[1]["completed_steps"] == 120
     monkeypatch.setattr(cli, "_code_commit", lambda root: "a" * 40)
     monkeypatch.setattr(cli, "run_learning_command", lambda *args: (0, {"status": "prepared"}))

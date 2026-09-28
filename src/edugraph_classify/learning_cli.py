@@ -10,8 +10,9 @@ from pathlib import Path
 import httpx
 
 from .configuration import load_local_environment
-from .learning_data import load_recipe, prepare_learning
+from .learning_data import load_recipe, prepare_learning, verify_prepared
 from .learning_run import execute_learning, request_learning_stop
+from .learning_resume import verify_resume_source
 from .providers.fireworks_training_api import FireworksTrainingAPI, inspect_training_model
 
 
@@ -26,6 +27,15 @@ def add_learning_parser(commands) -> None:
     launch.add_argument("--manifest", required=True)
     launch.add_argument("--confirm-run-id", required=True)
     launch.add_argument("--env-file", default=".env")
+    for action, help_text in (("resume-check", "validate a continuation locally without provider calls"),
+                              ("resume", "run one explicitly confirmed paid continuation")):
+        continuation = actions.add_parser(action, help=help_text)
+        continuation.add_argument("--manifest", required=True, help="new prepared run manifest")
+        continuation.add_argument("--source-execution", required=True, help="completed source run execution.json")
+        continuation.add_argument("--source-epoch", required=True, type=int, help="saved epoch to resume from")
+        continuation.add_argument("--confirm-run-id", required=True, help="new prepared run ID")
+        if action == "resume":
+            continuation.add_argument("--env-file", default=".env")
     stop = actions.add_parser("request-stop", help="finish the active run at its next durable epoch checkpoint")
     stop.add_argument("--manifest", required=True)
     stop.add_argument("--confirm-run-id", required=True)
@@ -37,6 +47,14 @@ def run_learning_command(args, code_commit: str | None) -> tuple[int, dict]:
         return 0, {"status": "stop_requested", **request}
     if code_commit is None:
         raise ValueError("preparation and launch require a pinned clean commit")
+    if args.action == "resume-check":
+        manifest, examples = verify_prepared(Path(args.manifest), code_commit)
+        if args.confirm_run_id != manifest["run_id"]:
+            raise ValueError("confirmation must exactly match the new prepared run_id")
+        source = verify_resume_source(manifest, examples, Path(args.source_execution), args.source_epoch)
+        return 0, {"status": "resume_ready", "new_run_id": manifest["run_id"], **source,
+                   "additional_epochs": manifest["recipe"]["training"]["epochs"],
+                   "estimated_max_token_cost_usd": manifest["estimated_max_token_cost_usd"]}
     load_local_environment(args.env_file)
     key = os.environ["FIREWORKS_API_KEY"]
     previous_logging = logging.root.manager.disable
@@ -66,8 +84,11 @@ def run_learning_command(args, code_commit: str | None) -> tuple[int, dict]:
                        "estimated_max_token_cost_usd": manifest["estimated_max_token_cost_usd"]}
         record = execute_learning(Path(args.manifest), args.confirm_run_id, code_commit,
             lambda model, tokenizer: FireworksTrainingAPI(key, model, tokenizer),
-            lambda model: inspect_training_model(model, key), progress=lambda message: print(message, flush=True))
+            lambda model: inspect_training_model(model, key),
+            resume_execution=Path(args.source_execution) if args.action == "resume" else None,
+            resume_epoch=args.source_epoch if args.action == "resume" else None,
+            progress=lambda message: print(message, flush=True))
         return 0, {"status": record["status"], "completed_steps": record["completed_steps"],
-                   "retained_model": record["retained_model"]}
+                   "retained_model": record["retained_model"], "resume": record.get("resume")}
     finally:
         logging.disable(previous_logging)

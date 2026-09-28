@@ -58,17 +58,21 @@ class FireworksTrainingAPI:
         self.service = self.training = self.sampler = None
         self.expected_target_modules = None
 
-    def start(self, config: dict) -> dict:
+    def start(self, config: dict, *, resume_state: str | None = None) -> dict:
         self.expected_target_modules = config.get("expected_target_modules")
         self.service = self.service_factory(api_key=self.key, base_url=f"{API_ROOT}/training/v1/serverless", timeout=60, max_retries=0)
-        self.training = self.service.create_lora_training_client(
-            base_model=self.model, rank=config["rank"], alpha=config["alpha"], seed=config["seed"],
-            train_attn=config.get("train_attn", True), train_mlp=config.get("train_mlp", True),
-            train_unembed=config.get("train_unembed", True),
-        )
+        if resume_state is None:
+            self.training = self.service.create_lora_training_client(
+                base_model=self.model, rank=config["rank"], alpha=config["alpha"], seed=config["seed"],
+                train_attn=config.get("train_attn", True), train_mlp=config.get("train_mlp", True),
+                train_unembed=config.get("train_unembed", True),
+            )
+        else:
+            self.training = self.service.create_training_client_from_state_with_optimizer(resume_state)
         return {"training_session_id": self.service.training_session_id,
                 "training_session_name": self.service.training_session_name,
                 "run_id": self.training.run_id,
+                "resumed_from_training_state": resume_state,
                 "lora_policy": {name: config.get(name, True) for name in ("train_attn", "train_mlp", "train_unembed")}}
 
     def train_batch(self, examples: list[VisionExample], config: dict) -> dict:

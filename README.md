@@ -31,6 +31,8 @@ uv run --group training-api edugraph-classify training-api launch `
 
 Preparation performs a read-only live eligibility check and local conversion of public data. It requires a clean commit and pins all identities and artifact hashes. Launch is separate, explicitly confirmed, and cost-incurring. It runs a bounded paired evaluation/training experiment, saves state each epoch, retains the final private adapter, and closes the pooled session. An execution journal blocks accidental paid replay. It does not create an inference deployment.
 
+A completed run can be continued from a saved training-state checkpoint in a separately prepared run with a new ID. Use the local `training-api resume-check` before the paid `training-api resume` command; see the [continuation workflow](docs/FIREWORKS-TRAINING-API.md#commands-and-lifecycle). Resumption restores optimizer state and starts at the next epoch. The current full-release candidate remains blocked by conflicting labels on one duplicate image pair.
+
 The system prompt is identical across training and inference, with assistant-only loss. Preparation also exports a locally verified template that embeds the prompt. Fireworks currently documents custom chat templates for base models, not LoRA adapters; see [the deployment-template limitation](docs/FIREWORKS-TRAINING-API.md#fixed-system-prompt-and-deployment-template).
 
 ## Historical paths
