@@ -2,99 +2,50 @@
 
 Training and evaluation tooling for direct ontology labeling of atomic educational tasks with vision-language models.
 
-The first project milestone is a direct-labeling VLM baseline. Fireworks was tested first and rejected the selected Qwen3-VL checkpoint at job creation; Google Vertex AI serverless custom training is now the second managed-training path. Provider adapters keep data preparation and evaluation independent from provider APIs, while execution mode remains explicit across serverless, provider-dedicated, and self-hosted paths. The repository does not own dataset generation or ontology authoring.
+The current executable path uses **Qwen3.8-27B on Fireworks serverless training**, dataset **v0.30.0-02**, and ontology **v0.30.0**. A one-image training/checkpoint/image-sampling diagnostic succeeded. The larger learning recipe selects 160 training and 64 official-validation images and compares base and tuned predictions with a fixed system prompt.
 
-The accepted architecture and experiment rationale are recorded in [Project kickoff and baseline decision](docs/PROJECT-KICKOFF.md).
-
-## Status
-
-Provider-neutral identities, dimension-aware conversion, pinned ontology validation, deterministic VLM JSONL generation, guarded managed-training operations, Fireworks model preflight, and a Vertex AI CustomJob adapter are in place. The Fireworks technical smoke datasets reached `READY`, but Fireworks rejected Qwen3-VL-8B-Instruct at managed-job creation as unsupported. Vertex bootstrap includes a dedicated keyless runtime identity, regional Artifact Registry repository, bucket-scoped IAM, immutable GCS staging, and a containerized QLoRA trainer for the pinned public 2026 `Qwen/Qwen3.5-4B` VLM revision. L4 Flex Start attempts exhausted their two-hour capacity wait. A100 attempts established working provisioning, CUDA, model loading, quantized preparation, LoRA attachment, collation, device transfer, and optimizer setup. The bounded one-batch diagnostic localized the remaining failure to PyTorch's native Triton `bmm` outer-product path during Qwen3.5 rotary-position computation. The next diagnostic can explicitly disable PyTorch native JIT, route that operation through its stable fallback, and report only allowlisted tensor metadata and accelerator error categories. No trained model has been produced.
+See [Training API setup](docs/FIREWORKS-TRAINING-API.md) for the recipe, evaluation policy, system-prompt template, provider limits, and lifecycle. [Project kickoff](docs/PROJECT-KICKOFF.md) retains accepted architecture and historical decisions. This repository owns classifier conversion, prompts, orchestration, inference, evaluation, and experiment records; upstream projects own images/splits and ontology semantics.
 
 ## Development
 
-The project requires Python 3.12 and uses [uv](https://docs.astral.sh/uv/) for environments, dependency locking, command execution, and builds.
+Python 3.12 and [uv](https://docs.astral.sh/uv/) manage environments, dependencies, execution, locking, and builds.
 
-```bash
-uv sync
-uv run pytest --cov=edugraph_classify --cov-report=term-missing
+```powershell
+uv sync --group training-api
+uv run --group training-api pytest --cov=edugraph_classify --cov-report=term-missing
 uv build
 ```
 
-The initial runtime dependencies are:
+`uv.lock` is committed. Keep it synchronized with `pyproject.toml`. The optional `training-api` group adds the official training SDK and local tokenizer/image processing tools. Windows uses CPU PyTorch; existing Linux training containers retain CUDA 12.6. Provider calls remain behind thin adapters and unit tests use fakes.
 
-- `fireworks-ai`, the official Fireworks Python SDK for inference and platform orchestration;
-- `google-cloud-aiplatform`, the official Vertex AI SDK used only by the GCP provider boundary;
-- `google-cloud-storage`, used for immutable, hash-checked run staging and artifact transfer;
-- `datasets`, the Hugging Face library used to access and process the released image dataset;
-- `fsspec` and `pillow`, used to read and validate the pinned release images deterministically;
-- `edugraph-py`, installed from the official `v0.27.0` wheel and used as the ontology authority;
-- `python-dotenv`, used only at application entry points to load local configuration without overriding process-level environment variables.
+Credentials belong in environment variables or the gitignored `.env`; the CLI loads it without overriding process variables. Generated datasets, logs, raw predictions, checkpoints, and reports belong under gitignored `data/`, `artifacts/`, `runs/`, `reports/`, or `temp/`.
 
-`uv.lock` is committed. Add or update dependencies with `uv add`/`uv remove` and commit the resulting `pyproject.toml` and lockfile together.
+## Prepare and run the learning smoke
 
-The development ontology client is **v0.27.0**. The catalog uses its released eligibility API, rejects organizational nodes as direct labels, and fingerprints definitions and relations. The authored ontology is unchanged from v0.26.0; [the v0.27.0 adoption notes](docs/ONTOLOGY-UPGRADE-0.27.md) record the package migration, while [the v0.26.0 migration](docs/ONTOLOGY-UPGRADE-0.26.md) records the latest semantic changes.
-
-The default preparation recipe pins dataset **v0.26.0-01** at `cee47a3b49503e2637759a8a0e59e071c271b415`, records its source ontology v0.26.0, and validates it with the semantically identical v0.27.0 client while explicitly selecting its `labels` metadata field. All 1,944 rows pass ontology eligibility and image-integrity checks, with no duplicate image bytes across official splits. One duplicate training image has different gold sets and is preserved and reported. See [Dataset upgrade and release audit](docs/DATASET-UPGRADE-0.26.0-01.md). Historical configurations retain their v0.21.0 dataset/ontology pins and require their original code commit and lockfile.
-
-Local training targets **Qwen3.5-9B on both RTX 3090s from the first training diagnostic**, using DDP with QLoRA; see [Local Docker training](docs/LOCAL-TRAINING.md) for the pinned model revision and recipe. Only training compute moves to the box; GCP remains the provider for surrounding services, including Artifact Registry, staged inputs, and model upload after training. The preparation recipe is implemented; the distributed job adapter, shared GCS staging, and coordinated checkpoint recovery remain planned work. The single-GPU milestone is removed.
-
-## Provider preflight and first-run preparation
-
-Inspect the exact Fireworks model selected for the first run:
-
-```bash
-uv run edugraph-classify preflight fireworks
+```powershell
+uv run --group training-api edugraph-classify training-api prepare
+uv run --group training-api edugraph-classify training-api launch `
+  --manifest runs/edugraph-20260928-qwen38-27b-learning-v1/manifest.json `
+  --confirm-run-id edugraph-20260928-qwen38-27b-learning-v1
 ```
 
-The command loads `.env` explicitly, preserves any variables already supplied by the process, and never prints secret values. An ineligible model produces structured diagnostic output and exit code `2`. The preflight is read-only; it does not launch training, create a deployment, upload data, or publish a model.
+Preparation performs a read-only live eligibility check and local conversion of public data. It requires a clean commit and pins all identities and artifact hashes. Launch is separate, explicitly confirmed, and cost-incurring. It runs a bounded paired evaluation/training experiment, saves state each epoch, retains the final private adapter, and closes the pooled session. An execution journal blocks accidental paid replay. It does not create an inference deployment.
 
-Create deterministic training artifacts from the current pinned public Hugging Face release:
+The system prompt is identical across training and inference, with assistant-only loss. Preparation also exports a locally verified template that embeds the prompt. Fireworks currently documents custom chat templates for base models, not LoRA adapters; see [the deployment-template limitation](docs/FIREWORKS-TRAINING-API.md#fixed-system-prompt-and-deployment-template).
 
-```bash
-uv run edugraph-classify run prepare
-```
+## Historical paths
 
-Preparation defaults to `experiments/edugraph-20260913-qwen35-9b-local-ddp-v1.json`, requires a clean committed worktree, and writes its manifest, source audit data, profiles, and JSONL files under the gitignored `runs/` directory. It does not need a Hugging Face token for the public release and does not call a training provider. Local Docker launch is not implemented yet.
+Historical recipes retain their original dataset, ontology, model, and environment pins. Reproduce them from their original code commit and lockfile rather than silently upgrading their gold labels.
 
-The following Fireworks launch and smoke examples document historical runs and require their original environment. `run launch` accepts only Fireworks manifests. Launching is a separate, cost-incurring command that rechecks the clean code commit, artifact hashes, exact live model eligibility, and resource-name collisions. It requires the prepared run ID as explicit confirmation:
+- [Local Docker training](docs/LOCAL-TRAINING.md): planned Qwen3.5-9B DDP/QLoRA on two RTX 3090s, with GCP artifact services. Preparation exists; the distributed launch adapter remains planned.
+- [Vertex AI training](docs/VERTEX-AI-TRAINING.md): custom-job provisioning, immutable staging, and a containerized Qwen3.5-4B trainer. Earlier A100 diagnostics isolated a PyTorch native-JIT rotary-position failure.
+- Fireworks managed SFT: earlier Qwen3-VL-8B datasets reached READY, but the provider rejected that model at job creation. The newer serverless training API is a separate execution path.
+- [Dataset v0.26.0-01 audit](docs/DATASET-UPGRADE-0.26.0-01.md) and [ontology v0.27 adoption](docs/ONTOLOGY-UPGRADE-0.27.md): historical full-release audit and migration evidence.
 
-```bash
-uv run edugraph-classify run launch \
-  --manifest runs/edugraph-20260823-qwen3vl8b-sft-v1/manifest.json \
-  --confirm-run-id edugraph-20260823-qwen3vl8b-sft-v1
-```
+## Upstream contracts
 
-The launch creates and validates two Fireworks datasets and starts one supervised LoRA job. It records provider identifiers in `launch-record.json`; it does not create a deployment or publish the resulting model.
-
-The historical v0.21.0-01 full release failed the required cross-split image-byte safeguard. A separate tracked eight-example-per-split smoke configuration was used solely to verify managed-training plumbing and must not be treated as a quality baseline:
-
-```bash
-uv run edugraph-classify run prepare \
-  --config experiments/edugraph-20260823-qwen3vl8b-smoke-v1.json
-```
-
-## Vertex AI serverless custom training
-
-Vertex AI CustomJob is treated as `serverless` training because Google owns job provisioning and teardown, even though each run still declares its ephemeral machine and GPU shape. The adapter uses the regional API endpoint from the job configuration and supports standard, Spot, and Flex Start scheduling.
-
-Validate and inspect the exact provider request without credentials or network access:
-
-```bash
-uv run edugraph-classify vertex render --config runs/<job-id>/vertex-job.json
-```
-
-Submitting a job is separate and cost-incurring. It requires Application Default Credentials, a clean checkout at the commit pinned in the configuration, an immutable training-image digest, and the exact job ID as confirmation:
-
-```bash
-uv run edugraph-classify vertex launch \
-  --config runs/<job-id>/vertex-job.json \
-  --confirm-job-id <job-id>
-```
-
-The first tracked Vertex smoke recipe is `experiments/edugraph-20260823-qwen35-4b-vertex-smoke-v1.json`. Preparation, content-addressed staging, immutable image publication, offline job configuration/rendering, and paid submission are deliberately separate operations. The setup, commands, IAM boundary, model/training decision, strict configuration shape, and EU-region guidance are documented in [Vertex AI serverless training](docs/VERTEX-AI-TRAINING.md).
-
-## Related projects
-
-- [edugraph-dataset](https://github.com/christian-bick/edugraph-dataset): canonical labeled image dataset releases
-- [edugraph-ontology](https://github.com/christian-bick/edugraph-ontology): ontology entities, dimensions, definitions, and relations
-- [edugraph-classify-qwen3vl](https://github.com/christian-bick/edugraph-classify-qwen3vl): earlier Qwen3-VL classifier experiment and checkpoint lineage
+- [Dataset contract](docs/UPSTREAM-DATASET.md): released images, explicit gold labels, official splits, and atomic classification units.
+- [Ontology contract](docs/UPSTREAM-ONTOLOGY.md): identifiers, dimensions, eligibility, and explicit-versus-derived semantics.
+- [edugraph-dataset](https://github.com/christian-bick/edugraph-dataset)
+- [edugraph-ontology](https://github.com/christian-bick/edugraph-ontology)
+- [Earlier Qwen3-VL classifier](https://github.com/christian-bick/edugraph-classify-qwen3vl)

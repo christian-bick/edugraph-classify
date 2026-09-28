@@ -2,6 +2,8 @@
 
 Status: accepted direction; first executable baseline selected
 
+Current executable path (2026-09-28): user-selected **Qwen3.8-27B** on Fireworks serverless training, dataset **v0.30.0-02**, ontology **v0.30.0**. A one-image multimodal optimizer/checkpoint/sample diagnostic succeeded. The authorized learning smoke uses 160 training and 64 official-validation images with a fixed system prompt and paired base/tuned evaluation. See [Training API setup](FIREWORKS-TRAINING-API.md) for current eligibility semantics and template limitations. Earlier local and managed plans below retain their historical pins.
+
 Initial model hypothesis: Qwen3.5-9B
 
 Initial managed provider: Fireworks AI

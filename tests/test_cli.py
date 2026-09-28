@@ -37,7 +37,7 @@ def test_fireworks_preflight_loads_env_and_returns_fail_closed_status(
         supports_serverless=False,
         context_length=262_144,
         training_context_length=131_072,
-        model_extra={"supervisedLoraTunable": True, "useTrainingV2": True},
+        model_extra={"supervisedLoraTunable": False, "useTrainingV2": True},
     )
 
     class Models:
@@ -163,7 +163,7 @@ def test_historical_preparation_reports_version_mismatch_before_loading_data(
         "run", "prepare", "--config", str(config_path), "--runs-root", str(runs_root)
     ]) == 2
     error = json.loads(capsys.readouterr().err)
-    assert error["message"] == "expected edugraph-py 0.21.0, found 0.27.0"
+    assert error["message"] == "expected edugraph-py 0.21.0, found 0.30.0"
     assert not runs_root.exists()
 
 

@@ -94,15 +94,15 @@ def test_preflight_maps_sdk_fields_without_leaking_sdk_types() -> None:
     assert resource.get_calls == [("qwen3p5-9b", "fireworks")]
 
 
-def test_preflight_reports_missing_catalog_tunable_as_ineligible() -> None:
+def test_preflight_uses_v2_supervised_flag_instead_of_legacy_tunable() -> None:
     adapter, _ = provider(
         model("accounts/fireworks/models/qwen3p5-9b", "Qwen3.5 9B", tunable=None)
     )
 
     result = adapter.preflight_model("Qwen3.5-9B")
 
-    assert result.status is EligibilityStatus.INELIGIBLE
-    assert result.reasons == ("provider catalog does not report Tunable: true",)
+    assert result.status is EligibilityStatus.ELIGIBLE
+    assert result.reasons == ()
 
 
 def test_preflight_rejects_missing_and_ambiguous_hypotheses() -> None:

@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "datasets>=5.0.1",
     "edugraph-py",
-    "fireworks-ai>=1.2.9",
+    "fireworks-ai==1.2.15",
     "fsspec>=2026.6.0",
     "google-cloud-aiplatform>=1.122.0,<2",
     "google-cloud-storage>=3.13.1,<4",
@@ -25,6 +25,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "jinja2>=3.1.6",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
 ]
@@ -32,6 +33,12 @@ training = [
     "accelerate==1.14.0",
     "bitsandbytes==0.50.1",
     "peft==0.20.0",
+    "torch==2.13.0",
+    "torchvision==0.28.0",
+    "transformers==5.15.1",
+]
+training-api = [
+    "fireworks-ai[training-sdk]==1.2.15",
     "torch==2.13.0",
     "torchvision==0.28.0",
     "transformers==5.15.1",
@@ -52,9 +59,20 @@ show_missing = true
 skip_covered = true
 
 [tool.uv.sources]
-torch = { index = "pytorch-cu126" }
-torchvision = { index = "pytorch-cu126" }
-edugraph-py = { url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.27.0/edugraph_py-0.27.0-py3-none-any.whl" }
+torch = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cu126", marker = "sys_platform != 'win32'" },
+]
+torchvision = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cu126", marker = "sys_platform != 'win32'" },
+]
+edugraph-py = { url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.30.0/edugraph_py-0.30.0-py3-none-any.whl" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [[tool.uv.index]]
 name = "pytorch-cu126"

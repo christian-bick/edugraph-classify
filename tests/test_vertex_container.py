@@ -22,13 +22,17 @@ def test_vertex_container_and_lock_pin_cuda_126_runtime() -> None:
 
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     sources = project["tool"]["uv"]["sources"]
-    assert sources["torch"] == sources["torchvision"] == {"index": "pytorch-cu126"}
+    assert sources["torch"] == sources["torchvision"] == [
+        {"index": "pytorch-cpu", "marker": "sys_platform == 'win32'"},
+        {"index": "pytorch-cu126", "marker": "sys_platform != 'win32'"},
+    ]
     assert project["tool"]["uv"]["index"] == [
+        {"name": "pytorch-cpu", "url": "https://download.pytorch.org/whl/cpu", "explicit": True},
         {"name": "pytorch-cu126", "url": CUDA_INDEX, "explicit": True}
     ]
 
     lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
-    packages = {package["name"]: package for package in lock["package"]}
+    packages = {package["name"]: package for package in lock["package"] if package["source"].get("registry") == CUDA_INDEX}
     assert packages["torch"]["version"] == "2.13.0+cu126"
     assert packages["torchvision"]["version"] == "0.28.0+cu126"
     assert packages["torch"]["source"] == packages["torchvision"]["source"] == {

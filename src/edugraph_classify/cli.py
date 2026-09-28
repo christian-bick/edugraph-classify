@@ -14,6 +14,7 @@ from typing import Any
 from .configuration import load_local_environment
 from .dataset import DatasetConversionError, file_sha256
 from .ontology import OntologyError
+from .learning_cli import add_learning_parser, run_learning_command
 from .preflight import EligibilityStatus, PreflightError
 from .providers.fireworks import (
     FireworksTrainingProvider,
@@ -389,6 +390,7 @@ def run_launch(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="edugraph-classify")
     commands = parser.add_subparsers(dest="command", required=True)
+    add_learning_parser(commands)
     preflight = commands.add_parser("preflight", help="run read-only provider capability checks")
     targets = preflight.add_subparsers(dest="target", required=True)
 
@@ -456,7 +458,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        if args.command == "preflight":
+        if args.command == "training-api":
+            exit_code, payload = run_learning_command(args, _code_commit(Path.cwd()))
+        elif args.command == "preflight":
             exit_code, payload = run_fireworks_preflight(args.hypothesis, args.env_file)
         elif args.command == "run" and args.action == "prepare":
             exit_code, payload = run_prepare(args.config, args.runs_root, args.workers)

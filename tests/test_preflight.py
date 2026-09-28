@@ -26,7 +26,7 @@ def capabilities(**changes: object) -> ModelCapabilities:
 
 def test_model_is_eligible_only_when_all_required_capabilities_are_explicit() -> None:
     result = assess_model(
-        capabilities(supervised_lora_tunable=None, uses_training_v2=True),
+        capabilities(catalog_tunable=False, supervised_lora_tunable=True, uses_training_v2=True),
         ExecutionMode.SERVERLESS,
     )
 
@@ -34,6 +34,12 @@ def test_model_is_eligible_only_when_all_required_capabilities_are_explicit() ->
     assert result.reasons == ()
     assert result.to_mapping()["status"] == "eligible"
     assert result.to_mapping()["training_execution_mode"] == "serverless"
+
+
+def test_v2_routing_alone_and_missing_lora_do_not_grant_eligibility():
+    result = assess_model(capabilities(supervised_lora_tunable=None, supports_lora=None), ExecutionMode.SERVERLESS)
+    assert result.status is EligibilityStatus.INELIGIBLE
+    assert len(result.reasons) == 2
 
 
 def test_model_capability_check_fails_closed() -> None:

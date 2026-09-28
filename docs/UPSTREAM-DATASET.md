@@ -4,6 +4,8 @@ This document transports the stable consumer-facing contract of [`edugraph-datas
 
 The pinned upstream release remains authoritative. If this summary and a released artifact disagree, the released artifact and its documentation win.
 
+**Current learning experiment, 2026-09-28:** v0.30.0-02 at `c1a474c2ed2c8b8b959d3205483ec32a3108c52d`, aligned with ontology v0.30.0. All 1,968 metadata rows validate; the learning preparation checks the selected 224 images, not the full release's image integrity. Metadata still uses `labels`. See [Training API setup](FIREWORKS-TRAINING-API.md). The earlier full-release audit below remains specific to v0.26.0-01.
+
 **Release compatibility, checked 2026-09-13:** the current recipe pins v0.26.0-01 at `cee47a3b49503e2637759a8a0e59e071c271b415` together with ontology v0.26.0. Its actual metadata uses `labels`, although the pinned dataset README still says `tags`. The importer selects the field explicitly through `dataset.label_field`; old configurations without it retain the `tags` contract. It rejects missing, unexpected, or simultaneous fields without guessing or merging. See [the release audit](DATASET-UPGRADE-0.26.0-01.md) for measured compatibility and data-quality findings.
 
 ## 1. Purpose and ownership

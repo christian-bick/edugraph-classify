@@ -54,10 +54,14 @@ def assess_model(
     reasons: list[str] = []
     if capabilities.supports_image_input is not True:
         reasons.append("model does not report vision input support")
-    if capabilities.catalog_tunable is not True:
+    # Fireworks documents `tunable` as legacy V1; V2 advertises separate
+    # supervised/RL flags. Neither V2 routing nor inference hosting is eligibility.
+    if capabilities.uses_training_v2 is not True and capabilities.catalog_tunable is not True:
         reasons.append("provider catalog does not report Tunable: true")
-    if capabilities.supervised_lora_tunable is not True and capabilities.uses_training_v2 is not True:
+    if capabilities.supervised_lora_tunable is not True:
         reasons.append("model does not report a compatible supervised training surface")
+    if capabilities.supports_lora is not True:
+        reasons.append("model does not report LoRA support")
 
     status = EligibilityStatus.INELIGIBLE if reasons else EligibilityStatus.ELIGIBLE
     return ModelPreflight(

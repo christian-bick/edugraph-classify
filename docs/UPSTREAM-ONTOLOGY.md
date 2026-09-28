@@ -2,6 +2,8 @@
 
 This document explains the stable classifier-facing concepts of [`edugraph-ontology`](https://github.com/christian-bick/edugraph-ontology).
 
+Current runtime (2026-09-28): **v0.30.0**, aligned with dataset v0.30.0-02 for the [Training API experiment](FIREWORKS-TRAINING-API.md). The public eligibility/relations APIs remain compatible. Unlike the earlier v0.27 client-only migration, subsequent releases contain semantic changes; historical experiments require their pinned environment. The prior review below records the older migration context.
+
 Reviewed against release **v0.27.0** on 2026-09-13. Its authored ontology is unchanged from v0.26.0. See [the v0.27.0 adoption notes](ONTOLOGY-UPGRADE-0.27.md), [the v0.26.0 semantic migration](ONTOLOGY-UPGRADE-0.26.md), and [the dataset upgrade](DATASET-UPGRADE-0.26.0-01.md).
 
 ## 1. Purpose and representation

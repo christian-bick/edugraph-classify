@@ -163,12 +163,17 @@ def image_bytes(color: int) -> bytes:
     return stream.getvalue()
 
 
-def test_current_recipe_prepares_labels_for_two_gpu_local_training(
+def test_local_training_layout_with_current_ontology_fixture(
     tmp_path: Path, monkeypatch,
 ) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     config_path = repo_root / "experiments/edugraph-20260913-qwen35-9b-local-ddp-v1.json"
     config = load_experiment_config(config_path)
+    # Historical recipe stays pinned; this synthetic conversion fixture uses
+    # the installed ontology without rewriting the released experiment file.
+    config["ontology"]["version"] = "0.30.0"
+    config_path = tmp_path / "fixture.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
     revision = "cee47a3b49503e2637759a8a0e59e071c271b415"
 
     def released_rows(repo_id: str, source_revision: str, **kwargs):
@@ -202,7 +207,7 @@ def test_current_recipe_prepares_labels_for_two_gpu_local_training(
     assert manifest["dataset"]["label_field"] == "labels"
     assert "selection" not in manifest["dataset"]
     assert [split.example_count for split in prepared.conversion.splits] == [4, 4]
-    assert manifest["ontology"]["version"] == "0.27.0"
+    assert manifest["ontology"]["version"] == "0.30.0"
     assert manifest["model"]["repository"] == "Qwen/Qwen3.5-9B"
     assert manifest["model"]["revision"] == "c202236235762e1c871ad0ccb60c8ee5ba337b9a"
     assert manifest["provider"] == config["provider"]
@@ -275,7 +280,7 @@ def test_prepare_run_pins_every_identity_and_hashes_generated_artifacts(
         },
         "ontology": {
             "package": "edugraph-py",
-            "version": "0.27.0",
+            "version": "0.30.0",
             "release_asset_sha256": "c" * 64,
         },
         "prompt": {
@@ -359,7 +364,7 @@ def test_prepare_run_rejects_uncommitted_identity_and_escaping_paths(tmp_path: P
     config = {
         "run_id": "run-1",
         "dataset": {"repository": "owner/data", "revision": "b" * 40},
-        "ontology": {"version": "0.27.0"},
+        "ontology": {"version": "0.30.0"},
         "prompt": {"path": "../outside.json", "prompt_id": "x", "version": "1"},
         "schema": {"path": "schema.json"},
         "provider": {},
@@ -386,7 +391,7 @@ def test_prepare_run_validates_smoke_selection_contract(
             "revision": "b" * 40,
             "selection": {"mode": "random", "limits": {"train": 3, "validation": 3}},
         },
-        "ontology": {"version": "0.27.0"},
+        "ontology": {"version": "0.30.0"},
         "prompt": {"path": "prompt.json", "prompt_id": "x", "version": "1"},
         "schema": {"path": "schema.json"},
         "provider": {},
