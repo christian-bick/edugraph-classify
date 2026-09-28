@@ -2,6 +2,29 @@
 
 The current executable experiment uses Fireworks serverless training, dataset **v0.30.0-02**, and ontology **v0.30.0**. The one-image diagnostic on 2026-09-28 completed forward/backward, an optimizer step, checkpointing, and image sampling. Its invalid prediction established pipeline operation only. The user authorized the larger learning comparison described here.
 
+## Observed learning smoke and early stop
+
+The run started on 2026-09-28 UTC and completed on 2026-09-29 local time. On the user's request to stop once learning was evident, training stopped at the first durable epoch checkpoint: **160 images, 40 optimizer steps**, instead of the original three-epoch/120-step maximum. A paired evaluation used the same 64 official-validation images and 16 training-diagnostic images as the baseline.
+
+| Validation metric | Base | One epoch |
+|---|---:|---:|
+| Exact-set match (primary) | 0/64 | 2/64 |
+| Micro precision | 43.5% | 62.1% |
+| Micro recall | 23.9% | 73.6% |
+| Micro F1 | 30.9% | 67.4% |
+| Label-macro F1 | 22.9% | 43.4% |
+| Invalid outputs | 17/64 | 5/64 |
+
+Per-image F1 improved on 60 images and declined on four. Both question and solution views and all three dimensions improved. A separate diagnostic strips only enclosing Markdown fences: baseline F1 becomes 35.3%, while tuned F1 stays 67.4%. The improvement therefore includes substantial label-selection gains. Training-diagnostic F1 rose from 30.2% to 69.6%, close to the held-out result. These descriptive results are sufficient evidence of learning for the smoke objective; the remaining two epochs were not run.
+
+The checkpoint is **not production-ready**. Exact sets are correct on only two validation images. Tuned output contains 255 extra and 150 missing dimension/label pairs; the five invalid outputs contain invalid identifiers or dimension assignments. Abilities remain the weakest dimension (48.6% F1), and labels unseen in training reach only 26.7% F1. Follow-up quality work should inspect these errors and use a larger untouched evaluation cohort before deciding on more training or deployment.
+
+The run used code commit `3060f9ff44d6fc2e2c4f55dd4fe58276983f3c7b`. Because that running process had no cooperative stop hook, it was terminated immediately after saving epoch 1. A fresh pooled session restored that checkpoint, performed **zero optimizer steps**, saved a sampler checkpoint, and evaluated it. This also verified cross-session state recovery. At most one extra forward/backward batch could have been submitted before termination; it is excluded from the evaluated checkpoint. The original execution snapshot, stop evidence, hashed recovery script, raw predictions, comparison, and final decision remain in `runs/edugraph-20260928-qwen38-27b-learning-v1/`.
+
+The adapter was retained privately as `accounts/christian-bick-91boy/models/edugraph-20260928-qwen38-27b-learning-v1` and returned READY. The evaluation clients and heartbeat holder were closed; the original process was stopped. No inference deployment was created. Observed completed training tokens (543,097) and all 160 sampling prompt-token counts exactly matched local rendering counts. Estimated token cost was **$3.27**, with a possible extra batch allowance below **$0.07**; billing is not reconciled. The detailed local report is `reports/fireworks-qwen38-27b-learning-20260928.md`.
+
+The tracked recipe preserves the original plan. The launch CLI still runs its configured epoch count; it does not automatically decide that learning is sufficient. For future small pilots, prepare a new run ID with one epoch, evaluate it, and make any continuation a separate recorded decision.
+
 ## Reproducibility and cohort
 
 The tracked recipe is `experiments/edugraph-20260928-qwen38-27b-learning-v1.json`.

@@ -2,7 +2,7 @@
 
 Training and evaluation tooling for direct ontology labeling of atomic educational tasks with vision-language models.
 
-The current executable path uses **Qwen3.8-27B on Fireworks serverless training**, dataset **v0.30.0-02**, and ontology **v0.30.0**. A one-image training/checkpoint/image-sampling diagnostic succeeded. The larger learning recipe selects 160 training and 64 official-validation images and compares base and tuned predictions with a fixed system prompt.
+The current executable path uses **Qwen3.8-27B on Fireworks serverless training**, dataset **v0.30.0-02**, and ontology **v0.30.0**. The learning smoke stopped after one epoch on 160 training images: label F1 on 64 official-validation images rose from 30.9% to 67.4%. Exact-set match remained 2/64, so the private checkpoint is experimental. Training and inference use the same fixed system prompt.
 
 See [Training API setup](docs/FIREWORKS-TRAINING-API.md) for the recipe, evaluation policy, system-prompt template, provider limits, and lifecycle. [Project kickoff](docs/PROJECT-KICKOFF.md) retains accepted architecture and historical decisions. This repository owns classifier conversion, prompts, orchestration, inference, evaluation, and experiment records; upstream projects own images/splits and ontology semantics.
 
