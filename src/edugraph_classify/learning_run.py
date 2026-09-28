@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .dataset import file_sha256
 from .evaluation import evaluate
-from .learning_data import verify_prepared, write_json
+from .learning_data import conflicting_duplicate_images, verify_prepared, write_json
 from .ontology import OntologyCatalog
 from .qwen_training_policy import audit_qwen_language_targets
 from .qwen_rendering import QwenVisionRenderer
@@ -58,6 +58,11 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
     config, run = manifest["recipe"], manifest_path.parent
     if confirmation != manifest["run_id"]:
         raise ValueError("confirmation must exactly match the prepared run_id")
+    conflicts = conflicting_duplicate_images(examples)
+    if conflicts != manifest.get("training_data_conflicts"):
+        raise ValueError("training-data conflict audit differs from the prepared manifest")
+    if conflicts:
+        raise ValueError("identical training images have conflicting gold labels; resolve upstream before launch")
     catalog = OntologyCatalog.load(config["ontology_version"])
     if any(version(name) != pinned for name, pinned in manifest["runtime_versions"].items()):
         raise ValueError("installed runtime differs from preparation; sync the pinned lockfile")

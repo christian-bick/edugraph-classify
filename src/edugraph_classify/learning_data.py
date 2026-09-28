@@ -111,6 +111,18 @@ def select_cohort(rows: list[dict], count: int, seed: int) -> list[dict]:
     return sorted(selected, key=lambda row: row["file_name"])
 
 
+def conflicting_duplicate_images(examples: list[dict]) -> list[dict]:
+    """Flag identical train images with distinct explicit gold sets without changing either row."""
+    groups = {}
+    for row in examples:
+        if row["split"] == "train":
+            groups.setdefault(row["image_sha256"], []).append(row)
+    return [{"image_sha256": digest,
+             "examples": [{"id": row["id"], "gold": row["gold"]} for row in sorted(rows, key=lambda item: item["id"])]}
+            for digest, rows in sorted(groups.items())
+            if len({row["target"] for row in rows}) > 1]
+
+
 def system_prompt(source: dict, catalog: OntologyCatalog) -> dict:
     vocabulary = {field: sorted(name for name in catalog.eligible_labels if catalog.dimensions[name] == field)
                   for field in ("areas", "scopes", "abilities")}
@@ -209,6 +221,7 @@ def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_
         "ontology_snapshot_sha256": catalog.snapshot_sha256, "capabilities_at_preparation": capabilities,
         "metadata_rows_validated": counts, "selected_images_validated": len(examples),
         "duplicate_image_counts": {split: sum(n - 1 for n in Counter(r["image_sha256"] for r in examples if r["split"] == split).values()) for split in ("train", "validation", "final_validation")},
+        "training_data_conflicts": conflicting_duplicate_images(examples),
         "split_policy": "Official train/validation split preserved; byte overlap checked on selected images. Public metadata has no task-group identity; semantic independence is not established.",
         "selection_policy": "SHA256(seed:opaque_filename) within equally weighted question/solution strata; optional final_validation comes only from the official-validation complement and is excluded from checkpoint selection.",
         "cohort_counts": {split: sum(r["split"] == split for r in examples) for split in ("train", "validation", "final_validation")},

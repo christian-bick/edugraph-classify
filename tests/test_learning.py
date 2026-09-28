@@ -204,6 +204,30 @@ def test_final_validation_is_disjoint_and_counted_once(prepared):
     assert len(json.loads((run / "final-predictions.json").read_text())) == 2
 
 
+def test_conflicting_identical_train_images_block_provider_start(prepared):
+    config = recipe()
+    config["run_id"] = "conflict-test"
+    run = prepared.run.parent / "conflict-run"
+    rows = [{"file_name": f"{i}.png", "labels": ["Subtraction" if i == 1 else "Addition"],
+             "solution": bool(i % 2)} for i in range(4)]
+    def fetch(url):
+        if url.endswith("metadata.jsonl"):
+            return "\n".join(json.dumps(row) for row in rows).encode()
+        index = int(url.rsplit("/", 1)[-1].split(".")[0])
+        return png(0 if "/train/" in url and index == 1 else index + (10 if "/validation/" in url else 0))
+    manifest = learning_data.prepare_learning(config, ROOT, run, prepared.processor, "a" * 40,
+        fetch, {"read_only": True}, renderer_factory)
+    assert manifest["duplicate_image_counts"]["train"] == 1
+    assert len(manifest["training_data_conflicts"]) == 1
+    assert {row["gold"]["areas"][0] for row in manifest["training_data_conflicts"][0]["examples"]} == {"Addition", "Subtraction"}
+    factory = Mock()
+    with pytest.raises(ValueError, match="conflicting gold"):
+        learning_run.execute_learning(run / "manifest.json", config["run_id"], "a" * 40,
+            factory, Mock(), renderer_factory=renderer_factory)
+    factory.assert_not_called()
+    assert not (run / "execution.json").exists()
+
+
 def test_preparation_pins_audits_and_detects_tampering(prepared):
     manifest, examples = learning_data.verify_prepared(prepared.path, "a" * 40)
     assert manifest["metadata_rows_validated"] == {"train": 4, "validation": 4}
