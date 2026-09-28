@@ -16,7 +16,9 @@ from PIL import Image
 from edugraph_classify import cli, learning_cli, learning_data, learning_run
 from edugraph_classify.evaluation import evaluate, parse_prediction
 from edugraph_classify.ontology import OntologyCatalog
+from edugraph_classify.output_contract import closed_vocabulary_schema
 from edugraph_classify.providers.fireworks_training_api import FireworksTrainingAPI, inspect_training_model, to_datum
+from edugraph_classify.qwen_training_policy import assess_language_targets
 from edugraph_classify.qwen_rendering import IMAGE_MARKER, QwenVisionRenderer, VisionExample, fixed_system_template
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -175,12 +177,31 @@ def test_preparation_pins_audits_and_detects_tampering(prepared):
     assert len([r for r in examples if r["train_diagnostic"]]) == 2
     assert manifest["estimated_max_token_cost_usd"] > 0
     assert "Allowed ontology vocabulary (v0.30.0)" in (prepared.run / "prompt.json").read_text()
+    closed = json.loads((prepared.run / "closed_schema.json").read_text())
+    assert "Addition" in closed["properties"]["areas"]["items"]["enum"]
+    assert "Addition" not in closed["properties"]["abilities"]["items"]["enum"]
     assert not (prepared.run / "processor/.hidden").exists()
     with pytest.raises(ValueError, match="same clean code"):
         learning_data.verify_prepared(prepared.path, "b" * 40)
     (prepared.run / "prompt.json").write_text("changed")
     with pytest.raises(ValueError, match="hash changed"):
         learning_data.verify_prepared(prepared.path, "a" * 40)
+
+
+def test_closed_schema_and_language_only_targets_fail_closed():
+    catalog = OntologyCatalog.load("0.30.0")
+    schema = json.loads((ROOT / "schemas/dimension-labels-v1.json").read_text())
+    closed = closed_vocabulary_schema(schema, catalog)
+    assert closed["required"] == ["areas", "scopes", "abilities"]
+    assert closed["properties"]["areas"]["items"]["enum"] == sorted(closed["properties"]["areas"]["items"]["enum"])
+    assert "enum" not in schema["properties"]["areas"]["items"]
+    with pytest.raises(ValueError, match="exactly"):
+        closed_vocabulary_schema({"properties": {"areas": {}}}, catalog)
+    names = ["model.language_model.layers.0.mlp.down_proj", "model.visual.blocks.0.attn.qkv"]
+    assert assess_language_targets(names, ["down_proj"])["vision_or_bridge_modules"] == 0
+    for targets in (["qkv"], ["missing"], ["down_proj", "down_proj"], []):
+        with pytest.raises(ValueError):
+            assess_language_targets(names, targets)
 
 
 @pytest.mark.parametrize("failure", ["overlap", "cost", "large"])
@@ -333,6 +354,7 @@ def test_sdk_adapter_transmits_multimodal_chunks_and_cleans_all_clients():
     assert datum.model_input.chunks[1].expected_tokens == 7
     assert sum(datum.loss_fn_inputs["weights"].data) == len(example.completion)
     assert adapter.start(recipe()["training"])["run_id"] == "run-fake"
+    assert service.create_lora_training_client.call_args.kwargs["train_attn"] is True
     assert adapter.train_batch([example], recipe()["training"])["loss:sum"] == 2
     assert training.optim_step.call_count == 1
     assert adapter.checkpoint("epoch1") == "state"
@@ -352,6 +374,30 @@ def test_sdk_adapter_transmits_multimodal_chunks_and_cleans_all_clients():
     service.close.assert_called_once()
     service.holder.close.assert_called_once()
     adapter, *_ = sdk_adapter()
+    adapter.close()
+
+
+def test_sdk_adapter_passes_closed_schema_and_checks_retained_target_modules():
+    adapter, service, _, platform, _ = sdk_adapter()
+    config = {**recipe()["training"], "expected_target_modules": ["down_proj"],
+              "train_attn": True, "train_mlp": True, "train_unembed": False}
+    adapter.start(config)
+    assert service.create_lora_training_client.call_args.kwargs["train_unembed"] is False
+    adapter.use_sampler()
+    example = renderer_factory().render(png(), json.dumps(GOLD), max_tokens=10000, max_output=20)
+    schema = {"type": "object", "properties": {"areas": {"type": "array"}}}
+    received = {}
+    async def sample(**kwargs):
+        received.update(kwargs)
+        return {"choices": [{"text": json.dumps(GOLD), "finish_reason": "stop"}]}, None
+    adapter.sampler.deployment_sampler.async_completions_stream = sample
+    adapter.predict(example, {**recipe()["evaluation"], "output_schema": schema})
+    assert received["response_format"] == {"type": "json_schema", "json_schema": {"name": "edugraph_labels", "schema": schema}}
+    platform.promote_session_checkpoint.return_value = {"name": "model", "peftDetails": {"targetModules": ["down_proj"]}}
+    assert adapter.retain_checkpoint("account/run/final-cp", "out")["name"] == "model"
+    platform.promote_session_checkpoint.return_value["peftDetails"]["targetModules"] = ["qkv"]
+    with pytest.raises(ValueError, match="target modules"):
+        adapter.retain_checkpoint("account/run/final-cp", "out")
     adapter.close()
 
 

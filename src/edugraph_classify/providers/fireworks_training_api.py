@@ -56,15 +56,20 @@ class FireworksTrainingAPI:
         self.key, self.model, self.tokenizer = api_key, model, tokenizer
         self.service_factory, self.platform_factory, self.types = service_factory, platform_factory, types
         self.service = self.training = self.sampler = None
+        self.expected_target_modules = None
 
     def start(self, config: dict) -> dict:
+        self.expected_target_modules = config.get("expected_target_modules")
         self.service = self.service_factory(api_key=self.key, base_url=f"{API_ROOT}/training/v1/serverless", timeout=60, max_retries=0)
         self.training = self.service.create_lora_training_client(
             base_model=self.model, rank=config["rank"], alpha=config["alpha"], seed=config["seed"],
+            train_attn=config.get("train_attn", True), train_mlp=config.get("train_mlp", True),
+            train_unembed=config.get("train_unembed", True),
         )
         return {"training_session_id": self.service.training_session_id,
                 "training_session_name": self.service.training_session_name,
-                "run_id": self.training.run_id}
+                "run_id": self.training.run_id,
+                "lora_policy": {name: config.get(name, True) for name in ("train_attn", "train_mlp", "train_unembed")}}
 
     def train_batch(self, examples: list[VisionExample], config: dict) -> dict:
         result = self.training.forward_backward([to_datum(x, self.types) for x in examples], "cross_entropy").result(timeout=180)
@@ -90,12 +95,16 @@ class FireworksTrainingAPI:
     def predict(self, example: VisionExample, config: dict) -> dict:
         # SDK sample() calls ModelInput.to_ints(), which rejects ImageChunk.
         # Its completions transport explicitly supports token prompts + images.
+        output = ({"response_format": {"type": "json_schema", "json_schema": {
+            "name": "edugraph_labels", "schema": config["output_schema"],
+        }}} if "output_schema" in config else {})
         async def sample():
             return await asyncio.wait_for(self.sampler.deployment_sampler.async_completions_stream(
                 prompt=example.sampling_tokens(),
                 images=["data:image/jpeg;base64," + base64.b64encode(example.image).decode("ascii")],
                 max_tokens=config["max_tokens"], temperature=config["temperature"], seed=config["seed"],
                 stop=["<|im_end|>"], raw_output=True, return_token_ids=True, http_timeout=120, hotload_max_retries=0,
+                **output,
             ), timeout=150)
         start = time.monotonic()
         raw, _ = asyncio.run(sample())
@@ -117,6 +126,8 @@ class FireworksTrainingAPI:
             if len(matches) != 1:
                 raise ValueError("final sampler checkpoint could not be resolved for durable retention")
             model = platform.promote_session_checkpoint(matches[0]["name"], output_model_id, self.model)
+            if self.expected_target_modules is not None and sorted(model.get("peftDetails", {}).get("targetModules", [])) != sorted(self.expected_target_modules):
+                raise ValueError("retained adapter target modules differ from the language-only policy")
             return {key: model.get(key) for key in ("name", "state", "kind", "public", "peftDetails")}
 
     def close(self) -> None:

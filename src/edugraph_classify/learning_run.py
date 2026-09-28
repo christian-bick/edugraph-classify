@@ -12,6 +12,7 @@ from .dataset import file_sha256
 from .evaluation import evaluate
 from .learning_data import verify_prepared, write_json
 from .ontology import OntologyCatalog
+from .qwen_training_policy import audit_qwen_language_targets
 from .qwen_rendering import QwenVisionRenderer
 
 
@@ -42,11 +43,18 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
         raise ValueError("configured context exceeds live training support")
     prompt = json.loads((run / "prompt.json").read_text(encoding="utf-8"))
     renderer = renderer_factory(run / "processor", prompt)
+    if config["training"].get("expected_target_modules") is not None:
+        audit = audit_qwen_language_targets(run / "processor", config["training"]["expected_target_modules"])
+        if audit != manifest["language_target_audit"]:
+            raise ValueError("language-only LoRA target layout changed since preparation")
     rendered = render_prepared(run, config, examples, renderer)
     train = [r for r in examples if r["split"] == "train"]
     validation = [r for r in examples if r["split"] == "validation"]
     diagnostic = [r for r in train if r["train_diagnostic"]]
     evaluations = validation + diagnostic
+    sampling_config = dict(config["evaluation"])
+    if sampling_config.get("output_mode", "raw") == "json_schema":
+        sampling_config["output_schema"] = json.loads((run / "closed_schema.json").read_text(encoding="utf-8"))
     record_path = run / "execution.json"
     # Exclusive creation prevents paid replays, including after ambiguous failures.
     record = {"status": "started", "run_id": manifest["run_id"], "manifest_sha256": file_sha256(manifest_path),
@@ -68,7 +76,7 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
         def sample_phase(phase):
             predictions = []
             for index, row in enumerate(evaluations):
-                result = {"id": row["id"], **adapter.predict(rendered[row["id"]], config["evaluation"])}
+                result = {"id": row["id"], **adapter.predict(rendered[row["id"]], sampling_config)}
                 predictions.append(result)
                 write_json(run / f"{phase}-predictions.json", predictions)
                 if (index + 1) % 8 == 0 or index + 1 == len(evaluations):

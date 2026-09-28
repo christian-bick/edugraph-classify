@@ -25,6 +25,12 @@ The adapter was retained privately as `accounts/christian-bick-91boy/models/edug
 
 The tracked recipe preserves the original plan. The launch CLI still runs its configured epoch count; it does not automatically decide that learning is sufficient. For future small pilots, prepare a new run ID with one epoch, evaluate it, and make any continuation a separate recorded decision.
 
+## Safeguards for the next run
+
+Preparation now writes `closed_schema.json` with separate, alphabetized lists of every eligible Area, Scope, and Ability in the pinned ontology. These are allowed identifiers, not labels inferred from the training sample. Label array order is unrestricted in evaluation; sorting is a deterministic training and display convention. A new recipe may opt into schema-constrained sampling with `evaluation.output_mode: "json_schema"`; both base and tuned sampling then receive the same schema. The adapter passes Fireworks' `response_format` to its tokenized image completions call. This path is unit-tested locally but has **not yet been checked against the live multimodal inference endpoint**. Keep the original smoke's unconstrained responses and metrics separate for comparison. The original three-array schema is unchanged and remains useful for offline validation.
+
+For a new recipe, `training.expected_target_modules` declares the expected provider LoRA suffixes. Preparation and launch compare them with every linear module in the pinned Qwen architecture using meta tensors, reject missing targets or any target outside `model.language_model`, and hash the matched paths. The SDK's `train_attn`, `train_mlp`, and `train_unembed` flags must then be explicit. When Fireworks registers the final adapter, its returned `peftDetails.targetModules` must match the recorded expectation. This is an enforceable configuration check; Fireworks restricts downloading the private adapter's tensor files, so it is not an independent tensor-level audit. The historical smoke's retained adapter reported 496 matching language modules and no vision or bridge targets.
+
 ## Reproducibility and cohort
 
 The tracked recipe is `experiments/edugraph-20260928-qwen38-27b-learning-v1.json`.

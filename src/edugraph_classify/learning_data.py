@@ -17,6 +17,8 @@ from PIL import Image
 
 from .dataset import file_sha256
 from .ontology import OntologyCatalog
+from .output_contract import closed_vocabulary_schema
+from .qwen_training_policy import audit_qwen_language_targets
 from .qwen_rendering import QwenVisionRenderer
 
 
@@ -60,6 +62,16 @@ def load_recipe(path: Path) -> dict:
             raise ValueError("learning rate, prices, and cost limit must be positive finite numbers")
     if config["evaluation"]["temperature"] != 0:
         raise ValueError("paired learning evaluation requires greedy sampling")
+    if config["evaluation"].get("output_mode", "raw") not in ("raw", "json_schema"):
+        raise ValueError("evaluation.output_mode must be raw or json_schema")
+    targets = config["training"].get("expected_target_modules")
+    if targets is not None and (not isinstance(targets, list) or any(not isinstance(v, str) for v in targets)):
+        raise ValueError("training.expected_target_modules must be a list of module names")
+    if targets is not None and any(name not in config["training"] for name in ("train_attn", "train_mlp", "train_unembed")):
+        raise ValueError("explicit LoRA targets require explicit SDK train_attn, train_mlp, and train_unembed flags")
+    for name in ("train_attn", "train_mlp", "train_unembed"):
+        if name in config["training"] and type(config["training"][name]) is not bool:
+            raise ValueError(f"training.{name} must be boolean")
     safe_relative(config["prompt_path"])
     safe_relative(config["schema_path"])
     return config
@@ -104,13 +116,19 @@ def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_
     catalog = OntologyCatalog.load(config["ontology_version"])
     run.mkdir(parents=True, exist_ok=False)
     write_json(run / "recipe.json", config)
-    shutil.copyfile(root / config["schema_path"], run / "schema.json")
+    schema = json.loads((root / config["schema_path"]).read_text(encoding="utf-8"))
+    write_json(run / "schema.json", schema)
+    write_json(run / "closed_schema.json", closed_vocabulary_schema(schema, catalog))
     prompt = system_prompt(json.loads((root / config["prompt_path"]).read_text(encoding="utf-8")), catalog)
     write_json(run / "prompt.json", prompt)
     (run / "processor").mkdir()
     for file in sorted(processor.iterdir()):
         if file.is_file() and not file.name.startswith("."):
             shutil.copyfile(file, run / "processor" / file.name)
+    target_audit = None
+    if config["training"].get("expected_target_modules") is not None:
+        target_audit = audit_qwen_language_targets(run / "processor", config["training"]["expected_target_modules"])
+        write_json(run / "language_target_audit.json", target_audit)
     renderer = renderer_factory(run / "processor", prompt)
     (run / "chat_template.jinja").write_text(renderer.export_template(), encoding="utf-8")
     (run / "images").mkdir()
@@ -176,6 +194,7 @@ def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_
         "token_budget": {"train": training_tokens, "prefill": prefill_tokens, "sample": output_tokens},
         "estimated_max_token_cost_usd": cost, "estimate_is_not_provider_billing_cap": True,
         "quality_promotion": False, "prompt_role": "system", "thinking": False,
+        "language_target_audit": target_audit,
         "template_export": "Portable base-model Jinja template; Fireworks LoRA template override is not supported by published docs.",
         "files_sha256": {p.relative_to(run).as_posix(): file_sha256(p) for p in sorted(run.rglob("*")) if p.is_file()},
     }
@@ -191,4 +210,6 @@ def verify_prepared(path: Path, code_commit: str) -> tuple[dict, list[dict]]:
         location = path.parent / safe_relative(name)
         if not location.resolve().is_relative_to(path.parent.resolve()) or file_sha256(location) != digest:
             raise ValueError("prepared artifact hash changed or path escaped run directory")
+    if manifest["recipe"] != json.loads((path.parent / "recipe.json").read_text(encoding="utf-8")):
+        raise ValueError("manifest recipe differs from its hashed prepared copy")
     return manifest, json.loads((path.parent / "examples.json").read_text(encoding="utf-8"))
