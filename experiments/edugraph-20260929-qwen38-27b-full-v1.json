@@ -1,0 +1,34 @@
+{
+  "run_id": "edugraph-20260929-qwen38-27b-full-v1",
+  "dataset": {
+    "repository": "christian-bick/edugraph-exercises",
+    "release": "v0.30.0-02",
+    "revision": "c1a474c2ed2c8b8b959d3205483ec32a3108c52d",
+    "label_field": "labels",
+    "source_ontology_version": "0.30.0"
+  },
+  "ontology_version": "0.30.0",
+  "prompt_path": "prompts/direct-label-v2.json",
+  "schema_path": "schemas/dimension-labels-v1.json",
+  "model": {
+    "provider": "fireworks",
+    "execution_mode": "serverless",
+    "id": "accounts/fireworks/models/qwen3p8-27b",
+    "hf_repository": "Qwen/Qwen3.8-27B",
+    "hf_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0"
+  },
+  "selection": {"train": 1654, "validation": 64, "final_validation": 250, "train_diagnostic": 16, "seed": 42},
+  "training": {
+    "epochs": 3, "early_stop_patience": 1, "batch_size": 4, "rank": 8, "alpha": 16,
+    "learning_rate": 0.0001, "beta1": 0.9, "beta2": 0.95,
+    "eps": 1e-8, "weight_decay": 0.0, "max_context_tokens": 16384,
+    "seed": 42, "train_attn": true, "train_mlp": true, "train_unembed": false,
+    "expected_target_modules": [
+      "down_proj", "gate_proj", "in_proj_a", "in_proj_b", "in_proj_qkv", "in_proj_z",
+      "k_proj", "o_proj", "out_proj", "q_proj", "up_proj", "v_proj"
+    ]
+  },
+  "evaluation": {"max_tokens": 512, "temperature": 0.0, "seed": 42, "output_mode": "json_schema", "every_epoch": true},
+  "pricing": {"train": 4.103, "prefill": 1.86, "sample": 5.595},
+  "estimated_cost_limit_usd": 100.0
+}

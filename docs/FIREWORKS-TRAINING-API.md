@@ -33,6 +33,12 @@ With `evaluation.every_epoch: true`, the run saves both optimizer state and an e
 
 For a new recipe, `training.expected_target_modules` declares the expected provider LoRA suffixes. Preparation and launch compare them with every linear module in the pinned Qwen architecture using meta tensors, reject missing targets or any target outside `model.language_model`, and hash the matched paths. The SDK's `train_attn`, `train_mlp`, and `train_unembed` flags must then be explicit. When Fireworks registers the final adapter, its returned `peftDetails.targetModules` must match the recorded expectation. This is an enforceable configuration check; Fireworks restricts downloading the private adapter's tensor files, so it is not an independent tensor-level audit. The historical smoke's retained adapter reported 496 matching language modules and no vision or bridge targets.
 
+## Full-release candidate and final validation
+
+The proposed, **unlaunched** full-release recipe is `experiments/edugraph-20260929-qwen38-27b-full-v1.json`. It keeps dataset v0.30.0-02 and ontology v0.30.0, trains on all 1,654 official-train images, and reserves 64 official-validation images for checkpoint selection. The other 250 official-validation images form a disjoint `final_validation` cohort, sampled only once after checkpoint selection. Both cohorts are balanced between question and solution views because the pinned release is balanced. This final cohort was not used for optimizer steps or epoch selection, but it is a remainder of the same official validation split, not an independently published test set; no semantic grouping key is exposed upstream.
+
+Preparation downloads and validates all 1,968 release images, checks byte overlap between train and validation and between the two validation cohorts, records duplicate-byte counts, and hashes source images and rendered examples. This is a classifier-side input check, not a replacement for upstream release QA. The candidate enables language-only LoRA target checks, greedy closed-vocabulary JSON schema, per-epoch evaluation, and patience-one early stopping with a three-epoch ceiling. It retains the best checkpoint by explicit exact-set match and then F1. The schema transport still requires a live multimodal compatibility check before paid full training. Provider token prices in the recipe are a dated estimate, not a billing cap; recheck them and the live model catalog before launch.
+
 ## Reproducibility and cohort
 
 The tracked recipe is `experiments/edugraph-20260928-qwen38-27b-learning-v1.json`.

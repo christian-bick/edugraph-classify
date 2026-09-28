@@ -75,8 +75,8 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
     rendered = render_prepared(run, config, examples, renderer)
     train = [r for r in examples if r["split"] == "train"]
     validation = [r for r in examples if r["split"] == "validation"]
+    final_validation = [r for r in examples if r["split"] == "final_validation"]
     diagnostic = [r for r in train if r["train_diagnostic"]]
-    evaluations = validation + diagnostic
     sampling_config = dict(config["evaluation"])
     if sampling_config.get("output_mode", "raw") == "json_schema":
         sampling_config["output_schema"] = json.loads((run / "closed_schema.json").read_text(encoding="utf-8"))
@@ -98,7 +98,8 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
         record["provider"] = adapter.start(config["training"])
         event("session_started", **record["provider"])
 
-        def sample_phase(phase):
+        def sample_phase(phase, cohorts):
+            evaluations = [row for _, cohort in cohorts for row in cohort]
             predictions = []
             for index, row in enumerate(evaluations):
                 result = {"id": row["id"], **adapter.predict(rendered[row["id"]], sampling_config)}
@@ -107,16 +108,18 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
                 if (index + 1) % 8 == 0 or index + 1 == len(evaluations):
                     event("evaluation_progress", phase=phase, completed=index + 1, total=len(evaluations))
             metrics = {}
-            for name, cohort in (("validation", validation), ("train_diagnostic", diagnostic)):
+            for name, cohort in cohorts:
                 ids = {r["id"] for r in cohort}
                 metrics[name] = evaluate(cohort, [r for r in predictions if r["id"] in ids], train, catalog)
             write_json(run / f"{phase}-metrics.json", metrics)
-            event("evaluation_finished", phase=phase, validation=metrics["validation"]["explicit"],
-                  invalid_output_rate=metrics["validation"]["invalid_output_rate"])
+            primary = metrics.get("validation", metrics.get("final_validation"))
+            event("evaluation_finished", phase=phase, validation=primary["explicit"],
+                  invalid_output_rate=primary["invalid_output_rate"])
             return metrics
 
+        selection_cohorts = (("validation", validation), ("train_diagnostic", diagnostic))
         adapter.use_sampler()
-        baseline = sample_phase("base")
+        baseline = sample_phase("base", selection_cohorts)
         batch_size = config["training"]["batch_size"]
         every_epoch = config["evaluation"].get("every_epoch", False)
         best = None
@@ -137,7 +140,7 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
             if every_epoch:
                 epoch_checkpoint = adapter.checkpoint(f"epoch{epoch + 1}-eval", sampler=True)
                 adapter.use_sampler(epoch_checkpoint)
-                epoch_metrics = sample_phase(f"epoch{epoch + 1}")
+                epoch_metrics = sample_phase(f"epoch{epoch + 1}", selection_cohorts)
                 outcome = epoch_metrics["validation"]["explicit"]
                 score = (outcome["exact_set_match"], outcome["f1"])
                 if best is None or score > best["score"]:
@@ -163,7 +166,7 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
         event("experimental_adapter_retained", model=record["retained_model"])
         if best is None:
             adapter.use_sampler(checkpoint)
-            tuned = sample_phase("tuned")
+            tuned = sample_phase("tuned", selection_cohorts)
         else:
             tuned = best["metrics"]
             for suffix in ("predictions", "metrics"):
@@ -171,12 +174,19 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
                     (run / f"epoch{best['epoch']}-{suffix}.json").read_text(encoding="utf-8")))
             record["selected_epoch"] = best["epoch"]
             event("best_checkpoint_selected", epoch=best["epoch"], path=checkpoint)
+        final_metrics = None
+        if final_validation:
+            adapter.use_sampler(checkpoint)
+            final_metrics = sample_phase("final", (("final_validation", final_validation),))
         price = config["pricing"]
         train_tokens = sum(e["metrics"].get("total_tokens:sum", e["training_tokens"])
                            for e in record["events"] if e["stage"] == "optimizer_step")
         sample_phases = ["base", *([f"epoch{n}" for n in range(1, epoch + 2)] if every_epoch else ["tuned"])]
-        sampling_usage = {key: sum(json.loads((run / f"{phase}-metrics.json").read_text(encoding="utf-8"))[cohort]["usage"][key]
-                                   for phase in sample_phases for cohort in ("validation", "train_diagnostic"))
+        if final_metrics is not None:
+            sample_phases.append("final")
+        sampling_usage = {key: sum(report["usage"][key]
+                                   for phase in sample_phases
+                                   for report in json.loads((run / f"{phase}-metrics.json").read_text(encoding="utf-8")).values())
                           for key in ("prompt_tokens", "completion_tokens")}
         estimated_cost = (train_tokens * price["train"] + sampling_usage["prompt_tokens"] * price["prefill"]
                           + sampling_usage["completion_tokens"] * price["sample"]) / 1_000_000
@@ -193,6 +203,10 @@ def execute_learning(manifest_path: Path, confirmation: str, code_commit: str, a
             "quality_promotion": False,
             "scope": "Paired descriptive smoke evaluation; small balanced official-validation subset, no held-out test or significance claim.",
         }
+        if final_metrics is not None:
+            comparison["final_validation"] = final_metrics["final_validation"]["explicit"]
+            comparison["final_invalid_rate"] = final_metrics["final_validation"]["invalid_output_rate"]
+            comparison["scope"] = "Checkpoint selected on official-validation subset; disjoint untouched official-validation remainder evaluated once after selection. No independent public test split or significance claim."
         write_json(run / "comparison.json", comparison)
         record["status"] = "completed"
         event("completed", comparison=comparison)

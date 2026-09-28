@@ -53,7 +53,10 @@ def load_recipe(path: Path) -> dict:
             value = config[section][name]
             if type(value) is not int or value <= 0:
                 raise ValueError(f"{section}.{name} must be a positive integer")
-    if any(config["selection"][k] % 2 for k in ("train", "validation", "train_diagnostic")):
+    final_validation = config["selection"].get("final_validation", 0)
+    if type(final_validation) is not int or final_validation < 0:
+        raise ValueError("selection.final_validation must be a nonnegative integer")
+    if any(config["selection"][k] % 2 for k in ("train", "validation", "train_diagnostic")) or final_validation % 2:
         raise ValueError("balanced question/solution cohorts require even counts")
     if config["selection"]["train_diagnostic"] > config["selection"]["train"]:
         raise ValueError("training diagnostic must be a subset of training")
@@ -138,6 +141,7 @@ def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_
     (run / "chat_template.jinja").write_text(renderer.export_template(), encoding="utf-8")
     (run / "images").mkdir()
     dataset = config["dataset"]
+    final_validation = config["selection"].get("final_validation", 0)
     base = f"https://huggingface.co/datasets/{dataset['repository']}/resolve/{dataset['revision']}"
     counts, selected = {}, []
     for split in ("train", "validation"):
@@ -145,10 +149,17 @@ def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_
         (run / f"{split}-metadata.jsonl").write_bytes(content)
         rows = metadata_rows(content, catalog)
         counts[split] = len(rows)
-        selected.extend({**row, "split": split} for row in select_cohort(rows, config["selection"][split], config["selection"]["seed"]))
+        cohort = select_cohort(rows, config["selection"][split], config["selection"]["seed"])
+        selected.extend({**row, "split": split} for row in cohort)
+        if split == "validation" and final_validation:
+            chosen = {row["file_name"] for row in cohort}
+            remaining = [row for row in rows if row["file_name"] not in chosen]
+            selected.extend({**row, "split": "final_validation"} for row in
+                            select_cohort(remaining, final_validation, config["selection"]["seed"] + 2))
 
     def convert(row):
-        source = f"{row['split']}/{row['file_name']}"
+        source_split = "validation" if row["split"] == "final_validation" else row["split"]
+        source = f"{source_split}/{row['file_name']}"
         data = fetch(f"{base}/{source}")
         if len(data) > 7_500_000:
             raise ValueError("source image exceeds the 10 MB base64 payload budget")
@@ -169,20 +180,24 @@ def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_
     with ThreadPoolExecutor(max_workers=8) as pool:
         examples = list(pool.map(convert, selected))
     train_hashes = {row["image_sha256"] for row in examples if row["split"] == "train"}
-    validation_hashes = {row["image_sha256"] for row in examples if row["split"] == "validation"}
+    validation_hashes = {row["image_sha256"] for row in examples if row["split"] in ("validation", "final_validation")}
     if train_hashes & validation_hashes:
         raise ValueError("identical image bytes cross selected official splits")
+    if ({row["image_sha256"] for row in examples if row["split"] == "validation"} &
+            {row["image_sha256"] for row in examples if row["split"] == "final_validation"}):
+        raise ValueError("identical image bytes cross selection and final validation cohorts")
     train = [row for row in examples if row["split"] == "train"]
     validation = [row for row in examples if row["split"] == "validation"]
     diagnostic = select_cohort(train, config["selection"]["train_diagnostic"], config["selection"]["seed"] + 1)
     for row in examples:
         row["train_diagnostic"] = row["id"] in {v["id"] for v in diagnostic}
     write_json(run / "examples.json", examples)
+    final = [row for row in examples if row["split"] == "final_validation"]
     sampling = validation + diagnostic
     training_tokens = sum(row["training_tokens"] for row in train) * config["training"]["epochs"]
     evaluation_rounds = 1 + (config["training"]["epochs"] if config["evaluation"].get("every_epoch", False) else 1)
-    prefill_tokens = evaluation_rounds * sum(row["prompt_tokens"] for row in sampling)
-    output_tokens = evaluation_rounds * len(sampling) * config["evaluation"]["max_tokens"]
+    prefill_tokens = evaluation_rounds * sum(row["prompt_tokens"] for row in sampling) + sum(row["prompt_tokens"] for row in final)
+    output_tokens = (evaluation_rounds * len(sampling) + len(final)) * config["evaluation"]["max_tokens"]
     price = config["pricing"]
     cost = (training_tokens * price["train"] + prefill_tokens * price["prefill"] + output_tokens * price["sample"]) / 1_000_000
     if cost > config["estimated_cost_limit_usd"]:
@@ -193,9 +208,10 @@ def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_
         "uv_lock_sha256": file_sha256(root / "uv.lock"),
         "ontology_snapshot_sha256": catalog.snapshot_sha256, "capabilities_at_preparation": capabilities,
         "metadata_rows_validated": counts, "selected_images_validated": len(examples),
-        "duplicate_image_counts": {split: sum(n - 1 for n in Counter(r["image_sha256"] for r in examples if r["split"] == split).values()) for split in ("train", "validation")},
-        "split_policy": "Official splits preserved; byte overlap checked on selected images. Public metadata has no task-group identity; semantic independence is not established.",
-        "selection_policy": "SHA256(seed:opaque_filename) within equally weighted question/solution strata; validation is not a representative-weighted full-release score.",
+        "duplicate_image_counts": {split: sum(n - 1 for n in Counter(r["image_sha256"] for r in examples if r["split"] == split).values()) for split in ("train", "validation", "final_validation")},
+        "split_policy": "Official train/validation split preserved; byte overlap checked on selected images. Public metadata has no task-group identity; semantic independence is not established.",
+        "selection_policy": "SHA256(seed:opaque_filename) within equally weighted question/solution strata; optional final_validation comes only from the official-validation complement and is excluded from checkpoint selection.",
+        "cohort_counts": {split: sum(r["split"] == split for r in examples) for split in ("train", "validation", "final_validation")},
         "optimizer_steps": math.ceil(len(train) / config["training"]["batch_size"]) * config["training"]["epochs"],
         "token_budget": {"train": training_tokens, "prefill": prefill_tokens, "sample": output_tokens},
         "estimated_max_token_cost_usd": cost, "estimate_is_not_provider_billing_cap": True,

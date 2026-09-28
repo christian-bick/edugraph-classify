@@ -183,6 +183,27 @@ def test_metadata_and_balanced_selection_do_not_depend_on_input_order():
         learning_data.select_cohort(rows[:1], 4, 42)
 
 
+def test_final_validation_is_disjoint_and_counted_once(prepared):
+    config = recipe()
+    config["run_id"] = "final-test"
+    config["selection"].update(validation=2, final_validation=2)
+    run = prepared.run.parent / "final-run"
+    manifest = learning_data.prepare_learning(config, ROOT, run, prepared.processor, "a" * 40,
+        prepared.fetch, {"read_only": True}, renderer_factory)
+    assert manifest["cohort_counts"] == {"train": 4, "validation": 2, "final_validation": 2}
+    _, rows = learning_data.verify_prepared(run / "manifest.json", "a" * 40)
+    selected = {r["id"] for r in rows if r["split"] == "validation"}
+    final = {r["id"] for r in rows if r["split"] == "final_validation"}
+    assert len(selected | final) == 4 and not selected & final
+    assert manifest["token_budget"]["sample"] == (2 * 4 + 2) * config["evaluation"]["max_tokens"]
+    cohort = NS(run=run, manifest=manifest, path=run / "manifest.json")
+    result = execute(cohort, FakeAdapter())
+    assert result["status"] == "completed"
+    comparison = json.loads((run / "comparison.json").read_text())
+    assert comparison["final_validation"]["n"] == 2
+    assert len(json.loads((run / "final-predictions.json").read_text())) == 2
+
+
 def test_preparation_pins_audits_and_detects_tampering(prepared):
     manifest, examples = learning_data.verify_prepared(prepared.path, "a" * 40)
     assert manifest["metadata_rows_validated"] == {"train": 4, "validation": 4}
