@@ -2,7 +2,7 @@
 
 Training and evaluation tooling for direct ontology labeling of atomic educational tasks with vision-language models.
 
-The current executable path uses **Qwen3.8-27B on Fireworks serverless training**, dataset **v0.30.0-02**, and ontology **v0.30.0**. The learning smoke stopped after one epoch on 160 training images: label F1 on 64 official-validation images rose from 30.9% to 67.4%. Exact-set match remained 2/64, so the private checkpoint is experimental. Training and inference use the same fixed system prompt.
+The current full-training candidate uses **Qwen3.8-27B on Fireworks serverless training**, dataset **v0.30.0-03**, and ontology **v0.30.0**. It is unlaunched. The earlier v0.30.0-02 learning smoke stopped after one epoch on 160 training images: label F1 on 64 official-validation images rose from 30.9% to 67.4%. Exact-set match remained 2/64, so the private checkpoint is experimental. Training and inference use the same fixed system prompt.
 
 See [Training API setup](docs/FIREWORKS-TRAINING-API.md) for the recipe, evaluation policy, system-prompt template, provider limits, and lifecycle. [Project kickoff](docs/PROJECT-KICKOFF.md) retains accepted architecture and historical decisions. This repository owns classifier conversion, prompts, orchestration, inference, evaluation, and experiment records; upstream projects own images/splits and ontology semantics.
 
@@ -20,18 +20,19 @@ uv build
 
 Credentials belong in environment variables or the gitignored `.env`; the CLI loads it without overriding process variables. Generated datasets, logs, raw predictions, checkpoints, and reports belong under gitignored `data/`, `artifacts/`, `runs/`, `reports/`, or `temp/`.
 
-## Prepare and run the learning smoke
+## Prepare the full-training candidate
 
 ```powershell
-uv run --group training-api edugraph-classify training-api prepare
+uv run --group training-api edugraph-classify training-api prepare `
+  --config experiments/edugraph-20260929-qwen38-27b-full-v2.json
 uv run --group training-api edugraph-classify training-api launch `
-  --manifest runs/edugraph-20260928-qwen38-27b-learning-v1/manifest.json `
-  --confirm-run-id edugraph-20260928-qwen38-27b-learning-v1
+  --manifest runs/edugraph-20260929-qwen38-27b-full-v2/manifest.json `
+  --confirm-run-id edugraph-20260929-qwen38-27b-full-v2
 ```
 
 Preparation performs a read-only live eligibility check and local conversion of public data. It requires a clean commit and pins all identities and artifact hashes. Launch is separate, explicitly confirmed, and cost-incurring. It runs a bounded paired evaluation/training experiment, saves state each epoch, retains the final private adapter, and closes the pooled session. An execution journal blocks accidental paid replay. It does not create an inference deployment.
 
-A completed run can be continued from a saved training-state checkpoint in a separately prepared run with a new ID. Use the local `training-api resume-check` before the paid `training-api resume` command; see the [continuation workflow](docs/FIREWORKS-TRAINING-API.md#commands-and-lifecycle). Resumption restores optimizer state and starts at the next epoch. The current full-release candidate remains blocked by conflicting labels on one duplicate image pair.
+A completed run can be continued from a saved training-state checkpoint in a separately prepared run with a new ID. Use the local `training-api resume-check` before the paid `training-api resume` command; see the [continuation workflow](docs/FIREWORKS-TRAINING-API.md#commands-and-lifecycle). Resumption restores optimizer state and starts at the next epoch. The v0.30.0-02 full-release candidate exposed a conflicting duplicate pair; the v0.30.0-03 candidate keeps its own immutable recipe and must pass local full-release preparation before any paid run.
 
 The system prompt is identical across training and inference, with assistant-only loss. Preparation also exports a locally verified template that embeds the prompt. Fireworks currently documents custom chat templates for base models, not LoRA adapters; see [the deployment-template limitation](docs/FIREWORKS-TRAINING-API.md#fixed-system-prompt-and-deployment-template).
 

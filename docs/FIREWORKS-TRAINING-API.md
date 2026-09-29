@@ -1,6 +1,6 @@
 # Qwen3.8-27B training API setup
 
-The current executable experiment uses Fireworks serverless training, dataset **v0.30.0-02**, and ontology **v0.30.0**. The one-image diagnostic on 2026-09-28 completed forward/backward, an optimizer step, checkpointing, and image sampling. Its invalid prediction established pipeline operation only. The user authorized the larger learning comparison described here.
+The current **unlaunched full-training candidate** uses Fireworks serverless training, dataset **v0.30.0-03**, and ontology **v0.30.0**. The completed one-image diagnostic and learning smoke remain pinned to v0.30.0-02. The diagnostic on 2026-09-28 completed forward/backward, an optimizer step, checkpointing, and image sampling. Its invalid prediction established pipeline operation only.
 
 ## Observed learning smoke and early stop
 
@@ -35,11 +35,11 @@ For a new recipe, `training.expected_target_modules` declares the expected provi
 
 ## Full-release candidate and final validation
 
-The proposed, **unlaunched** full-release recipe is `experiments/edugraph-20260929-qwen38-27b-full-v1.json`. It keeps dataset v0.30.0-02 and ontology v0.30.0, trains on all 1,654 official-train images, and reserves 64 official-validation images for checkpoint selection. The other 250 official-validation images form a disjoint `final_validation` cohort, sampled only once after checkpoint selection. Both cohorts are balanced between question and solution views because the pinned release is balanced. This final cohort was not used for optimizer steps or epoch selection, but it is a remainder of the same official validation split, not an independently published test set; no semantic grouping key is exposed upstream.
+The current proposed, **unlaunched** full-release recipe is `experiments/edugraph-20260929-qwen38-27b-full-v2.json`. It pins dataset v0.30.0-03 at `9b509867e898490615be3f59bc2f31fac429389c` and ontology v0.30.0, trains on all 1,654 official-train images, and reserves 64 official-validation images for checkpoint selection. The other 250 official-validation images form a disjoint `final_validation` cohort, sampled only once after checkpoint selection. Both cohorts are balanced between question and solution views because the pinned release is balanced. This final cohort is excluded from optimizer steps and epoch selection, but it is a remainder of the same official validation split, not an independently published test set; no semantic grouping key is exposed upstream.
 
 Preparation downloads and validates all 1,968 release images, checks byte overlap between train and validation and between the two validation cohorts, records duplicate-byte counts, and hashes source images and rendered examples. This is a classifier-side input check, not a replacement for upstream release QA. The candidate enables language-only LoRA target checks, greedy closed-vocabulary JSON schema, per-epoch evaluation, and patience-one early stopping with a three-epoch ceiling. It retains the best checkpoint by explicit exact-set match and then F1. The schema transport still requires a live multimodal compatibility check before paid full training. Provider token prices in the recipe are a dated estimate, not a billing cap; recheck them and the live model catalog before launch.
 
-The local full-release preparation completed against code `bcf68dc` on 2026-09-29: all 1,968 images validated, 1,242 maximum optimizer steps, and a **$74.81** three-epoch upper token estimate using the recipe's pricing snapshot. The target audit found 496 matching language linear modules and zero vision/bridge modules. It also found **one pair of byte-identical training images with different gold label sets**. One row asserts `Addition`, the other `Subtraction` for the same pixels; all other labels agree. The pair and image digest are recorded in gitignored `reports/qwen38-full-preflight-duplicate-conflict.json`. No gold label was changed. This candidate is **blocked for paid launch** pending upstream correction or an explicit documented exclusion policy; new launch code refuses conflicting identical training images before starting a provider session. A new clean-commit preparation will be required after resolution. The official validation partition remains a selection/assessment partition, not an independent test release.
+The previous `full-v1` recipe remains pinned to v0.30.0-02. Its local preparation against code `bcf68dc` validated all 1,968 images, estimated 1,242 maximum optimizer steps and **$74.81** for three epochs using that recipe's pricing snapshot, and found 496 matching language linear modules with zero vision/bridge modules. It also found **one pair of byte-identical training images with different gold label sets**. One row asserts `Addition`, the other `Subtraction` for the same pixels; all other labels agree. The pair and image digest are recorded in gitignored `reports/qwen38-full-preflight-duplicate-conflict.json`. No gold label was changed, and the v0.30.0-02 candidate remains **blocked for paid launch**. The v0.30.0-03 release retains the same metadata but gives these two rows distinct image bytes. The new candidate still requires a fresh full-image audit and cost calculation from its own clean-commit preparation. The official validation partition remains a selection/assessment partition, not an independent test release.
 
 ## Reproducibility and cohort
 
@@ -81,10 +81,11 @@ Fireworks supports custom `tokenizer_config.json` chat templates **for base mode
 
 ```powershell
 uv sync --group training-api
-uv run --group training-api edugraph-classify training-api prepare
+uv run --group training-api edugraph-classify training-api prepare `
+  --config experiments/edugraph-20260929-qwen38-27b-full-v2.json
 uv run --group training-api edugraph-classify training-api launch `
-  --manifest runs/edugraph-20260928-qwen38-27b-learning-v1/manifest.json `
-  --confirm-run-id edugraph-20260928-qwen38-27b-learning-v1
+  --manifest runs/edugraph-20260929-qwen38-27b-full-v2/manifest.json `
+  --confirm-run-id edugraph-20260929-qwen38-27b-full-v2
 
 # For a new run that is currently active:
 uv run --group training-api edugraph-classify training-api request-stop `
