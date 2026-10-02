@@ -1,6 +1,6 @@
 # Compact 27B training: token profile, runtime, and cost
 
-Assessed 2026-10-02, then updated with the authorized [Secure A40 smoke](RUNPOD-SMOKE-20261002.md). Full training remains unlaunched. The original Fireworks/A6000 comparison below used local rendering and read-only provider/catalog checks; the final section adds measured A40 throughput. Dollar values are USD, excluding tax, deployment, engineering time, and retries.
+Assessed 2026-10-02, then updated with the authorized [Secure A40 smoke](RUNPOD-SMOKE-20261002.md) and [L40S benchmark](RUNPOD-HARDWARE-BENCHMARK.md). Full training remains unlaunched. The original Fireworks/A6000 comparison below used local rendering and read-only provider/catalog checks; the final sections add measured A40 and L40S throughput. Dollar values are USD, excluding tax, deployment, engineering time, and retries.
 
 ## Workload and measured inputs
 
@@ -94,7 +94,7 @@ The inspected official BF16 base contains about **55.6 GB of weights** before ac
 
 Before the smoke, a 24 GB card was plausible but unverified. The old private pipeline excluded examples over 1,024 tokens and documented an out-of-memory case around 1,288 tokens. This new release has **31 training images over 1,024 tokens**, reaches 1,302 for training, and needs up to 1,772 including the generation allowance. Freezing vision may help, but no GPU memory trace proves that every case fits. Do not discard or truncate those images to claim success. Two 24 GB GPUs with DDP each hold a full model replica; they do not provide a single 48 GB allocation. A 32 GB card is another possible middle ground, but the installed CUDA/framework support and longest-example fit need checking before choosing newer hardware.
 
-The later A40 smoke measured **29.122 GiB peak PyTorch allocation** with the implemented trainer. A 24 GB card therefore does not fit this implementation unchanged. A 32 GB device still needs an actual longest-example test and allowance for CUDA/allocator overhead; retain a nominal 48 GB device for the current candidate.
+The later A40 smoke measured **29.122 GiB peak PyTorch allocation** with the implemented trainer. A 24 GB card therefore does not fit this implementation unchanged. The subsequent L40S longest-input probe passed at **29.949 GiB peak tensor allocation**, **36.531 GiB peak allocator reservation**, and **37.051 GiB device memory in use** at probe completion. A 32 GB device remains unverified; retain a nominal 48 GB device for the current candidate. The generation probe used a normal 30-token response, not the full 512-token allowance.
 
 The user subsequently selected **Runpod Secure QLoRA** for its credential trust boundary. The [Runpod executor](RUNPOD-TRAINING.md) has W&B metrics, GCS checkpoints and recovery. Its two-epoch A6000 candidate uses the conservative 10-hour estimate at $0.53/hour plus a $0.024/hour running-disk allowance for 170 GB total: approximately **$5.54**, excluding GCS, W&B plan charges and tax. This remains conditional on capacity and measured throughput. The live 2026-10-02 query found no suitable Secure A6000, so the authorized 160-image smoke explicitly selects an available Secure A40 at **$0.49/hour**, with 48 GB VRAM, 50 GB host RAM and 9 vCPUs. The smoke's 3-hour planning value is **$1.54** including running disk; its 4-hour worker timeout corresponds to approximately **$2.06** at that rate, excluding image-pull/startup time and external services. The $0.60/hour allocation guard and worker deadlines are operational limits, not guaranteed billing caps. Full training remains unlaunched and must use smoke measurements plus a new live quote.
 
@@ -110,4 +110,19 @@ For two full epochs, scaling the 828 optimizer steps gives **3.44 hours of train
 | Runpod Community, one A40 | Same-throughput assumption, earlier $0.35/h GPU quote plus $0.024/h disk; untested | **$1.87–$2.24** |
 | Fireworks serverless LoRA | Earlier 2–5 h allowance; token pricing, not hourly rental | **$8.75** token-budget estimate |
 
-Secure remains the selected execution policy. Community is shown only for the earlier requested cost comparison, with no measured Community capacity or throughput. The Fireworks estimate retains the full 512-token generation allowance, whereas the Runpod timing uses observed response lengths. GCS storage/egress, taxes, retries and stopped volumes are additional. The local reproducible calculation is `reports/runpod-secure-smoke-20261002/edugraph-20261002-qwen38-27b-runpod-smoke-v2/performance-projection.json` (ignored). Full-dataset longest-example fit and a live GPU recovery remain to be verified before relying on a full run.
+Secure remains the selected execution policy. Community is shown only for the earlier requested cost comparison, with no measured Community capacity or throughput. The Fireworks estimate retains the full 512-token generation allowance, whereas the Runpod timing uses observed response lengths. GCS storage/egress, taxes, retries and stopped volumes are additional. The local reproducible calculation is `reports/runpod-secure-smoke-20261002/edugraph-20261002-qwen38-27b-runpod-smoke-v2/performance-projection.json` (ignored). The later L40S benchmark verified the longest training inputs and live external-checkpoint recovery.
+
+## Measured L40S comparison
+
+The authorized [Secure L40S benchmark](RUNPOD-HARDWARE-BENCHMARK.md) used the same trainer image, checkpoints and matched examples. Eighteen warm optimizer steps averaged **11.404 seconds**, versus **15.023 seconds on A40** (1.317× throughput). Twenty paired predictions averaged **8.007 seconds**, versus **10.996 seconds** (1.373×), with 991 versus 999 output tokens. The allocation cost $1.09/hour plus $0.024/hour running disk. Ada was unavailable and remains unmeasured.
+
+| Two full epochs, including generated evaluation | A40 Secure | L40S Secure |
+|---|---:|---:|
+| Throughput-based forecast, common 0.35 h overhead | 5.24–5.40 h | 4.01–4.14 h |
+| Compute and running disk for that forecast | $2.69–$2.78 | $4.47–$4.61 |
+| Scheduling allowance | 5–6 h | 4–5 h |
+| Cost for scheduling allowance | $2.57–$3.08 | $4.46–$5.57 |
+
+L40S saves approximately **1.2–1.3 hours for $1.78–$1.84 extra** under the paired forecast. Choose it when that turnaround benefit matters; A40 remains the measured lower-cost option. This is an allocation comparison, including host CPU and I/O differences, and not a pure GPU benchmark. L40S took 14.70 minutes from allocation to model-ready; slow cold starts and checkpoint transfers can exceed the common overhead allowance. The trained-checkpoint generation speedup is extrapolated to base-model evaluation. No full-dataset two-epoch run has been measured.
+
+The benchmark restored all 992 optimizer states at step 40, executed the next real batch to step 41, published its resumable checkpoint and passed the longest-input memory probes. It terminated automatically after publication. The independent calculation and raw outputs are in `reports/runpod-hardware-20261002/edugraph-20261002-qwen38-27b-l40s-benchmark-v1/analysis.json` and its hash-verified report bundle.

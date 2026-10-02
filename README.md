@@ -30,7 +30,7 @@ uv run --group training edugraph-classify runpod prepare `
   --config experiments/edugraph-20261002-qwen38-27b-runpod-smoke-v2.json
 ```
 
-Preparation requires a clean commit and downloads public inputs locally. The [Runpod workflow](docs/RUNPOD-TRAINING.md) separates GCS staging, request review and paid Pod creation. W&B uses entity `edugraph-io`, project `edugraph-classify`, and the user's Runpod secret `WANDB_API_KEY`. The training-only GCS credential is configured in Runpod Secrets. The [Secure A40 smoke](docs/RUNPOD-SMOKE-20261002.md) completed, published its model and resumable state, and terminated its Pod. Full training needs a separate decision.
+Preparation requires a clean commit and downloads public inputs locally. The [Runpod workflow](docs/RUNPOD-TRAINING.md) separates GCS staging, request review and paid Pod creation. W&B uses entity `edugraph-io`, project `edugraph-classify`, and the user's Runpod secret `WANDB_API_KEY`. The training-only GCS credential is configured in Runpod Secrets. The [Secure A40 smoke](docs/RUNPOD-SMOKE-20261002.md) completed, published its model and resumable state, and terminated its Pod. The subsequent [L40S benchmark](docs/RUNPOD-HARDWARE-BENCHMARK.md) verified faster throughput, live checkpoint recovery and longest-input fit, then terminated automatically. Full training needs a separate decision.
 
 ## Preserved Fireworks candidate
 

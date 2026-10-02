@@ -19,7 +19,7 @@ from edugraph_classify.self_hosted_run import verify_resume
 from runpod_hardware import ordered_batches, verified_spec
 
 
-def prepare(source, evidence, profile, destination, harness_commit):
+def prepare(source, evidence, profile, destination, harness_commit, gpu="ada"):
     original = json.loads((source / "manifest.json").read_text(encoding="utf-8"))
     manifest, examples = verify_prepared(source / "manifest.json", original["code_commit"])
     # The old digest-pinned image remains authoritative for all training code.
@@ -29,12 +29,16 @@ def prepare(source, evidence, profile, destination, harness_commit):
         raise ValueError("benchmark cannot substitute changed trainer code")
     manifest = deepcopy(manifest)
     config = manifest["recipe"]
+    gpu_name, hourly_rate, guard = {
+        "ada": ("NVIDIA RTX 6000 Ada Generation", 0.84, 1.0),
+        "l40s": ("NVIDIA L40S", 1.09, 1.2),
+    }[gpu]
     config["run_id"] = manifest["run_id"] = destination.name
     config["training"]["epochs"] = 2  # Required to validate a continuation from epoch one.
-    config["execution"].update(gpu_type="NVIDIA RTX 6000 Ada Generation", minimum_vram_gib=45,
-                               minimum_ram_gib=48, minimum_vcpus=8, max_hours=1, max_compute_hour_usd=1)
-    config["pricing"].update(compute_hour_usd=0.84, disk_hour_usd=0.024, estimated_hours=0.5)
-    config["estimated_cost_limit_usd"] = 1
+    config["execution"].update(gpu_type=gpu_name, minimum_vram_gib=45,
+                               minimum_ram_gib=48, minimum_vcpus=8, max_hours=1, max_compute_hour_usd=guard)
+    config["pricing"].update(compute_hour_usd=hourly_rate, disk_hour_usd=0.024, estimated_hours=0.5)
+    config["estimated_cost_limit_usd"] = guard
     validate_runpod_recipe(config)
     destination.mkdir(parents=True, exist_ok=False)
     for name in manifest["files_sha256"]:
@@ -98,7 +102,7 @@ def prepare(source, evidence, profile, destination, harness_commit):
         "live_resume_updates": 1, "discarded_memory_probe_updates": 1}
     train_rows = [r for batch in batches for r in batch] + ordered_batches(examples, config["training"], 1, 1)[0] + memory_rows * 2
     generation_rows = selected[:2] + selected + [max(memory_rows, key=lambda r: r["prompt_tokens"])]
-    manifest.update(optimizer_steps=22, estimated_run_cost_usd=0.5 * 0.864,
+    manifest.update(optimizer_steps=22, estimated_run_cost_usd=0.5 * (hourly_rate + 0.024),
         token_budget={"train": sum(r["training_tokens"] for r in train_rows),
                       "prefill": sum(r["prompt_tokens"] for r in generation_rows),
                       "sample": len(generation_rows) * config["evaluation"]["max_tokens"]})
@@ -118,5 +122,6 @@ if __name__ == "__main__":
     parser.add_argument("--profile", required=True, type=Path)
     parser.add_argument("--destination", required=True, type=Path)
     parser.add_argument("--harness-commit", required=True)
+    parser.add_argument("--gpu", choices=("ada", "l40s"), default="ada")
     args = parser.parse_args()
-    print(json.dumps(prepare(args.source, args.evidence, args.profile, args.destination, args.harness_commit), indent=2))
+    print(json.dumps(prepare(args.source, args.evidence, args.profile, args.destination, args.harness_commit, args.gpu), indent=2))
