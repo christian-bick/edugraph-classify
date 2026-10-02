@@ -1,0 +1,19 @@
+# Secure GPU timing and recovery benchmark
+
+The user authorized a bounded RTX 6000 Ada benchmark on 2026-10-02 after the A40 smoke. This does not launch full training. The target is one Secure RTX 6000 Ada 48 GB, with at least 48 GB host RAM / 8 vCPUs, the existing 170 GB disk allowance, a $1/hour allocation guard and a one-hour worker watchdog. At the current $0.84/hour GPU price, a half-hour planning estimate is $0.432 including running disk. Startup precedes the worker watchdog and these are operational limits, not guaranteed billing caps. Capacity must be checked immediately before launch.
+
+The benchmark reuses the exact A40 image digest and trainer commit `7e51615ca0f6edfd548918dfd2b87c180fd6d258`. A separately committed and SHA-256-verified [experiment harness](../experiments/benchmarks/runpod_hardware.py) replaces only the orchestration entrypoint. It calls the existing worker with a diagnostic executor, retaining its Secure allocation, price, bundle, image-code and lockfile checks, GCS/W&B integration, watchdog, failure stop and publication-before-termination behavior. The harness is fetched from its immutable public Git commit and verified before execution. The prepared bundle separately records that harness commit/hash and the diagnostic specification hash. No account-wide Runpod credential is injected.
+
+The [local preparation script](../experiments/benchmarks/prepare_runpod_hardware.py) verifies the original smoke artifacts, refuses changed trainer sources/dependencies, and reuses their original cohort and runtime identity. Additional memory-probe images are independently hash-verified from the full dataset audit. They are separate from the resumed training inputs so checkpoint compatibility is unchanged.
+
+## Measurements
+
+1. Restore the external step-zero A40 checkpoint and replay exactly its first 20 optimizer batches. Compare steps 3–20 with the matching A40 steps; the first two are warm-up on both sides. Preserve losses and batch identifiers as well as timing.
+2. Restore the external epoch-one/step-40 checkpoint, including optimizer and RNG state. Generate two warm-ups followed by 20 fixed held-out classifications already present in the A40 export. Compare paired latency, output token counts and exact text agreement. Hardware-dependent output differences remain visible.
+3. Restore step 40 again to remove sampling's RNG effects, process the actual next epoch-two batch, check all optimizer states advance to 41, and publish a coherent continuation checkpoint at epoch 1 / offset 4 / step 41. This is an external-checkpoint restore onto a new GPU Pod. It is not a complete second epoch.
+4. Run one discarded training update on the longest question and solution training examples, repeated to fill the effective batch of four; generate normally from the longest prompt using the original trained checkpoint. Record allocated, reserved and device-used VRAM. Normal generation uses the 512-token ceiling but does not force an answer to consume all 512 tokens. No final-assessment example is used.
+5. Publish the report and flush W&B, then terminate the Pod. The memory-probe update is excluded from the saved continuation. The diagnostic never promotes a model or publishes a new selected model.
+
+The two-epoch recipe ceiling exists solely to validate continuation from epoch one; the harness always executes the bounded steps above. It records 22 optimizer updates across independent branches, not 22 sequential continuation steps. Timing and recovery branches are separate. W&B uses an increasing diagnostic event index, with the true optimizer position in each event's fields.
+
+The benchmark tests use fake providers and a tiny checkpoint engine to verify bounded execution, exact batch order, step-40 restoration, step-41 publication, exclusion of memory-only updates, finite optimizer checks, and failure behavior. The original trainer and production inference configuration remain unchanged.
