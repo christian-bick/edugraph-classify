@@ -1,5 +1,9 @@
 # Local Docker training assessment
 
+This document retains the historical 9B proposal. The current single-GPU 27B QLoRA executor, W&B tracking and recovery workflow are implemented separately in [Runpod training](RUNPOD-TRAINING.md), pending GPU validation. For memory requirements and the cost comparison, see [training costs](TRAINING-COSTS.md). Shared conversion takes the tracked prompt verbatim, and the provider-neutral helper builds the separate ontology-pinned decoding schema. The historical two-GPU launch path below remains a proposal.
+
+Registry update (2026-10-02): new self-hosted images use **GHCR**, with GCS retained for run artifacts. The historical training repositories were deleted in the authorized [GCP cleanup](GCP-CLEANUP.md); references below describe the original proposal and are no longer pullable. Use the new [container publishing workflow](CONTAINER-IMAGES.md) and record its image digest in future run configurations. Public GHCR images need no pull credentials; private images need GHCR access independently of the ADC used for GCS. Production inference remains on GCP with scale-to-zero.
+
 Assessed 2026-09-13 for a standalone box with two RTX 3090s. User-confirmed boundary: training starts directly on both GPUs; GCP remains the provider for surrounding services, including artifact storage and model upload after training. The single-GPU milestone is removed. This is a proposed implementation scope; no local provider, host setup, upload, or GPU training run was created by this assessment.
 
 ## Recommendation

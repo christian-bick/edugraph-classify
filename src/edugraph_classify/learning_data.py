@@ -15,7 +15,7 @@ from pathlib import Path, PurePosixPath
 
 from PIL import Image
 
-from .dataset import file_sha256
+from .dataset import PromptTemplate, file_sha256
 from .ontology import OntologyCatalog
 from .output_contract import closed_vocabulary_schema
 from .qwen_training_policy import audit_qwen_language_targets
@@ -35,11 +35,11 @@ def safe_relative(value: str) -> str:
     return value
 
 
-def load_recipe(path: Path) -> dict:
+def load_recipe(path: Path, *, extra_fields: frozenset[str] = frozenset()) -> dict:
     config = json.loads(path.read_text(encoding="utf-8"))
     expected = {"run_id", "dataset", "ontology_version", "prompt_path", "schema_path", "model",
                 "selection", "training", "evaluation", "pricing", "estimated_cost_limit_usd"}
-    if set(config) != expected or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", config["run_id"]):
+    if set(config) != expected | extra_fields or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", config["run_id"]):
         raise ValueError("invalid learning recipe fields or run_id")
     for revision in (config["dataset"]["revision"], config["model"]["hf_revision"]):
         if not re.fullmatch(r"[0-9a-f]{40}", revision):
@@ -123,15 +123,9 @@ def conflicting_duplicate_images(examples: list[dict]) -> list[dict]:
             if len({row["target"] for row in rows}) > 1]
 
 
-def system_prompt(source: dict, catalog: OntologyCatalog) -> dict:
-    vocabulary = {field: sorted(name for name in catalog.eligible_labels if catalog.dimensions[name] == field)
-                  for field in ("areas", "scopes", "abilities")}
-    return {**source, "system": source["system"] + "\n\nAllowed ontology vocabulary (v" + catalog.package_version + "):\n"
-            + json.dumps(vocabulary, ensure_ascii=False, separators=(",", ":"))}
-
-
 def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_commit: str,
-                     fetch, capabilities: dict, renderer_factory=QwenVisionRenderer.load) -> dict:
+                     fetch, capabilities: dict, renderer_factory=QwenVisionRenderer.load,
+                     runtime_packages=("fireworks-ai", "edugraph-py", "pillow")) -> dict:
     """Fetch public sources and prepare locally; never upload or start compute."""
     catalog = OntologyCatalog.load(config["ontology_version"])
     run.mkdir(parents=True, exist_ok=False)
@@ -139,7 +133,7 @@ def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_
     schema = json.loads((root / config["schema_path"]).read_text(encoding="utf-8"))
     write_json(run / "schema.json", schema)
     write_json(run / "closed_schema.json", closed_vocabulary_schema(schema, catalog))
-    prompt = system_prompt(json.loads((root / config["prompt_path"]).read_text(encoding="utf-8")), catalog)
+    prompt = PromptTemplate.load(root / config["prompt_path"]).to_mapping()
     write_json(run / "prompt.json", prompt)
     (run / "processor").mkdir()
     for file in sorted(processor.iterdir()):
@@ -211,12 +205,14 @@ def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_
     prefill_tokens = evaluation_rounds * sum(row["prompt_tokens"] for row in sampling) + sum(row["prompt_tokens"] for row in final)
     output_tokens = (evaluation_rounds * len(sampling) + len(final)) * config["evaluation"]["max_tokens"]
     price = config["pricing"]
-    cost = (training_tokens * price["train"] + prefill_tokens * price["prefill"] + output_tokens * price["sample"]) / 1_000_000
+    token_pricing = set(price) == {"train", "prefill", "sample"}
+    cost = ((training_tokens * price["train"] + prefill_tokens * price["prefill"] + output_tokens * price["sample"]) / 1_000_000
+            if token_pricing else price["estimated_hours"] * (price["compute_hour_usd"] + price["disk_hour_usd"]))
     if cost > config["estimated_cost_limit_usd"]:
-        raise ValueError("prepared token-cost upper estimate exceeds recipe limit")
+        raise ValueError("prepared cost estimate exceeds recipe limit")
     manifest = {
         "run_id": config["run_id"], "code_commit": code_commit, "recipe": config,
-        "runtime_versions": {name: version(name) for name in ("fireworks-ai", "edugraph-py", "pillow")},
+        "runtime_versions": {name: version(name).split("+")[0] for name in runtime_packages},
         "uv_lock_sha256": file_sha256(root / "uv.lock"),
         "ontology_snapshot_sha256": catalog.snapshot_sha256, "capabilities_at_preparation": capabilities,
         "metadata_rows_validated": counts, "selected_images_validated": len(examples),
@@ -227,10 +223,11 @@ def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_
         "cohort_counts": {split: sum(r["split"] == split for r in examples) for split in ("train", "validation", "final_validation")},
         "optimizer_steps": math.ceil(len(train) / config["training"]["batch_size"]) * config["training"]["epochs"],
         "token_budget": {"train": training_tokens, "prefill": prefill_tokens, "sample": output_tokens},
-        "estimated_max_token_cost_usd": cost, "estimate_is_not_provider_billing_cap": True,
+        "estimated_max_token_cost_usd": cost if token_pricing else None,
+        "estimated_run_cost_usd": cost, "estimate_is_not_provider_billing_cap": True,
         "quality_promotion": False, "prompt_role": "system", "thinking": False,
         "language_target_audit": target_audit,
-        "template_export": "Portable base-model Jinja template; Fireworks LoRA template override is not supported by published docs.",
+        "template_export": "Portable Jinja template with the fixed classifier system message. Verify serving-runtime template support separately.",
         "files_sha256": {p.relative_to(run).as_posix(): file_sha256(p) for p in sorted(run.rglob("*")) if p.is_file()},
     }
     write_json(run / "manifest.json", manifest)

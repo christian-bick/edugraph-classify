@@ -20,7 +20,7 @@ def add_learning_parser(commands) -> None:
     parser = commands.add_parser("training-api", help="prepare or run a bounded training API experiment")
     actions = parser.add_subparsers(dest="action", required=True)
     prepare = actions.add_parser("prepare", help="read-only eligibility check and local data preparation")
-    prepare.add_argument("--config", default="experiments/edugraph-20260928-qwen38-27b-learning-v1.json")
+    prepare.add_argument("--config", default="experiments/edugraph-20261002-qwen38-27b-full-v3.json")
     prepare.add_argument("--runs-root", default="runs")
     prepare.add_argument("--env-file", default=".env")
     launch = actions.add_parser("launch", help="run one explicitly confirmed paid experiment")

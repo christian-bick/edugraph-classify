@@ -1,13 +1,13 @@
-.git
-.venv
-.env
-.pytest_cache
-.coverage
-artifacts
-data
-reports
-runs
-temp
-tests
-__pycache__
-*.pyc
+# Send only the files required by the training image to the Docker builder.
+**
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!src/
+!src/**
+!containers/
+!containers/vertex-trainer/
+!containers/vertex-trainer/Dockerfile
+**/__pycache__
+**/*.py[cod]
