@@ -16,7 +16,7 @@ from edugraph_classify import cli, checkpoint_storage as storage, runpod_cli, ru
 from edugraph_classify import self_hosted_run as run
 from edugraph_classify import training_tracking as tracking
 from edugraph_classify.learning_data import prepare_learning, write_json
-from edugraph_classify.providers.runpod import RunpodClient, public_status
+from edugraph_classify.providers.runpod import RunpodClient, RunpodPodClient, RunpodError, public_status
 from test_learning import GOLD, ROOT, png, renderer_factory
 from test_vertex_artifacts import FakeStorageClient
 
@@ -347,3 +347,33 @@ def test_real_wandb_reference_artifact_needs_no_google_credentials(tmp_path,monk
     entry=artifact.manifest.entries['gcs-reference.json']
     assert json.loads(Path(entry.local_path).read_text())==reference
     assert entry.size < 1024
+
+
+def test_pod_scoped_client_uses_graphql_for_read_and_lifecycle():
+    requests=[]
+    def handler(request):
+        payload=json.loads(request.content)
+        requests.append(payload)
+        assert request.url.path=='/graphql'
+        assert payload['variables']=={'id':'pod1'}
+        query=payload['query']
+        field='podTerminate' if 'podTerminate' in query else 'podStop' if 'podStop' in query else 'pod'
+        return httpx.Response(200,json={'data':{field:None if field=='podTerminate' else
+            {'id':'pod1','costPerHr':0.49,'machine':{'secureCloud':True}}}})
+    client=RunpodPodClient('pod-scoped-key',httpx.Client(base_url='https://test',transport=httpx.MockTransport(handler)))
+    assert client.get('pod1')['machine']['secureCloud'] is True
+    client.stop('pod1')
+    client.terminate('pod1')
+    assert len(requests)==3
+    with pytest.raises(ValueError):client.get('../other')
+    with pytest.raises(RunpodError,match='details'):
+        client.graphql=lambda *args:None
+        client.get('pod1')
+
+
+@pytest.mark.parametrize('body', [{'errors':[{'message':'secret-value'}]}, {'data':None}, {'data':{}}])
+def test_graphql_errors_do_not_expose_response_values(body):
+    client=RunpodPodClient('pod-scoped-key',httpx.Client(base_url='https://test',
+        transport=httpx.MockTransport(lambda request:httpx.Response(200,json=body))))
+    with pytest.raises(RunpodError,match='body suppressed') as error:client.get('pod1')
+    assert 'secret-value' not in str(error.value)

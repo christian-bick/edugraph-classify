@@ -11,14 +11,14 @@ from pathlib import Path
 from .checkpoint_storage import GcsBundles, unpack_verified
 from .dataset import file_sha256
 from .learning_data import verify_prepared
-from .providers.runpod import RunpodClient, public_status, require_secure, checked_hourly_rate
+from .providers.runpod import RunpodPodClient, RunpodError, public_status, require_secure, checked_hourly_rate
 from .runpod_config import validate_runpod_recipe
 from .self_hosted_run import execute_self_hosted
 from .training_tracking import WandbTracker
 
 
 def run_worker(root=Path("/workspace"), *, store_factory=GcsBundles.from_environment,
-               client_factory=RunpodClient, execute=execute_self_hosted, timer_factory=threading.Timer):
+               client_factory=RunpodPodClient, execute=execute_self_hosted, timer_factory=threading.Timer):
     pod_id = os.environ["RUNPOD_POD_ID"]
     client = client_factory(os.environ["RUNPOD_API_KEY"])  # Runpod supplies a Pod-scoped key.
     stop = threading.Event()
@@ -81,9 +81,15 @@ def main():
         return 0
     except Exception as error:
         # Frame locations aid remote diagnosis without exposing exception values or locals.
-        frames = [{"file": Path(frame.filename).name, "line": frame.lineno, "function": frame.name}
-                  for frame in traceback.extract_tb(error.__traceback__)]
-        print(json.dumps({"status": "failed", "error_type": type(error).__name__, "frames": frames}), flush=True)
+        errors = []
+        current = error
+        while current is not None:
+            errors.append({"error_type": type(current).__name__,
+                "http_status": current.status_code if isinstance(current, RunpodError) else None,
+                "frames": [{"file": Path(frame.filename).name, "line": frame.lineno, "function": frame.name}
+                           for frame in traceback.extract_tb(current.__traceback__)]})
+            current = current.__cause__ or current.__context__
+        print(json.dumps({"status": "failed", "errors": errors}), flush=True)
         return 1
 
 

@@ -187,6 +187,18 @@ def test_worker_restores_reference_and_main_sanitizes_exceptions(worker,monkeypa
     monkeypatch.setattr(runpod_worker,'run_worker',Mock(side_effect=RuntimeError('secret-value')))
     assert runpod_worker.main()==1
     assert 'secret-value' not in capsys.readouterr().out
+    from edugraph_classify.providers.runpod import RunpodError
+    def failed_cleanup():
+        try:
+            raise ValueError('original-secret-value')
+        except ValueError:
+            raise RunpodError('provider-secret-value',status_code=403)
+    monkeypatch.setattr(runpod_worker,'run_worker',failed_cleanup)
+    assert runpod_worker.main()==1
+    report=json.loads(capsys.readouterr().out)
+    assert [e['error_type'] for e in report['errors']]==['RunpodError','ValueError']
+    assert report['errors'][0]['http_status']==403
+    assert 'secret-value' not in json.dumps(report)
 
 
 @pytest.mark.parametrize('machine', [None, {}, {'secureCloud':False}, {'secureCloud':'true'}])

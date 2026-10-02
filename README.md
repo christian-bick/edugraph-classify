@@ -27,7 +27,7 @@ New self-hosted training images use **GitHub Container Registry**. The manual [c
 ```powershell
 uv run --group training edugraph-classify runpod check-config
 uv run --group training edugraph-classify runpod prepare `
-  --config experiments/edugraph-20261002-qwen38-27b-runpod-smoke-v1.json
+  --config experiments/edugraph-20261002-qwen38-27b-runpod-smoke-v2.json
 ```
 
 Preparation requires a clean commit and downloads public inputs locally. The [Runpod workflow](docs/RUNPOD-TRAINING.md) separates GCS staging, request review and paid Pod creation. W&B uses entity `edugraph-io`, project `edugraph-classify`, and the user's Runpod secret `WANDB_API_KEY`. The training-only GCS credential is configured in Runpod Secrets. A public GHCR digest is required before launching the authorized Secure A40 smoke; full training needs a separate decision.

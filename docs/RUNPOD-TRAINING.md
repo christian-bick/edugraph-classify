@@ -20,7 +20,7 @@ Implemented 2026-10-02. This is the current self-hosted training candidate; it h
 | W&B | Entity `edugraph-io`, project `edugraph-classify` |
 | Durable artifacts | `gs://edugraph-classify/runpod` |
 
-The separate `edugraph-20261002-qwen38-27b-runpod-smoke-v1.json` recipe uses 160 train images, 64 validation images, 16 train diagnostics, one epoch, and checkpoints every 10 steps. It leaves the final assessment cohort unused. On 2026-10-02 the live Secure inventory had no A6000 allocation, but offered an **A40 with 48 GB VRAM, 50 GB host RAM and 9 vCPUs at $0.49/hour**. The smoke explicitly selects A40 and requests at least 48 GB host RAM / 8 vCPUs. Transformers loads quantized shards directly to the GPU; this does not require a full BF16 CPU model copy. Host and GPU memory still need validation during the smoke. The full candidate retains its A6000/64 GB host allowance pending smoke measurements and a fresh capacity check. The legacy recipe key `minimum_ram_gib` is passed to Runpod's GB-based `minRAMPerGPU` filter.
+The separate `edugraph-20261002-qwen38-27b-runpod-smoke-v2.json` recipe uses 160 train images, 64 validation images, 16 train diagnostics, one epoch, and checkpoints every 10 steps. It leaves the final assessment cohort unused. On 2026-10-02 the live Secure inventory had no A6000 allocation, but offered an **A40 with 48 GB VRAM, 50 GB host RAM and 9 vCPUs at $0.49/hour**. The smoke explicitly selects A40 and requests at least 48 GB host RAM / 8 vCPUs. Transformers loads quantized shards directly to the GPU; this does not require a full BF16 CPU model copy. Host and GPU memory still need validation during the smoke. The full candidate retains its A6000/64 GB host allowance pending smoke measurements and a fresh capacity check. The legacy recipe key `minimum_ram_gib` is passed to Runpod's GB-based `minRAMPerGPU` filter.
 
 **Secure Cloud is mandatory**, with no Community or ALL fallback. Both the launcher and worker require `machine.secureCloud == true` from the live Pod response. A missing or conflicting flag stops the Pod. This is the selected provider trust boundary, not confidential computing against the operator. The smoke is authorized; a full training run remains a separate decision.
 
@@ -41,7 +41,7 @@ The W&B **key value**, rather than its displayed key ID, belongs in the secret. 
 
 The GCS secret `edugraph-gcs` is configured for `edugraph-runpod-training@edugraph-438718.iam.gserviceaccount.com`. It has conditional `roles/storage.objectViewer` and `roles/storage.objectCreator` bindings restricted to `gs://edugraph-classify/runpod/`. The existing bucket uses a hierarchical namespace, so the condition covers both `objects/runpod/` and `folders/runpod/`; the latter permits creating the training subfolders. It grants no object deletion, project administration, compute, or production-serving access. A live read/create probe passed and a read outside the prefix returned 403. The JSON key was transferred directly from Google to Runpod Secrets in memory, without writing its value to disk or logs. Failed setup keys were revoked. Do not copy personal ADC into a Pod. `GcsBundles` also supports standard ADC when the secret is absent, for example a separately configured workload identity mounted into the container; provisioning federation is outside this recipe.
 
-The workstation uses `RUNPOD_API_KEY` to create/read/stop Pods and local Google ADC to stage inputs. Keep that account key in ignored `.env` or the environment. **It is not injected into the Pod.** Runpod supplies a Pod-scoped `RUNPOD_API_KEY` and `RUNPOD_POD_ID` for the worker to stop or terminate itself. Public model/data downloads and the public GHCR image require no Hugging Face or registry token. See [Runpod secrets](https://docs.runpod.io/pods/templates/secrets) and [Pod environment variables](https://docs.runpod.io/pods/templates/environment-variables).
+The workstation uses `RUNPOD_API_KEY` with REST v1 to create/read/stop Pods and local Google ADC to stage inputs. Keep that account key in ignored `.env` or the environment. **It is not injected into the Pod.** Runpod supplies a Pod-scoped `RUNPOD_API_KEY` and `RUNPOD_POD_ID`; the worker uses **GraphQL** to inspect, stop and terminate its own Pod. Live testing on 2026-10-02 found that the same Pod-scoped key receives 403 on REST v1 but works on GraphQL and REST v2. GraphQL get/stop/terminate were all verified on the first failed smoke Pod before its removal. Public model/data downloads and the public GHCR image require no Hugging Face or registry token. See [Runpod secrets](https://docs.runpod.io/pods/templates/secrets) and [Pod environment variables](https://docs.runpod.io/pods/templates/environment-variables).
 
 W&B receives pinned configuration, losses, gradient norms, generated-validation metrics, GPU memory, timings and session cost estimates. Adapter weights and optimizer states stay in **GCS**; each W&B artifact contains a small downloadable `gcs-reference.json` with its `gs://` URI, SHA-256, run ID and size. This file can be passed directly to `--resume-reference`. The pinned W&B SDK initializes Google ADC even for native GCS references with `checksum=False`; using reference JSON avoids a second Google credential path. A real-SDK offline test verifies that no ADC is requested. No `wandb.watch`, automatic code upload, console capture or duplicate tensor uploads are enabled. Session cost starts at the trainer and excludes earlier provisioning/input staging, stopped storage, GCS charges and unsaved work lost to an outage; it is not an invoice.
 
@@ -59,13 +59,13 @@ Prepare the smoke from a clean checkout; this downloads public inputs locally wi
 
 ```powershell
 uv run --group training edugraph-classify runpod prepare `
-  --config experiments/edugraph-20261002-qwen38-27b-runpod-smoke-v1.json
+  --config experiments/edugraph-20261002-qwen38-27b-runpod-smoke-v2.json
 ```
 
 The following operations are separate and require explicit user authorization. `stage` uploads to GCS; `launch` creates a paid Pod. Both require exact run-ID confirmation. The user authorized these operations for the bounded Secure smoke on 2026-10-02; this does not authorize a subsequent full run.
 
 ```powershell
-$runId = 'edugraph-20261002-qwen38-27b-runpod-smoke-v1'
+$runId = 'edugraph-20261002-qwen38-27b-runpod-smoke-v2'
 $manifest = "runs/$runId/manifest.json"
 $image = 'ghcr.io/christian-bick/edugraph-classify-trainer@sha256:<published-digest>'
 uv run --no-sync edugraph-classify runpod stage --manifest $manifest --confirm-run-id $runId
@@ -99,6 +99,8 @@ For **one epoch now and more later**, start with `training.epochs: 1`. Then crea
 A failed final assessment can recover the same run from its `phase=final` checkpoint without repeating optimizer steps. The final export contains the selected adapter, processor, prompt, schema, template and reports. It does **not** merge, register or deploy a serving model. Completed-run markers are immutable; training continuation gets a new run ID.
 
 ## Validation and remaining acceptance
+
+The first Secure smoke (`...runpod-smoke-v1`, Pod `yhbqhq55hz4qkx`, code `a69514d`) reached container startup but failed on the REST v1 Pod-key check, before GCS worker staging, W&B or model loading. The workstation stopped it, saved its failure record in GCS and terminated its empty volume. No optimizer steps ran. The current v2 smoke is a fresh run with the corrected GraphQL worker adapter. Failure reporting now preserves both the original exception and any shutdown failure as sanitized type/status/frame records.
 
 Tests exercise provider-error sanitization, replay/price guards, secret references, immutable bundles/path safety, interrupted recovery, optimizer restoration, frozen-vision auditing, assistant masks, image expansion, constrained JSON and generated checkpoint selection. The actual cached Qwen tokenizer (248,077 tokens) accepted closed-schema JSON; the largest audited image expanded to 1,147 image tokens with matching multimodal type IDs. The meta-model audit found 496 selected language linear modules and zero vision/bridge targets. Local evidence is under ignored `reports/runpod-setup-20261002/`.
 
