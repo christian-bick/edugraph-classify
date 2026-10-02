@@ -78,7 +78,7 @@
     "cloud_type": "SECURE",
     "gpu_type": "NVIDIA A40",
     "gpu_count": 1,
-    "minimum_vram_gib": 48,
+    "minimum_vram_gib": 45,
     "minimum_ram_gib": 48,
     "minimum_vcpus": 8,
     "container_disk_gb": 30,

@@ -2,7 +2,7 @@
 
 Training and evaluation tooling for direct ontology labeling of atomic educational tasks with vision-language models.
 
-The current training candidate uses **Qwen3.8-27B NF4 QLoRA on Runpod Secure**, with **W&B** tracking and **GCS** checkpoints, dataset **v0.30.0-03**, and ontology **v0.30.0**. Only language adapters train; vision and the multimodal bridge stay frozen. Its compact v3 system prompt omits ontology vocabulary; a separate closed-vocabulary decoding schema and offline validation enforce the output contract. Generated predictions determine checkpoint selection and final validation. The earlier Fireworks v0.30.0-02 smoke improved label F1 from 30.9% to 67.4% after one epoch on 160 images; exact-set match remained 2/64, so that checkpoint is experimental.
+The current training candidate uses **Qwen3.8-27B NF4 QLoRA on Runpod Secure**, with **W&B** tracking and **GCS** checkpoints, dataset **v0.30.0-03**, and ontology **v0.30.0**. Only language adapters train; vision and the multimodal bridge stay frozen. Its compact v3 system prompt omits ontology vocabulary; a separate closed-vocabulary decoding schema and offline validation enforce the output contract. Generated predictions determine checkpoint selection and final validation. The Secure A40 smoke improved held-out label F1 from **3.18% to 61.25%** after one epoch on 160 images. Exact-set match remained **0/64**, so the checkpoint is experimental.
 
 See [Runpod training](docs/RUNPOD-TRAINING.md) for setup, secrets, launch boundaries and recovery; [Fireworks Training API](docs/FIREWORKS-TRAINING-API.md) for the preserved managed executor; and [training costs](docs/TRAINING-COSTS.md) for the compact-prompt comparison. [Project kickoff](docs/PROJECT-KICKOFF.md) retains accepted architecture and historical decisions. This repository owns classifier conversion, prompts, orchestration, inference, evaluation, and experiment records; upstream projects own images/splits and ontology semantics.
 
@@ -30,7 +30,7 @@ uv run --group training edugraph-classify runpod prepare `
   --config experiments/edugraph-20261002-qwen38-27b-runpod-smoke-v2.json
 ```
 
-Preparation requires a clean commit and downloads public inputs locally. The [Runpod workflow](docs/RUNPOD-TRAINING.md) separates GCS staging, request review and paid Pod creation. W&B uses entity `edugraph-io`, project `edugraph-classify`, and the user's Runpod secret `WANDB_API_KEY`. The training-only GCS credential is configured in Runpod Secrets. A public GHCR digest is required before launching the authorized Secure A40 smoke; full training needs a separate decision.
+Preparation requires a clean commit and downloads public inputs locally. The [Runpod workflow](docs/RUNPOD-TRAINING.md) separates GCS staging, request review and paid Pod creation. W&B uses entity `edugraph-io`, project `edugraph-classify`, and the user's Runpod secret `WANDB_API_KEY`. The training-only GCS credential is configured in Runpod Secrets. The [Secure A40 smoke](docs/RUNPOD-SMOKE-20261002.md) completed, published its model and resumable state, and terminated its Pod. Full training needs a separate decision.
 
 ## Preserved Fireworks candidate
 
