@@ -7,7 +7,7 @@ import shutil
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace as NS
-from unittest.mock import Mock
+from unittest.mock import Mock, MagicMock
 
 import httpx
 import pytest
@@ -315,6 +315,7 @@ def test_runpod_adapter_suppresses_provider_secrets():
 
 def test_wandb_records_only_explicit_metrics_and_gcs_reference(prepared,monkeypatch):
     sdk=Mock(); sdk.init.return_value.id='run1'
+    sdk.Artifact.return_value=MagicMock()
     tracker=tracking.WandbTracker(prepared.manifest,sdk=sdk)
     assert sdk.init.call_args.kwargs['entity']=='edugraph-io'
     assert sdk.init.call_args.kwargs['resume']=='never'
@@ -322,8 +323,27 @@ def test_wandb_records_only_explicit_metrics_and_gcs_reference(prepared,monkeypa
     sdk.init.return_value.log.assert_called_once_with({'validation/f1':0.8,'optimizer_step':5})
     tracker.checkpoint({'uri':'gs://bucket/snapshot','sha256':'a'*64})
     tracker.checkpoint({'uri':'gs://bucket/model','sha256':'b'*64},final=True)
-    sdk.Artifact.return_value.add_reference.assert_called_with('gs://bucket/model',name='bundle.tar',checksum=False)
+    sdk.Artifact.return_value.add_reference.assert_not_called()
+    written=sdk.Artifact.return_value.new_file.return_value.__enter__.return_value.write.call_args.args[0]
+    assert json.loads(written)=={'uri':'gs://bucket/model','sha256':'b'*64}
     tracker.finish(True)
     monkeypatch.setitem(__import__('sys').modules,'wandb',sdk)
     tracking.WandbTracker(prepared.manifest,resume=True)
     assert sdk.init.call_args.kwargs['resume']=='allow'
+
+
+def test_real_wandb_reference_artifact_needs_no_google_credentials(tmp_path,monkeypatch):
+    import google.auth
+    import wandb
+    monkeypatch.setenv('WANDB_DATA_DIR',str(tmp_path/'wandb'))
+    monkeypatch.setattr(google.auth,'default',Mock(side_effect=AssertionError('must not initialize ADC')))
+    tracker=object.__new__(tracking.WandbTracker)
+    tracker.sdk=wandb
+    tracker.run=Mock(id='offline-reference-check')
+    reference={'run_id':'smoke','uri':'gs://bucket/run/checkpoint.tar','sha256':'a'*64}
+    tracker.checkpoint(reference)
+    artifact=tracker.run.log_artifact.call_args.args[0]
+    assert list(artifact.manifest.entries)==['gcs-reference.json']
+    entry=artifact.manifest.entries['gcs-reference.json']
+    assert json.loads(Path(entry.local_path).read_text())==reference
+    assert entry.size < 1024
