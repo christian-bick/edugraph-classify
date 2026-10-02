@@ -1,6 +1,6 @@
 # Secure GPU timing and recovery benchmark
 
-Status: **Secure L40S benchmark completed; Pod automatically terminated and ongoing Runpod spend verified at zero.** Secure RTX 6000 Ada capacity remained unavailable, so the user explicitly selected L40S. Pod `xka533lhiit4u1` was allocated at 18:33:11 UTC on 2026-10-02, at $1.09/hour GPU / $1.114/hour with running disk, with 125 GB host RAM and 16 vCPUs in `US-MO-1`. It used a one-hour worker watchdog and $1.20/hour GPU allocation guard. All 277 local tests passed with 96.30% production-code coverage. Full training remains unlaunched.
+Status: **Secure L40S benchmark completed; Pod automatically terminated and ongoing Runpod spend verified at zero.** Secure RTX 6000 Ada capacity remained unavailable, so the user explicitly selected L40S. Pod `xka533lhiit4u1` was allocated at 18:33:11 UTC on 2026-10-02, at $1.09/hour GPU / $1.114/hour with running disk, with 125 GB host RAM and 16 vCPUs in `US-MO-1`. It used a one-hour worker watchdog and $1.20/hour GPU allocation guard. All 277 local tests passed with 96.30% production-code coverage. The subsequent [full A40 training run](RUNPOD-FULL-A40-20261002.md) is recorded separately.
 
 Allocation to durable result publication took **23.47 minutes**. The observed Runpod account balance decreased by **$0.44024** after termination; this excludes GCS and tax and is not an invoice. The independently verified summary is retained at `gs://edugraph-classify/runpod/benchmarks/edugraph-20261002-qwen38-27b-l40s-benchmark-v1/verified-summary.json`.
 
