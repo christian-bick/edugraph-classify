@@ -3,6 +3,8 @@ name = "edugraph-classify"
 version = "0.1.0"
 description = "Training and evaluation tooling for direct ontology labeling of educational tasks"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
     "datasets>=5.0.1",
@@ -32,10 +34,12 @@ dev = [
 training = [
     "accelerate==1.14.0",
     "bitsandbytes==0.50.1",
+    "lm-format-enforcer>=0.11,<0.12",
     "peft==0.20.0",
     "torch==2.13.0",
     "torchvision==0.28.0",
     "transformers==5.15.1",
+    "wandb>=0.25,<1",
 ]
 training-api = [
     "fireworks-ai[training-sdk]==1.2.15",

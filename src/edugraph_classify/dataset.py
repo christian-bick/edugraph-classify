@@ -39,10 +39,14 @@ class PromptTemplate:
             raise DatasetConversionError("prompt file has unexpected fields")
         return cls(**payload)
 
+    def to_mapping(self) -> dict[str, str]:
+        """Use the tracked prompt verbatim across preparation and serving paths."""
+        return asdict(self)
+
     @property
     def sha256(self) -> str:
         payload = json.dumps(
-            asdict(self), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            self.to_mapping(), ensure_ascii=False, sort_keys=True, separators=(",", ":")
         ).encode("utf-8")
         return hashlib.sha256(payload).hexdigest()
 

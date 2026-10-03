@@ -25,8 +25,17 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --group training --no-install-project --python /usr/bin/python3.12
 
-COPY README.md ./
+COPY README.md LICENSE ./
 COPY src ./src
 RUN uv sync --frozen --no-dev --group training --python /usr/bin/python3.12
+
+ARG CODE_COMMIT=uncommitted
+ENV EDUGRAPH_CODE_COMMIT=$CODE_COMMIT
+
+# Validate the installed environment without a GPU, model download, or credentials.
+RUN --network=none uv run --no-sync python -c \
+    "import torch, torchvision, transformers, peft, accelerate, bitsandbytes, wandb; from edugraph_classify import runpod_worker, constrained_generation; assert torch.version.cuda == '12.6', torch.version.cuda" \
+    && uv run --no-sync python -m edugraph_classify.vlm_trainer --help \
+    && uv run --no-sync edugraph-classify runpod --help
 
 ENTRYPOINT ["/app/.venv/bin/python", "-m", "edugraph_classify.vlm_trainer"]

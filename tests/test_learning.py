@@ -15,6 +15,7 @@ from jinja2 import Environment
 from PIL import Image
 
 from edugraph_classify import cli, learning_cli, learning_data, learning_run
+from edugraph_classify.dataset import PromptTemplate, convert_dataset
 from edugraph_classify.evaluation import evaluate, parse_prediction
 from edugraph_classify.ontology import OntologyCatalog
 from edugraph_classify.output_contract import closed_vocabulary_schema
@@ -59,6 +60,7 @@ def png(color=0):
 
 def recipe():
     value = learning_data.load_recipe(RECIPE)
+    value["prompt_path"] = "prompts/direct-label-v3.json"
     value["selection"] = {"train": 4, "validation": 4, "train_diagnostic": 2, "seed": 42}
     value["training"].update(epochs=2, batch_size=2, max_context_tokens=50000)
     return value
@@ -237,7 +239,9 @@ def test_preparation_pins_audits_and_detects_tampering(prepared):
     assert manifest["optimizer_steps"] == 4
     assert len([r for r in examples if r["train_diagnostic"]]) == 2
     assert manifest["estimated_max_token_cost_usd"] > 0
-    assert "Allowed ontology vocabulary (v0.30.0)" in (prepared.run / "prompt.json").read_text()
+    prompt = json.loads((prepared.run / "prompt.json").read_text())
+    assert prompt == PromptTemplate.load(ROOT / "prompts/direct-label-v3.json").to_mapping()
+    assert "Allowed ontology vocabulary" not in prompt["system"]
     closed = json.loads((prepared.run / "closed_schema.json").read_text())
     assert "Addition" in closed["properties"]["areas"]["items"]["enum"]
     assert "Addition" not in closed["properties"]["abilities"]["items"]["enum"]
@@ -247,6 +251,25 @@ def test_preparation_pins_audits_and_detects_tampering(prepared):
     (prepared.run / "prompt.json").write_text("changed")
     with pytest.raises(ValueError, match="hash changed"):
         learning_data.verify_prepared(prepared.path, "a" * 40)
+
+
+def test_compact_prompt_matches_shared_jsonl_conversion_and_embedded_template(prepared, tmp_path):
+    prompt = PromptTemplate.load(ROOT / "prompts/direct-label-v3.json")
+    revision = "b" * 40
+    splits = {split: [{"image": {"bytes": png(index * 10 + i), "path": f"hf://datasets/owner/data@{revision}/{split}/{i}.png"},
+                       "labels": ["Addition"], "solution": False} for i in range(3)]
+              for index, split in enumerate(("train", "validation"))}
+    converted = convert_dataset(splits, repo_id="owner/data", revision=revision,
+        catalog=OntologyCatalog.load("0.30.0"), prompt=prompt, output_dir=tmp_path / "jsonl", label_field="labels")
+    for artifact in converted.splits:
+        for line in Path(artifact.jsonl_path).read_text().splitlines():
+            record = json.loads(line)
+            assert record["messages"][0] == {"role": "system", "content": prompt.system}
+            assert record["messages"][1]["content"][0]["text"] == prompt.user
+    renderer = renderer_factory(prompt=prompt.to_mapping())
+    template = (prepared.run / "chat_template.jinja").read_text()
+    assert renderer.tokenizer.apply_chat_template(renderer.messages()[1:], chat_template=template,
+        add_generation_prompt=True) == renderer.tokenizer.apply_chat_template(renderer.messages(), add_generation_prompt=True)
 
 
 def test_closed_schema_and_language_only_targets_fail_closed():
@@ -408,6 +431,31 @@ def test_complete_run_compares_identical_cohorts_and_prevents_paid_replay(prepar
     with pytest.raises(FileExistsError):
         execute(prepared, adapter)
     assert adapter.steps == 4
+
+
+def test_compact_run_generates_constrained_predictions_for_every_evaluation(prepared):
+    config = recipe()
+    config["run_id"] = "compact-evaluation"
+    config["selection"].update(validation=2, final_validation=2)
+    config["evaluation"].update(every_epoch=True, output_mode="json_schema")
+    run = prepared.run.parent / "compact-evaluation"
+    manifest = learning_data.prepare_learning(config, ROOT, run, prepared.processor, "a" * 40,
+        prepared.fetch, {"read_only": True}, renderer_factory)
+    cohort = NS(run=run, manifest=manifest, path=run / "manifest.json")
+    adapter = FakeAdapter()
+    predict = adapter.predict
+    adapter.predict = Mock(side_effect=predict)
+    result = execute(cohort, adapter)
+    assert result["completed_steps"] == 4
+    assert adapter.predict.call_count == 3 * (2 + 2) + 2
+    for call in adapter.predict.call_args_list:
+        schema = call.args[1]["output_schema"]
+        assert "Addition" in schema["properties"]["areas"]["items"]["enum"]
+        assert "Addition" not in schema["properties"]["scopes"]["items"]["enum"]
+    for name in ("base", "epoch1", "epoch2", "final"):
+        assert (run / f"{name}-predictions.json").exists()
+    comparison = json.loads((run / "comparison.json").read_text())
+    assert comparison["final_validation"]["exact_set_match"] == 1
 
 
 def test_epoch_selection_and_patience_stop_use_best_validation_checkpoint(prepared):

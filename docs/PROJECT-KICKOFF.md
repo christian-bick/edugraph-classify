@@ -2,7 +2,11 @@
 
 Status: accepted direction; first executable baseline selected
 
-Current executable path (2026-09-28): user-selected **Qwen3.8-27B** on Fireworks serverless training, dataset **v0.30.0-02**, ontology **v0.30.0**. A one-image multimodal optimizer/checkpoint/sample diagnostic succeeded. The authorized learning smoke uses 160 training and 64 official-validation images with a fixed system prompt and paired base/tuned evaluation. See [Training API setup](FIREWORKS-TRAINING-API.md) for current eligibility semantics and template limitations. Earlier local and managed plans below retain their historical pins.
+Training execution update (2026-10-02): the user selected **Runpod Secure with W&B**, replacing the earlier Community choice to simplify the credential trust boundary. The NF4 QLoRA executor shares the compact prompt, ontology validation, deterministic cohorts and generated evaluation with Fireworks. It adds language-only parameter auditing, periodic GCS optimizer/RNG/data-position checkpoints, verified recovery and W&B reference artifacts under `edugraph-io/edugraph-classify`. The full A6000 recipe targets two epochs; an authorized 160-image Secure A40 smoke precedes it because A6000 capacity was unavailable. Both launcher and worker enforce the Secure allocation and price ceiling. See [Runpod training](RUNPOD-TRAINING.md). Production inference stays unchanged.
+
+Container registry decision (2026-10-02): use **GHCR** for new self-hosted training images, retaining GCS for run artifacts and **GCP scale-to-zero for production inference**. Publication is a manual workflow with CPU import/CLI checks, commit tags, and an immutable digest in the result. The authorized [GCP cleanup](GCP-CLEANUP.md) removed four obsolete training repositories (164.65 GiB); production and rollback image repositories remain. Historical training image references remain pinned for provenance but no longer resolve to the deleted images. See [container images](CONTAINER-IMAGES.md).
+
+Preserved Fireworks candidate (2026-10-02): user-selected **Qwen3.8-27B**, dataset **v0.30.0-03**, ontology **v0.30.0**. The completed 160-image learning smoke and one-image diagnostic remain pinned to v0.30.0-02. The compact v3 system prompt, closed-vocabulary schema, generated checkpoint selection, untouched final-validation cohort and language-only LoRA policy carry into the new Runpod executor. See [Training API setup](FIREWORKS-TRAINING-API.md) for the managed path and [training costs](TRAINING-COSTS.md) for the full-release audit. Earlier plans below retain their historical pins.
 
 Initial model hypothesis: Qwen3.5-9B
 
@@ -81,7 +85,7 @@ serverless  dedicated     owned runtime
 
 The neutral core owns dataset ingestion, ontology validation, prediction contracts, canonicalization, metrics, and reproducibility metadata. A provider adapter translates those contracts into model discovery, training, inference, artifact, and deployment operations for a particular provider.
 
-Provider choice may differ by operation. For the local training path, the accepted boundary is `local_docker` / `self_hosted` for training compute, with GCP retained for surrounding services such as container images, input staging, model/artifact upload, and downstream evaluation or serving. Record these responsibilities separately; GCS use does not make a training run a Vertex job. Shared GCP artifact operations should be reusable by either training executor.
+Provider choice may differ by operation. For the local training path, the accepted boundary is `local_docker` / `self_hosted` for training compute. New container images use GHCR, while input staging and model/artifact uploads remain on GCS. Record these responsibilities separately; GCS use does not make a training run a Vertex job. Shared artifact operations should be reusable by either training executor. Earlier GCP container and downstream-service decisions below describe their historical scope.
 
 Execution mode is recorded separately from provider identity:
 

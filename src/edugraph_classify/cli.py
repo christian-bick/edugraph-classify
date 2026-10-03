@@ -15,6 +15,7 @@ from .configuration import load_local_environment
 from .dataset import DatasetConversionError, file_sha256
 from .ontology import OntologyError
 from .learning_cli import add_learning_parser, run_learning_command
+from .runpod_cli import add_runpod_parser, run_runpod_command
 from .preflight import EligibilityStatus, PreflightError
 from .providers.fireworks import (
     FireworksTrainingProvider,
@@ -391,6 +392,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="edugraph-classify")
     commands = parser.add_subparsers(dest="command", required=True)
     add_learning_parser(commands)
+    add_runpod_parser(commands)
     preflight = commands.add_parser("preflight", help="run read-only provider capability checks")
     targets = preflight.add_subparsers(dest="target", required=True)
 
@@ -458,7 +460,10 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        if args.command == "training-api":
+        if args.command == "runpod":
+            commit = None if args.action in ("check-config", "status", "stop") else _code_commit(Path.cwd())
+            exit_code, payload = run_runpod_command(args, commit)
+        elif args.command == "training-api":
             commit = None if args.action == "request-stop" else _code_commit(Path.cwd())
             exit_code, payload = run_learning_command(args, commit)
         elif args.command == "preflight":
