@@ -1,6 +1,48 @@
 # Full Secure A40 training, 2026-10-02
 
-The user authorized a full A40 training run and overnight monitoring after the A40 learning smoke and L40S timing/recovery benchmark. **Pod `khb2ztncw55pbe` was allocated at 21:27:11 UTC / 23:27 CEST on 2026-10-02.** It is a Secure A40 with 50 GB host RAM and 9 vCPUs, at $0.49/hour GPU plus the $0.024/hour running-disk allowance. The model was ready at **21:34:16 UTC** and baseline predictions are progressing. W&B initialization and the GCS startup marker succeeded. The live audit reported 58,363,904 trainable language-adapter parameters and zero trainable vision/bridge parameters. No full-run quality result exists yet.
+**Completed and independently verified on 2026-10-03.** Two epochs over all 1,654 training images finished with 828 optimizer updates. Epoch 2 was selected on the 64-image selection cohort; the separate 250-image final assessment achieved **72.4% exact-set match (181/250)** and **96.44% label F1**, with zero invalid outputs. The model and continuation bundles are verified in GCS. The Pod terminated automatically and fresh Runpod API checks confirmed zero ongoing account spend. No model promotion or inference deployment occurred.
+
+The user authorized this run and overnight monitoring after the A40 learning smoke and L40S timing/recovery benchmark. Pod `khb2ztncw55pbe` used a Secure A40, 50 GB host RAM and 9 vCPUs, at $0.49/hour GPU plus the $0.024/hour running-disk allowance. Allocation began at **21:27:11 UTC / 23:27 CEST on October 2**; the completion marker was published at **02:46:01 UTC / 04:46 CEST on October 3**. Allocation to publication took **318.84 minutes (5 hours 19 minutes)**. The observed Runpod account-balance decrease was **$2.73155**, excluding GCS and tax; this is not an invoice.
+
+## Verified learning results
+
+All baseline, epoch and final metric dictionaries were reproduced locally from the exported raw predictions and original prepared examples. Exact-set match is the primary outcome; label precision, recall and F1 are micro-averaged. Label ordering does not affect the scores.
+
+| Phase and cohort | Images | Exact-set match | Label precision | Label recall | Label F1 | Invalid outputs |
+|---|---:|---:|---:|---:|---:|---:|
+| Frozen NF4 baseline, selection | 64 | 0/64 (0%) | 5.20% | 2.29% | 3.18% | 12/64 |
+| Epoch 1, selection | 64 | 33/64 (51.56%) | 91.84% | 95.07% | 93.43% | 2/64 |
+| Epoch 2, selection | 64 | 43/64 (67.19%) | 94.93% | 95.60% | 95.26% | 1/64 |
+| Selected epoch 2, final assessment | 250 | 181/250 (72.40%) | 96.66% | 96.22% | 96.44% | 0/250 |
+
+The final assessment was evaluated only after selecting epoch 2. Its score is a separate cohort result, not an additional improvement measured on the 64 selection images. Final explicit and canonicalized scores are identical: 2,115 true-positive, 73 false-positive and 83 missed labels. No ontology closure was added. Earlier invalid outputs contained duplicate labels; deterministic deduplication repaired validity without changing those phases' aggregate exact-set or F1 scores. The final cohort required no such repair.
+
+| Final assessment slice | Exact-set match | Label F1 |
+|---|---:|---:|
+| Areas | 93.60% | 97.21% |
+| Scopes | 80.40% | 96.59% |
+| Abilities | 92.00% | 94.80% |
+| Question views, 125 images | 74.40% | 96.75% |
+| Solution views, 125 images | 70.40% | 96.14% |
+
+Label-macro F1 is **90.19%**, below micro F1. Labels seen 1–4 times in training achieved 92.59% F1, but that slice contains only 27 gold occurrences (25 correct, two missed, two extra). The final cohort contains no gold labels unseen during training, so it provides no evidence of unseen-label recall. The separate 16-image training diagnostic fell from 75% exact-set / 95.08% F1 after epoch 1 to 62.5% / 90.24% after epoch 2; selection remained governed by held-out predictions. These results establish learning on the released assessment cohort, not universal accuracy or automatic production readiness. Sixty-nine final images still have at least one incorrect or missing label. Keep this final cohort out of iterative tuning decisions.
+
+## Runtime, memory and durable artifacts
+
+All 828 optimizer-step events were observed without gaps. Their reported durations total **223.98 minutes**, averaging **16.23 seconds per update**. The 490 generated predictions total **79.05 minutes** of recorded latency: 13.32 minutes baseline, 13.48 after epoch 1, 12.73 after epoch 2 and 39.51 for final assessment. The remaining **15.81 minutes** include provisioning/loading, checkpointing, export and other overhead. Final assessment latency was **9.63 seconds median / 13.14 seconds p95**. The training-only average is about 112 minutes per epoch; the complete run includes substantial evaluation work.
+
+Peak PyTorch allocation was **29.949 GiB**. Both the runtime audit and downloaded adapter names confirmed **58,363,904 trainable language-adapter parameters**, **992 adapter tensors**, and **zero trainable vision/bridge parameters**. This does not establish that a 32 GB device fits the whole process; retain the validated nominal 48 GB configuration.
+
+GCS contains **20 checkpoint bundles**: baseline step 0, every 50 steps through 800, epoch boundaries at 414 and 828, and a separate final-assessment continuation at 828. The trained periodic snapshots arrived about every 13–15 minutes, with longer intervals during epoch evaluation. No stall, failure or timeout intervention was needed.
+
+| Verified artifact | Bytes | SHA-256 |
+|---|---:|---|
+| Selected model bundle | 257,576,960 | `28aa0526e1b693d7bff66d97b8823ff23bc06082bc3eb3d2a1f9d5cb4020ec49` |
+| Continuation bundle | 935,782,400 | `4664fbf8c65615e40e0c3212fd14a287e57a409adaad7ff165bacb28e9974444` |
+
+The model is at `gs://edugraph-classify/runpod/models/<run-id>/<model-sha256>.tar`; continuation is at `gs://edugraph-classify/runpod/checkpoints/<run-id>/<continuation-sha256>.tar`. The model includes the selected adapter, processor, compact prompt, closed schema, embedded chat template, manifest and all raw prediction/metric reports. The independent verifier downloaded both archives, checked their sizes and SHA-256, checked all adapter tensors and AdamW moments for finite values, and confirmed all 992 optimizer states at step 828 plus RNG state. Continuation position is epoch 2, offset 0, phase `final`, with epoch 2 selected. This bundle passed local recovery compatibility checks; no GPU resume of this full-run bundle was executed. The earlier L40S benchmark separately demonstrated live GPU recovery.
+
+The complete verified report is `gs://edugraph-classify/runpod/attempts/<run-id>/khb2ztncw55pbe/verified-result.json`, with local copies and downloaded archives under `reports/runpod-full-a40-20261002/<run-id>/` (ignored). The completion marker is `gs://edugraph-classify/runpod/runs/<run-id>/completed.json`. Read-only REST and GraphQL checks independently found the Pod absent; GraphQL reported `currentSpendPerHr: 0` and an unchanged final balance on a subsequent check. Retained GCS artifacts still incur their normal storage charges.
 
 ## Run contract
 
@@ -15,7 +57,7 @@ The user authorized a full A40 training run and overnight monitoring after the A
 - GCS snapshots every 50 steps, at epoch boundaries and before final assessment. Each includes optimizer, RNG, training position, current adapter, reports and the selected adapter when available.
 - Eight-hour worker watchdog; $0.60/hour GPU allocation guard. Completion publishes external artifacts, flushes W&B and terminates the Pod. Failure stops it while retaining the billable volume for recovery.
 
-The runtime forecast is **5–6 hours**, approximately **$2.57–$3.08** including running disk, excluding GCS and taxes. Expected completion is around **04:30–05:30 CEST on October 3**, subject to startup, transfer and generation variability. Eight running hours at the observed rate are about $4.11; the watchdog starts inside the worker, so this is not a strict billing cap for provisioning or an unreachable host.
+The prelaunch forecast was **5–6 hours / $2.57–$3.08** including running disk, excluding GCS and taxes. The measured 5.31 hours / $2.73 fell inside that range. Eight running hours at the observed rate would have been about $4.11; the watchdog starts inside the worker, so this was not a strict billing cap for provisioning or an unreachable host.
 
 ## Preparation evidence
 
@@ -29,7 +71,7 @@ Local run files are in `runs/secure-full-a40-20261002/edugraph-20261002-qwen38-2
 
 ## Overnight monitoring
 
-The current-chat heartbeat `monitor-overnight-a40-training` checks every 15 minutes until 08:00 UTC on October 3, ending sooner after completion or a reported stopped failure. It reports meaningful milestones, completion, failure or required input, while recording ordinary progress locally. It does not launch another Pod, alter training, delete checkpoints or deploy a model.
+The current-chat heartbeat `monitor-overnight-a40-training` checked every 15 minutes overnight, reporting meaningful milestones and recording ordinary progress locally. Monitoring ended after completion, independent verification and publication of the results. No further Pod was launched, training changed, checkpoint deleted or model deployed.
 
 Local scheduled checks require the computer to stay on and the desktop app to keep running. The remote worker independently handles checkpointing, its timeout and successful-publication termination. [Official scheduling requirements](https://learn.chatgpt.com/docs/automations?surface=app).
 
@@ -54,4 +96,4 @@ uv run --no-sync python temp/runpod-full/monitor.py
 uv run --no-sync python temp/runpod-full/verify_result.py
 ```
 
-The verifier checks archive SHA-256/size, finite language-only weights and optimizer/RNG state, reproduces baseline/both epochs/final metrics from raw outputs, and saves the verified report under `reports/runpod-full-a40-20261002/<run-id>/` and the GCS attempt prefix. Update this record and the existing draft PR with the result, then disable the heartbeat. Do not promote or deploy the model automatically.
+The verifier checks archive SHA-256/size, finite language-only weights and optimizer/RNG state, reproduces baseline/both epochs/final metrics from raw outputs, and saves the verified report under `reports/runpod-full-a40-20261002/<run-id>/` and the GCS attempt prefix. These checks passed. The report includes `quality_promotion: false`; deployment remains a separate decision.

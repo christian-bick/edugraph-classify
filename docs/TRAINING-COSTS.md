@@ -1,12 +1,12 @@
 # Compact 27B training: token profile, runtime, and cost
 
-Assessed 2026-10-02, then updated with the authorized [Secure A40 smoke](RUNPOD-SMOKE-20261002.md) and [L40S benchmark](RUNPOD-HARDWARE-BENCHMARK.md). The [full A40 run](RUNPOD-FULL-A40-20261002.md) subsequently launched at 21:27 UTC; its measured result is pending. The original Fireworks/A6000 comparison below used local rendering and read-only provider/catalog checks; the final sections add measured A40 and L40S throughput. Dollar values are USD, excluding tax, deployment, engineering time, and retries.
+Assessed 2026-10-02, then updated with the authorized [Secure A40 smoke](RUNPOD-SMOKE-20261002.md), [L40S benchmark](RUNPOD-HARDWARE-BENCHMARK.md) and completed [full A40 run](RUNPOD-FULL-A40-20261002.md). The full two-epoch A40 run measured **5 hours 19 minutes / approximately $2.73** on October 3, including generated evaluation and running disk. The original Fireworks/A6000 comparison below used local rendering and read-only provider/catalog checks; later sections distinguish throughput forecasts from the full-run measurement. Dollar values are USD, excluding tax, deployment, engineering time, and retries.
 
 ## Workload and measured inputs
 
 The comparison covers Qwen3.8-27B, dataset v0.30.0-03 at `9b509867e898490615be3f59bc2f31fac429389c`, ontology v0.30.0, and prompt `direct-label` v3. The model/processor revision is `Qwen/Qwen3.8-27B` at `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`. It retains language-only rank-8/alpha-16 LoRA, assistant-only loss, and effective batch size four. Vision and bridge targets are excluded.
 
-Two complete epochs mean **3,308 image presentations, 828 optimizer steps, and 490 generated classifications**: 80 for the base model, 80 after each epoch, and 250 on the final assessment cohort. Each 80-image phase contains 64 checkpoint-selection images and 16 training diagnostics. Generated predictions, exact-set match, F1, validity, frequency slices, and raw responses remain required. The tracked recipe retains the existing three-epoch ceiling and patience-one early stopping; this comparison deliberately shows the requested two-epoch case as well.
+Two complete epochs mean **3,308 image presentations, 828 optimizer steps, and 490 generated classifications**: 80 for the base model, 80 after each epoch, and 250 on the final assessment cohort. Each 80-image phase contains 64 checkpoint-selection images and 16 training diagnostics. Generated predictions, exact-set match, F1, validity, frequency slices, and raw responses remain required. The preserved Fireworks recipe has a three-epoch ceiling; the completed Runpod A40 recipe explicitly uses two epochs, with patience-one early stopping.
 
 The local audit checked the immutable Hub file-tree hashes for all 1,968 images and both metadata files. It reused cached bytes only after verifying them against that tree, downloading the two corrected images. It found zero byte duplicates and no train/validation overlap. The real pinned tokenizer and processor rendered every example without truncation.
 
@@ -123,6 +123,23 @@ The authorized [Secure L40S benchmark](RUNPOD-HARDWARE-BENCHMARK.md) used the sa
 | Scheduling allowance | 5–6 h | 4–5 h |
 | Cost for scheduling allowance | $2.57–$3.08 | $4.46–$5.57 |
 
-L40S saves approximately **1.2–1.3 hours for $1.78–$1.84 extra** under the paired forecast. Choose it when that turnaround benefit matters; A40 remains the measured lower-cost option. This is an allocation comparison, including host CPU and I/O differences, and not a pure GPU benchmark. L40S took 14.70 minutes from allocation to model-ready; slow cold starts and checkpoint transfers can exceed the common overhead allowance. The trained-checkpoint generation speedup is extrapolated to base-model evaluation. No full-dataset two-epoch run has been measured.
+L40S saves approximately **1.2–1.3 hours for $1.78–$1.84 extra** under the paired forecast. Choose it when that turnaround benefit matters; A40 remains the measured lower-cost option. This is an allocation comparison, including host CPU and I/O differences, and not a pure GPU benchmark. L40S took 14.70 minutes from allocation to model-ready; slow cold starts and checkpoint transfers can exceed the common overhead allowance. The trained-checkpoint generation speedup is extrapolated to base-model evaluation. The subsequent complete A40 run measured 5.31 hours / $2.73, while a complete L40S run remains unmeasured.
 
 The benchmark restored all 992 optimizer states at step 40, executed the next real batch to step 41, published its resumable checkpoint and passed the longest-input memory probes. It terminated automatically after publication. The independent calculation and raw outputs are in `reports/runpod-hardware-20261002/edugraph-20261002-qwen38-27b-l40s-benchmark-v1/analysis.json` and its hash-verified report bundle.
+
+## Completed two-epoch A40 measurement
+
+The [full Secure A40 run](RUNPOD-FULL-A40-20261002.md) published its selected model at 02:46:01 UTC on October 3, **318.84 minutes after allocation**. Runpod balance fell by **$2.73155**, matching the observed $0.514/hour GPU-plus-running-disk rate. Automatic termination succeeded and the account's current spend returned to zero. GCS storage and egress, tax and any W&B plan charges are separate; the balance delta is not an invoice.
+
+| Measured component | Minutes | Evidence |
+|---|---:|---|
+| 828 optimizer steps, two epochs | 223.98 | Every step observed; 16.23 seconds per update on average |
+| 490 generated classifications | 79.05 | Sum of baseline, epoch and final prediction latencies |
+| Remaining allocation time | 15.81 | Provisioning/loading, checkpointing, export and other overhead |
+| Total allocation to publication | **318.84** | Allocation record and GCS completion-marker timestamp |
+
+Training alone averaged **112 minutes and about $0.96 per epoch** at this allocation rate; these amounts exclude generated evaluation and other overhead. Dividing the complete two-epoch experiment gives **$1.37 per epoch**, but that amortized figure should not be used as the marginal cost of a separate resumed run. A continuation needs its own loading, restored-baseline evaluation and final assessment. The original 5–6-hour / $2.57–$3.08 planning range accurately covered this run.
+
+For the earlier provider comparison, the measured Secure A40 total is **$2.73**. Using the historical Community A40 quote of $0.35/hour plus $0.024/hour disk with exactly this runtime would give **about $1.99**, still an untested same-throughput assumption. The Fireworks **$8.75** figure remains a separate token-budget estimate that assumes maximum-length generation, rather than a measured invoice. L40S remains a measured-throughput forecast of roughly **4–5 hours / $4.46–$5.57**. These are not numerically identical training variants or measurements on all providers.
+
+The completed model achieved 72.4% exact-set match and 96.44% label F1 on its separate 250-image final cohort. Peak tensor allocation was 29.949 GiB with vision and bridge frozen. Full metric reproduction, checkpoint checksums and shutdown evidence are preserved in `reports/runpod-full-a40-20261002/<run-id>/verified-result.json` and the matching GCS attempt report.
