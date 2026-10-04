@@ -12,8 +12,9 @@ from pathlib import Path
 
 from .checkpoint_storage import GcsBundles, pack_files, unpack_verified
 from .dataset import file_sha256
-from .inference_benchmark_config import verify_inference_prepared
+from .inference_benchmark_config import RUN_ID, SHA256, verify_inference_prepared
 from .inference_benchmark_resources import local_resources, require_capacity
+from .gcs_artifacts import split_gcs_uri
 from .learning_data import write_json
 from .providers.runpod import RunpodPodClient, RunpodError, checked_hourly_rate, public_status, require_secure
 
@@ -75,6 +76,28 @@ def publish_failure(error: Exception, manifest: dict, work: Path, root: Path, po
     return marker
 
 
+def publish_preflight_failure(error: Exception, pod_id: str, store) -> dict | None:
+    """Write a sanitized marker when the staged manifest is unavailable.
+
+    The staged URI has a fixed shape from `GcsBundles.publish`. Validate it
+    before deriving the artifact root; GCS credentials constrain the write.
+    """
+    run_id = os.environ.get("EDUGRAPH_RUN_ID", "")
+    digest = os.environ.get("EDUGRAPH_BUNDLE_SHA256", "")
+    uri = os.environ.get("EDUGRAPH_BUNDLE_URI", "")
+    if not RUN_ID.fullmatch(run_id) or not RUN_ID.fullmatch(pod_id) or not SHA256.fullmatch(digest):
+        return None
+    suffix = f"/inputs/{run_id}/{digest}.tar"
+    if not uri.endswith(suffix):
+        return None
+    root_uri = uri[:-len(suffix)]
+    split_gcs_uri(root_uri)
+    marker = {"kind": "inference_benchmark_preflight_failure_v1", "status": "failed",
+              "run_id": run_id, "pod_id": pod_id, "errors": sanitized_errors(error)}
+    store.complete(marker, root_uri + "/attempts/" + run_id + "/" + pod_id + "/failure.json")
+    return marker
+
+
 def run_worker(root=Path("/workspace"), *, store_factory=GcsBundles.from_environment,
                client_factory=RunpodPodClient, execute=None, timer_factory=threading.Timer,
                capacity_probe=local_resources):
@@ -86,13 +109,15 @@ def run_worker(root=Path("/workspace"), *, store_factory=GcsBundles.from_environ
     timer.daemon = True
     timer.start()
     completed, action = False, "stop"
+    manifest, store = None, None
+    work = root / "benchmark"
     try:
-        commit = os.environ["EDUGRAPH_EXPECTED_COMMIT"]
-        if os.environ.get("EDUGRAPH_CODE_COMMIT") != commit:
-            raise ValueError("container code commit differs from the benchmark bundle")
         pod = client.get(pod_id)
         require_secure(pod)
         store = store_factory()
+        commit = os.environ["EDUGRAPH_EXPECTED_COMMIT"]
+        if os.environ.get("EDUGRAPH_CODE_COMMIT") != commit:
+            raise ValueError("container code commit differs from the benchmark bundle")
         archive = root / "prepared.tar"
         reference = {"uri": os.environ["EDUGRAPH_BUNDLE_URI"], "sha256": os.environ["EDUGRAPH_BUNDLE_SHA256"]}
         store.download(reference, archive)
@@ -113,16 +138,8 @@ def run_worker(root=Path("/workspace"), *, store_factory=GcsBundles.from_environ
         if execute is None:
             from .inference_benchmark import execute_benchmark
             execute = execute_benchmark
-        work = root / "benchmark"
-        try:
-            result = execute(prepared / "manifest.json", work, store,
-                             stop_requested=stop.is_set, runtime_details=runtime)
-        except Exception as error:
-            try:
-                publish_failure(error, manifest, work, root, pod_id, store)
-            except BaseException:
-                pass  # Failure publication must not hide the original runner error.
-            raise
+        result = execute(prepared / "manifest.json", work, store,
+                         stop_requested=stop.is_set, runtime_details=runtime)
         completion_uri = root_uri + "/benchmarks/" + config["run_id"] + "/completed.json"
         marker = store.read_json(completion_uri)
         if result.get("status") == "completed" and (not isinstance(marker, dict) or marker.get("run_id") != config["run_id"]):
@@ -131,6 +148,18 @@ def run_worker(root=Path("/workspace"), *, store_factory=GcsBundles.from_environ
         action = config["execution"]["completion_action"]
         print(json.dumps(result), flush=True)
         return result
+    except Exception as error:
+        # Pod logs may disappear as soon as stop is requested. Emit first.
+        print(json.dumps({"status": "failed", "errors": sanitized_errors(error)}), flush=True)
+        if store is not None:
+            try:
+                if manifest is None:
+                    publish_preflight_failure(error, pod_id, store)
+                else:
+                    publish_failure(error, manifest, work, root, pod_id, store)
+            except BaseException:
+                pass  # Diagnostic publication must not hide the original failure.
+        raise
     finally:
         active_error = sys.exc_info()[0] is not None
         try:

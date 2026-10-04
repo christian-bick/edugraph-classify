@@ -57,7 +57,7 @@ def prepared_fixture(tmp_path: Path):
                   "sha256": file_sha256(archive), "bytes": archive.stat().st_size}
     recipe = {
         "run_id": "benchmark-run", "source_model": source_ref,
-        "benchmark": {"cohort": "validation", "max_tokens": 512, "quantization": "Q4_K_M",
+        "benchmark": {"cohort": "validation", "max_tokens": 512, "ubatch_size": 1024, "quantization": "Q4_K_M",
                       "concurrency": [1, 2], "warmup": 1, "repeats": 2,
                       "llama_cpp_commit": LLAMA_COMMIT},
         "execution": {"cloud_type": "SECURE", "gpu_type": "NVIDIA L40S", "gpu_count": 1,
@@ -111,6 +111,7 @@ class FakeServer:
 
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+        assert kwargs["ubatch_size"] == 1024
         self.startup_seconds = 0.1
 
     def __enter__(self):
@@ -267,13 +268,15 @@ def test_llama_server_starts_checks_health_and_posts_completion(tmp_path, monkey
     monkeypatch.setattr(benchmark.time, "sleep", lambda _: None)
     with benchmark.LlamaServer(model=tmp_path / "model.gguf", mmproj=tmp_path / "mmproj.gguf",
                                chat_template=tmp_path / "chat.jinja", parallel=2,
-                               context_per_slot=2048, log_path=tmp_path / "server.log") as server:
+                               context_per_slot=2048, ubatch_size=1024,
+                               log_path=tmp_path / "server.log") as server:
         assert server.startup_seconds is not None
         assert server.infer({"max_tokens": 512})["choices"][0]["message"]["content"] == "{}"
     assert process.stopped
     assert "--parallel" in commands[0] and "--fit" in commands[0]
     assert commands[0].index("--jinja") < commands[0].index("--chat-template-file")
     assert commands[0][commands[0].index("--ctx-size") + 1] == "4096"
+    assert commands[0][commands[0].index("--ubatch-size") + 1] == "1024"
     assert commands[0][commands[0].index("--n-gpu-layers") + 1] == "all"
 
 
@@ -302,7 +305,8 @@ def test_llama_server_startup_failures_clean_up(tmp_path, monkeypatch, failure):
     monkeypatch.setattr(benchmark, "urlopen", lambda *_, **__: pytest.fail("health should not be read"))
     server = benchmark.LlamaServer(model=tmp_path / "model.gguf", mmproj=tmp_path / "mmproj.gguf",
                                    chat_template=tmp_path / "chat.jinja", parallel=1,
-                                   context_per_slot=2048, log_path=tmp_path / "server.log",
+                                   context_per_slot=2048, ubatch_size=1024,
+                                   log_path=tmp_path / "server.log",
                                    stop_requested=lambda: failure == "stopped")
     with pytest.raises((RuntimeError, InterruptedError, OSError)):
         with server:
@@ -433,7 +437,8 @@ def test_llama_server_rejects_response_without_choice(monkeypatch):
     monkeypatch.setattr(benchmark, "urlopen", lambda *_, **__: io.BytesIO(b'{"choices":[]}'))
     server = benchmark.LlamaServer(model=Path("model.gguf"), mmproj=Path("mmproj.gguf"),
                                    chat_template=Path("chat.jinja"), parallel=1,
-                                   context_per_slot=2048, log_path=Path("unused.log"))
+                                   context_per_slot=2048, ubatch_size=1024,
+                                   log_path=Path("unused.log"))
     with pytest.raises(ValueError, match="lacks a completion choice"):
         server.infer({"max_tokens": 512})
 
@@ -457,7 +462,8 @@ def test_llama_server_kills_process_that_does_not_terminate(tmp_path):
 
     server = benchmark.LlamaServer(model=tmp_path / "model.gguf", mmproj=tmp_path / "mmproj.gguf",
                                    chat_template=tmp_path / "chat.jinja", parallel=1,
-                                   context_per_slot=2048, log_path=tmp_path / "log")
+                                   context_per_slot=2048, ubatch_size=1024,
+                                   log_path=tmp_path / "log")
     process = SlowProcess()
     server.process = process
     server.__exit__(None, None, None)

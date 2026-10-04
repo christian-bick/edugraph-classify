@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tarfile
 from pathlib import Path
@@ -27,7 +28,7 @@ def recipe(source_model):
     return {
         "run_id": "inference-benchmark-test",
         "source_model": source_model,
-        "benchmark": {"cohort": "validation", "max_tokens": 512, "quantization": "Q4_K_M",
+        "benchmark": {"cohort": "validation", "max_tokens": 512, "ubatch_size": 1024, "quantization": "Q4_K_M",
                       "concurrency": [1, 4], "warmup": 2, "repeats": 1,
                       "llama_cpp_commit": "c" * 40},
         "execution": {"cloud_type": "SECURE", "gpu_type": "NVIDIA A40", "gpu_count": 1,
@@ -107,6 +108,8 @@ def test_prepare_rejects_changed_model_or_training_identity(case, tmp_path):
     ("benchmark", "concurrency", []),
     ("benchmark", "llama_cpp_commit", "main"),
     ("benchmark", "max_tokens", 0),
+    ("benchmark", "ubatch_size", 512),
+    ("benchmark", "ubatch_size", 1030),
     ("benchmark", "warmup", -1),
     ("benchmark", "repeats", 0),
     ("execution", "cloud_type", "COMMUNITY"),
@@ -279,7 +282,9 @@ def test_worker_verifies_bundle_and_durable_result_before_termination(case, tmp_
         benchmark_worker.run_worker(root3, store_factory=lambda: store, client_factory=lambda _: client,
                                     execute=never_execute, timer_factory=Mock(return_value=Mock()),
                                     capacity_probe=lambda: {**OBSERVED, "gpus": [{"name": "NVIDIA L40S", "memory_gib": 48}]})
-    assert len(store.completions) == markers
+    assert len(store.completions) == markers + 1
+    failure_uri = case.config["artifacts"]["root_uri"] + "/attempts/" + case.config["run_id"] + "/pod1/failure.json"
+    assert store.read_json(failure_uri)["status"] == "failed"
     never_execute.assert_not_called()
     client.stop.assert_called_once_with("pod1")
 
@@ -324,6 +329,33 @@ def test_worker_main_sanitizes_provider_errors(monkeypatch, capsys):
     assert "secret value" not in json.dumps(report)
     monkeypatch.setattr(benchmark_worker, "run_worker", lambda: {"status": "completed"})
     assert benchmark_worker.main() == 0
+
+
+def test_early_preflight_failure_is_logged_and_marked_before_stop(failure_worker, monkeypatch):
+    case = failure_worker
+    case.store.download = Mock(side_effect=RuntimeError("SECRET_DOWNLOAD_DETAIL"))
+    run_id = case.case.config["run_id"]
+    root_uri = case.case.config["artifacts"]["root_uri"]
+    digest = os.environ["EDUGRAPH_BUNDLE_SHA256"]
+    monkeypatch.setenv("EDUGRAPH_BUNDLE_URI", f"{root_uri}/inputs/{run_id}/{digest}.tar")
+    events = []
+    monkeypatch.setattr(benchmark_worker, "print", lambda value, **_: events.append(("log", value)), raising=False)
+    case.client.stop.side_effect = lambda _: events.append(("stop", None))
+
+    with pytest.raises(RuntimeError, match="SECRET_DOWNLOAD_DETAIL"):
+        benchmark_worker.run_worker(case.root, **case.kwargs)
+
+    case.client.stop.assert_called_once_with("pod1")
+    assert [event for event, _ in events] == ["log", "stop"]
+    logged = json.loads(events[0][1])
+    assert logged["status"] == "failed"
+    assert logged["errors"][0]["error_type"] == "RuntimeError"
+    assert "SECRET_DOWNLOAD_DETAIL" not in events[0][1]
+    marker_uri = case.case.config["artifacts"]["root_uri"] + "/attempts/" + case.case.config["run_id"] + "/pod1/failure.json"
+    marker = case.store.read_json(marker_uri)
+    assert marker["kind"] == "inference_benchmark_preflight_failure_v1"
+    assert marker["errors"][0]["error_type"] == "RuntimeError"
+    assert "SECRET_DOWNLOAD_DETAIL" not in json.dumps(marker)
 
 
 @pytest.fixture
@@ -382,6 +414,30 @@ def test_worker_publishes_partial_rounds_and_sanitized_failure(failure_worker):
     assert failure["server_logs"] == "omitted"
     assert "SECRET_EXCEPTION_VALUE" not in json.dumps(failure)
     assert "SECRET_IMAGE" not in archive.read_bytes().decode("latin1")
+
+
+def test_verified_preflight_capacity_failure_publishes_bundle(failure_worker, monkeypatch):
+    case = failure_worker
+    never_execute = Mock()
+    events = []
+    monkeypatch.setattr(benchmark_worker, "print", lambda value, **_: events.append(("log", value)), raising=False)
+    case.client.stop.side_effect = lambda _: events.append(("stop", None))
+    capacity = lambda: {**OBSERVED, "gpus": [{"name": "NVIDIA L40S", "memory_gib": 48}]}
+
+    with pytest.raises(ValueError, match="GPU type"):
+        benchmark_worker.run_worker(case.root, execute=never_execute,
+                                    **{**case.kwargs, "capacity_probe": capacity})
+
+    never_execute.assert_not_called()
+    assert [event for event, _ in events] == ["log", "stop"]
+    marker_uri = case.case.config["artifacts"]["root_uri"] + "/attempts/" + case.case.config["run_id"] + "/pod1/failure.json"
+    marker = case.store.read_json(marker_uri)
+    assert marker["status"] == "failed" and marker["progress"]["status"] == "absent"
+    with tarfile.open(case.store.root / (marker["failure"]["sha256"] + ".tar")) as contents:
+        assert contents.getnames() == ["failure.json"]
+        failure = json.load(contents.extractfile("failure.json"))
+    assert failure["errors"][0]["error_type"] == "ValueError"
+    assert failure["server_logs"] == "omitted"
 
 
 def test_failed_failure_publication_preserves_original_runner_error(failure_worker):

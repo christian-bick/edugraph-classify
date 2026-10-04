@@ -63,11 +63,12 @@ class LlamaServer:
     """One local llama.cpp process; rebuilt for each concurrency setting."""
 
     def __init__(self, *, model: Path, mmproj: Path, chat_template: Path,
-                 parallel: int, context_per_slot: int, log_path: Path,
+                 parallel: int, context_per_slot: int, ubatch_size: int, log_path: Path,
                  stop_requested=lambda: False, binary: Path = Path("/opt/llama.cpp/build/bin/llama-server"),
                  request_timeout_seconds: float = 300):
         self.model, self.mmproj, self.chat_template = model, mmproj, chat_template
         self.parallel, self.context_per_slot = parallel, context_per_slot
+        self.ubatch_size = ubatch_size
         self.log_path, self.stop_requested = log_path, stop_requested
         self.binary, self.request_timeout_seconds = binary, request_timeout_seconds
         self.port = _free_local_port()
@@ -81,6 +82,7 @@ class LlamaServer:
         command = [str(self.binary), "-m", str(self.model), "--mmproj", str(self.mmproj),
                    "--jinja", "--chat-template-file", str(self.chat_template),
                    "--ctx-size", str(self.context_per_slot * self.parallel),
+                   "--ubatch-size", str(self.ubatch_size),
                    "--parallel", str(self.parallel), "--n-gpu-layers", "all",
                    "--fit", "off", "--host", "127.0.0.1", "--port", str(self.port)]
         started = time.monotonic()
@@ -291,6 +293,7 @@ def execute_benchmark(manifest_path: Path, work: Path, store, *,
                                 chat_template=export_dir / "chat_template.jinja",
                                 parallel=concurrency,
                                 context_per_slot=source_training["recipe"]["training"]["max_context_tokens"],
+                                ubatch_size=bench["ubatch_size"],
                                 log_path=work / "logs" / f"llama-c{concurrency}.log",
                                 stop_requested=stop_requested) as server:
                 rounds = _run_setting(server, examples, manifest_path.parent, prompt, schema,

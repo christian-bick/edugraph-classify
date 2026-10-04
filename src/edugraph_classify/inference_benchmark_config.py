@@ -39,13 +39,15 @@ def validate_inference_recipe(config: dict) -> dict:
         raise ValueError("source model size must be a positive integer")
 
     bench = config["benchmark"]
-    require_keys(bench, {"cohort", "max_tokens", "quantization", "concurrency", "warmup", "repeats", "llama_cpp_commit"}, "benchmark")
+    require_keys(bench, {"cohort", "max_tokens", "quantization", "concurrency", "warmup", "repeats", "ubatch_size", "llama_cpp_commit"}, "benchmark")
     if bench["cohort"] != "validation" or bench["quantization"] != "Q4_K_M":
         raise ValueError("this benchmark route requires the validation cohort and Q4_K_M")
     if not isinstance(bench["llama_cpp_commit"], str) or not COMMIT.fullmatch(bench["llama_cpp_commit"]):
         raise ValueError("llama.cpp must be pinned to a full commit")
     if type(bench["max_tokens"]) is not int or not 1 <= bench["max_tokens"] <= 2048:
         raise ValueError("invalid generated-token ceiling")
+    if type(bench["ubatch_size"]) is not int or not 1024 <= bench["ubatch_size"] <= 4096 or bench["ubatch_size"] % 32:
+        raise ValueError("llama.cpp microbatch must be a multiple of 32 between 1024 and 4096")
     if (not isinstance(bench["concurrency"], list) or not bench["concurrency"] or
             any(type(value) is not int or not 1 <= value <= 16 for value in bench["concurrency"]) or
             sorted(set(bench["concurrency"])) != bench["concurrency"] or bench["concurrency"][0] != 1):
