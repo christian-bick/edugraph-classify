@@ -24,7 +24,17 @@ Preparation uses the original held-out **validation** cohort, with all rendering
 
 ## Build an image without running a Pod
 
-The manual **Build inference benchmark image** GitHub Actions workflow builds only `linux/amd64`. On the repository's Actions page, select a reviewed clean commit and leave **publish** unchecked for a build-only check. Checking **publish** pushes `ghcr.io/christian-bick/edugraph-classify-inference-benchmark:sha-<full-code-commit>` and prints its digest URI, source commit, llama.cpp commit and lockfile SHA-256 in the workflow summary. Supply the **digest URI** to the render and launch commands; a tag alone is mutable. New GHCR packages can start private, so a public Runpod pull requires a separately configured package visibility setting or registry credential. Image publication does not create a Pod or upload a dataset.
+The **Build inference benchmark image** GitHub Actions workflow builds only `linux/amd64`. Once the workflow exists on the default branch, manually select a reviewed clean commit and leave **publish** unchecked for a build-only check. GitHub requires a workflow to exist on the default branch before manual dispatch; for the first run, explicitly push an `inference-benchmark-image-build-<short-commit>` tag pointing to the reviewed commit. After that build succeeds, push an `inference-benchmark-image-publish-<short-commit>` tag pointing to the **same** commit to build and publish. Ordinary branch pushes do not trigger image builds. Each pushed tag authorizes its corresponding GitHub Actions job and any applicable charges; the publish tag also authorizes a GHCR write. Never move a published tag to a different commit.
+
+```bash
+git tag inference-benchmark-image-build-<short-commit> <full-code-commit>
+git push origin refs/tags/inference-benchmark-image-build-<short-commit>
+# After the build-only job succeeds:
+git tag inference-benchmark-image-publish-<short-commit> <full-code-commit>
+git push origin refs/tags/inference-benchmark-image-publish-<short-commit>
+```
+
+A publishing job pushes `ghcr.io/christian-bick/edugraph-classify-inference-benchmark:sha-<full-code-commit>` and prints its digest URI, source commit, llama.cpp commit and lockfile SHA-256 in the workflow summary. Supply the **digest URI** to the render and launch commands; a tag alone is mutable. New GHCR packages can start private, so a public Runpod pull requires a separately configured package visibility setting or registry credential. Image publication does not create a Pod or upload a dataset.
 
 The Docker context contains only `pyproject.toml`, `uv.lock`, `README.md`, `LICENSE`, `src/`, and the Dockerfiles. The image synchronizes the frozen `training` and `inference-benchmark` dependency groups, includes `/opt/llama.cpp/convert_hf_to_gguf.py`, `/opt/llama.cpp/build/bin/llama-quantize`, and `/opt/llama.cpp/build/bin/llama-server`, and runs offline import/help checks during the build. The source model remains an external, hash-verified input.
 
