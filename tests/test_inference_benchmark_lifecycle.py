@@ -497,6 +497,21 @@ def test_local_capacity_guard_rejects_mismatch(case, change, message):
     assert resources.require_capacity(OBSERVED, case.config["execution"]) == OBSERVED
 
 
+def test_l40s_example_accepts_observed_vram_but_rejects_old_45_gib_floor():
+    examples = Path(__file__).resolve().parents[1] / "experiments"
+    current = benchmark_config.load_inference_recipe(examples / "inference-benchmark-qwen38-27b-gguf-v3.json")
+    previous = benchmark_config.load_inference_recipe(examples / "inference-benchmark-qwen38-27b-gguf-v2.json")
+    observed = {"gpus": resources.parse_gpu_inventory("NVIDIA L40S, 46068\n"), "gpu_count": 1,
+                "host_ram_bytes": 187_999_997_952, "cpu_count": 13.6}
+
+    assert observed["gpus"][0]["memory_gib"] == 44.98828125
+    assert current["execution"]["minimum_vram_gib"] == 44
+    assert resources.require_capacity(observed, current["execution"]) is observed
+    assert previous["execution"]["minimum_vram_gib"] == 45
+    with pytest.raises(ValueError, match="GPU memory"):
+        resources.require_capacity(observed, previous["execution"])
+
+
 @pytest.mark.parametrize("output", ["", "NVIDIA A40\n", "NVIDIA A40, bad\n", "NVIDIA A40, -1\n",
                                       "NVIDIA A40, NaN\n"])
 def test_gpu_inventory_rejects_missing_or_invalid_memory(output):

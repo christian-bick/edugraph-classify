@@ -1,0 +1,41 @@
+{
+  "run_id": "edugraph-20261004-qwen38-27b-gguf-benchmark-v3",
+  "source_model": {
+    "uri": "gs://edugraph-classify/runpod/models/edugraph-20261002-qwen38-27b-runpod-full-a40-v1/28aa0526e1b693d7bff66d97b8823ff23bc06082bc3eb3d2a1f9d5cb4020ec49.tar",
+    "sha256": "28aa0526e1b693d7bff66d97b8823ff23bc06082bc3eb3d2a1f9d5cb4020ec49",
+    "bytes": 257576960
+  },
+  "benchmark": {
+    "cohort": "validation",
+    "max_tokens": 512,
+    "ubatch_size": 1024,
+    "quantization": "Q4_K_M",
+    "concurrency": [1, 2, 4],
+    "warmup": 2,
+    "repeats": 2,
+    "llama_cpp_commit": "0faee5004297c3bcfa40b7bf11750127b8c1fd7d"
+  },
+  "execution": {
+    "cloud_type": "SECURE",
+    "gpu_type": "NVIDIA L40S",
+    "gpu_count": 1,
+    "minimum_vram_gib": 44,
+    "minimum_ram_gib": 120,
+    "minimum_vcpus": 12,
+    "container_disk_gb": 30,
+    "volume_gb": 350,
+    "max_hours": 5,
+    "max_compute_hour_usd": 1.2,
+    "completion_action": "terminate"
+  },
+  "pricing": {
+    "compute_hour_usd": 1.09,
+    "disk_hour_usd": 0.05,
+    "estimated_hours": 3,
+    "estimated_cost_limit_usd": 5
+  },
+  "artifacts": {
+    "root_uri": "gs://edugraph-classify/runpod",
+    "credentials_secret": "edugraph-gcs"
+  }
+}

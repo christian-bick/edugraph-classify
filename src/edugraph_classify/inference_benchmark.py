@@ -28,6 +28,7 @@ from .gguf_export import export_gguf
 from .inference_benchmark_config import verify_inference_prepared
 from .learning_data import write_json
 from .ontology import OntologyCatalog
+from .output_contract import DIMENSIONS
 
 
 def jpeg_data_url(image_path: Path) -> str:
@@ -40,6 +41,12 @@ def jpeg_data_url(image_path: Path) -> str:
 
 def completion_request(image_url: str, user_prompt: str, schema: dict, max_tokens: int) -> dict:
     """Use llama.cpp's direct JSON-schema response format and fixed template."""
+    ordered_schema = schema
+    if isinstance(schema.get("properties"), dict):
+        properties = schema["properties"]
+        ordered_properties = {name: properties[name] for name in DIMENSIONS if name in properties}
+        ordered_properties.update(properties)
+        ordered_schema = {**schema, "properties": ordered_properties}
     return {
         "messages": [{"role": "user", "content": [
             {"type": "text", "text": user_prompt},
@@ -48,7 +55,7 @@ def completion_request(image_url: str, user_prompt: str, schema: dict, max_token
         "temperature": 0,
         "max_tokens": max_tokens,
         "chat_template_kwargs": {"enable_thinking": False},
-        "response_format": {"type": "json_object", "schema": schema},
+        "response_format": {"type": "json_object", "schema": ordered_schema},
         "stream": False,
     }
 

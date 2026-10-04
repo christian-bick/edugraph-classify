@@ -167,6 +167,24 @@ def test_request_uses_fixed_template_schema_and_rgb_jpeg(tmp_path):
     assert payload["temperature"] == 0
 
 
+def test_request_preserves_closed_schema_but_orders_dimensions_for_llama_cpp():
+    schema = {"type": "object", "properties": {
+        "abilities": {"type": "array", "items": {"type": "string", "enum": ["ProcedureExecution"]}},
+        "areas": {"type": "array", "items": {"type": "string", "enum": ["Addition"]}},
+        "scopes": {"type": "array", "items": {"type": "string", "enum": ["IntegerNumbers"]}},
+    }, "required": ["areas", "scopes", "abilities"], "additionalProperties": False}
+
+    payload = completion_request("data:image/jpeg;base64,AA==", "classify", schema, 512)
+    sent = json.loads(json.dumps(payload))["response_format"]["schema"]
+
+    assert list(sent["properties"]) == ["areas", "scopes", "abilities"]
+    assert sent == schema
+    assert list(schema["properties"]) == ["abilities", "areas", "scopes"]
+    assert payload["response_format"]["schema"] is not schema
+    assert payload["response_format"]["schema"]["properties"] is not schema["properties"]
+    assert payload["response_format"]["schema"]["properties"]["areas"] is schema["properties"]["areas"]
+
+
 def test_benchmark_scores_every_repeat_and_publishes_last(tmp_path):
     manifest, archive = prepared_fixture(tmp_path)
     store = FakeStore(archive)
