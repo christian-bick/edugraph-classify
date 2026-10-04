@@ -80,7 +80,7 @@ ENV EDUGRAPH_CODE_COMMIT=$CODE_COMMIT
 
 # CPU-only build checks: import the worker and converter, and inspect required CLI flags.
 RUN --network=none uv run --no-sync python -c \
-    "import torch, transformers, peft, sentencepiece, gguf; from edugraph_classify import inference_benchmark_worker; assert callable(inference_benchmark_worker.main); assert torch.version.cuda == '12.6', torch.version.cuda" \
+    "import torch, transformers, peft, sentencepiece, gguf; from edugraph_classify import bf16_benchmark, inference_benchmark_worker; assert callable(inference_benchmark_worker.main); assert callable(bf16_benchmark.execute_bf16_benchmark); assert torch.version.cuda == '12.6', torch.version.cuda" \
     && test "$(git -C /opt/llama.cpp rev-parse HEAD)" = "$EDUGRAPH_LLAMA_CPP_COMMIT" \
     && uv run --no-sync python /opt/llama.cpp/convert_hf_to_gguf.py --help | grep -q -- '--mmproj' \
     && uv run --no-sync python /opt/llama.cpp/convert_hf_to_gguf.py --help | grep -q -- '--no-mtp' \

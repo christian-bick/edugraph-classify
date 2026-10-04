@@ -23,7 +23,7 @@ from .runpod_cli import launch_pod
 
 
 def add_inference_benchmark_parser(commands):
-    parser = commands.add_parser("inference-benchmark", help="optional Secure Runpod GGUF inference benchmark")
+    parser = commands.add_parser("inference-benchmark", help="optional Secure Runpod inference benchmark")
     actions = parser.add_subparsers(dest="action", required=True)
     check = actions.add_parser("check-config", help="validate a recipe without provider calls")
     check.add_argument("--config", required=True)

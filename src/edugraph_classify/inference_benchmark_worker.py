@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .checkpoint_storage import GcsBundles, pack_files, unpack_verified
 from .dataset import file_sha256
-from .inference_benchmark_config import RUN_ID, SHA256, verify_inference_prepared
+from .inference_benchmark_config import BF16_ROUTE, GGUF_ROUTE, RUN_ID, SHA256, verify_inference_prepared
 from .inference_benchmark_resources import local_resources, require_capacity
 from .gcs_artifacts import split_gcs_uri
 from .learning_data import write_json
@@ -128,7 +128,9 @@ def run_worker(root=Path("/workspace"), *, store_factory=GcsBundles.from_environ
         config = manifest["recipe"]
         if config["run_id"] != os.environ["EDUGRAPH_RUN_ID"] or file_sha256(Path("/app/uv.lock")) != manifest["uv_lock_sha256"]:
             raise ValueError("container lockfile or benchmark identity differs from preparation")
-        if os.environ.get("EDUGRAPH_LLAMA_CPP_COMMIT") != config["benchmark"]["llama_cpp_commit"]:
+        route = config["benchmark"].get("route", GGUF_ROUTE)
+        if (route == GGUF_ROUTE and
+                os.environ.get("EDUGRAPH_LLAMA_CPP_COMMIT") != config["benchmark"]["llama_cpp_commit"]):
             raise ValueError("container llama.cpp commit differs from the benchmark recipe")
         price = checked_hourly_rate(pod, config["execution"]["max_compute_hour_usd"])
         measured = require_capacity(capacity_probe(), config["execution"])
@@ -136,8 +138,12 @@ def run_worker(root=Path("/workspace"), *, store_factory=GcsBundles.from_environ
         root_uri = config["artifacts"]["root_uri"]
         store.complete(runtime, root_uri + "/attempts/" + config["run_id"] + "/" + pod_id + "/started.json")
         if execute is None:
-            from .inference_benchmark import execute_benchmark
-            execute = execute_benchmark
+            if route == BF16_ROUTE:
+                from .bf16_benchmark import execute_bf16_benchmark
+                execute = execute_bf16_benchmark
+            else:
+                from .inference_benchmark import execute_benchmark
+                execute = execute_benchmark
         result = execute(prepared / "manifest.json", work, store,
                          stop_requested=stop.is_set, runtime_details=runtime)
         completion_uri = root_uri + "/benchmarks/" + config["run_id"] + "/completed.json"

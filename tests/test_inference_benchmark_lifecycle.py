@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 import tarfile
 from pathlib import Path
-from types import SimpleNamespace as NS
+from types import ModuleType, SimpleNamespace as NS
 from unittest.mock import Mock
 
 import pytest
@@ -39,6 +40,14 @@ def recipe(source_model):
                     "estimated_hours": 0.5, "estimated_cost_limit_usd": 1.0},
         "artifacts": {"root_uri": "gs://edugraph-classify/runpod", "credentials_secret": "edugraph-gcs"},
     }
+
+
+def bf16_recipe(source_model):
+    config = recipe(source_model)
+    config["benchmark"] = {"route": "merged_bf16_hf", "cohort": "validation", "max_tokens": 512,
+                           "concurrency": [1], "warmup": 2, "repeats": 1,
+                           "expected_merged_files_digest": "d" * 64}
+    return config
 
 
 @pytest.fixture
@@ -141,6 +150,26 @@ def test_recipe_rejects_unknown_fields_and_unpinned_source(case):
     config["source_model"]["uri"] = "https://example.org/model.tar"
     with pytest.raises(ValueError, match="gs://"):
         benchmark_config.validate_inference_recipe(config)
+
+
+def test_bf16_route_requires_pinned_merge_and_matched_single_slot(case):
+    assert benchmark_config.validate_inference_recipe(case.config) == case.config
+    explicit_gguf = json.loads(json.dumps(case.config))
+    explicit_gguf["benchmark"]["route"] = "gguf_q4_k_m"
+    assert benchmark_config.validate_inference_recipe(explicit_gguf) == explicit_gguf
+
+    config = bf16_recipe(case.config["source_model"])
+    assert benchmark_config.validate_inference_recipe(config) == config
+    for key, value in (("expected_merged_files_digest", "main"), ("concurrency", [1, 2]),
+                       ("concurrency", [True]), ("max_tokens", 511), ("route", "unknown")):
+        invalid = json.loads(json.dumps(config))
+        invalid["benchmark"][key] = value
+        with pytest.raises(ValueError):
+            benchmark_config.validate_inference_recipe(invalid)
+    invalid = json.loads(json.dumps(config))
+    invalid["benchmark"]["llama_cpp_commit"] = "c" * 40
+    with pytest.raises(ValueError, match="fields"):
+        benchmark_config.validate_inference_recipe(invalid)
 
 
 def test_stage_render_launch_boundaries_and_secret_free_request(case, tmp_path, monkeypatch):
@@ -287,6 +316,45 @@ def test_worker_verifies_bundle_and_durable_result_before_termination(case, tmp_
     assert store.read_json(failure_uri)["status"] == "failed"
     never_execute.assert_not_called()
     client.stop.assert_called_once_with("pod1")
+
+
+def test_worker_dispatches_merged_bf16_without_llama_commit(case, tmp_path, monkeypatch):
+    config = bf16_recipe(case.config["source_model"])
+    benchmark_cli.prepare_inference_benchmark(config, case.prepared.path, case.model_bundle,
+                                              case.run, "b" * 40)
+    manifest = json.loads((case.run / "manifest.json").read_text())
+    store = Store(tmp_path / "store")
+    archive = tmp_path / "prepared.tar"
+    storage.pack_files(case.run, ["manifest.json", *manifest["files_sha256"]], archive)
+    ref = store.publish(archive, config["artifacts"]["root_uri"] + "/inputs", config["run_id"])
+    for name, value in {"RUNPOD_POD_ID": "pod1", "RUNPOD_API_KEY": "fake",
+                        "EDUGRAPH_MAX_HOURS": "2", "EDUGRAPH_EXPECTED_COMMIT": "b" * 40,
+                        "EDUGRAPH_CODE_COMMIT": "b" * 40, "EDUGRAPH_BUNDLE_URI": ref["uri"],
+                        "EDUGRAPH_BUNDLE_SHA256": ref["sha256"], "EDUGRAPH_RUN_ID": config["run_id"]}.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.delenv("EDUGRAPH_LLAMA_CPP_COMMIT", raising=False)
+    original_hash = benchmark_worker.file_sha256
+    monkeypatch.setattr(benchmark_worker, "file_sha256",
+                        lambda path: manifest["uv_lock_sha256"] if Path(path) == Path("/app/uv.lock") else original_hash(path))
+    monkeypatch.setattr(benchmark_worker.signal, "signal", Mock())
+    client = Mock()
+    client.get.return_value = {"id": "pod1", "costPerHr": "0.49", "machine": {"secureCloud": True}}
+    completion_uri = config["artifacts"]["root_uri"] + "/benchmarks/" + config["run_id"] + "/completed.json"
+
+    def execute(_path, _work, artifact_store, **_kwargs):
+        artifact_store.complete({"run_id": config["run_id"]}, completion_uri)
+        return {"status": "completed", "run_id": config["run_id"]}
+
+    module = ModuleType("edugraph_classify.bf16_benchmark")
+    module.execute_bf16_benchmark = Mock(side_effect=execute)
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    root = tmp_path / "worker-bf16"
+    root.mkdir()
+    result = benchmark_worker.run_worker(root, store_factory=lambda: store, client_factory=lambda _: client,
+                                         timer_factory=Mock(return_value=Mock()), capacity_probe=lambda: OBSERVED)
+    assert result["status"] == "completed"
+    module.execute_bf16_benchmark.assert_called_once()
+    client.terminate.assert_called_once_with("pod1")
 
 
 def test_worker_does_not_terminate_without_completion_marker(case, tmp_path, monkeypatch):

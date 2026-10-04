@@ -75,7 +75,7 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.licenses=Apache-2.0
-            org.opencontainers.image.description=Runpod GGUF export and llama.cpp benchmark worker
+            org.opencontainers.image.description=Runpod GGUF and merged BF16 benchmark worker
           provenance: mode=max
 
       - name: Record the published image
