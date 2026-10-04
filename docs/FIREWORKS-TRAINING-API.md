@@ -1,6 +1,6 @@
 # Qwen3.8-27B training API setup
 
-This document describes the preserved **unlaunched Fireworks candidate**, using serverless training, dataset **v0.30.0-03**, and ontology **v0.30.0**. The current execution direction is [Runpod Community QLoRA with W&B](RUNPOD-TRAINING.md); GPU validation is pending. The completed Fireworks one-image diagnostic and learning smoke remain pinned to v0.30.0-02. The diagnostic on 2026-09-28 completed forward/backward, an optimizer step, checkpointing, and image sampling. Its invalid prediction established pipeline operation only.
+**Archived training record.** The Fireworks executor, `training-api` dependency group and non-RunPod recipes were removed from the current checkout after the successful [Runpod Secure A40 run](RUNPOD-FULL-A40-20261002.md). Commands and paths below describe the historical implementation at its original code commit; they are not current setup instructions. This record retains the unlaunched Fireworks full-run candidate, using serverless training, dataset **v0.30.0-03**, and ontology **v0.30.0**. The completed Fireworks one-image diagnostic and learning smoke remain pinned to v0.30.0-02. The diagnostic on 2026-09-28 completed forward/backward, an optimizer step, checkpointing, and image sampling. Its invalid prediction established pipeline operation only.
 
 ## Observed learning smoke and early stop
 
@@ -35,7 +35,7 @@ For a new recipe, `training.expected_target_modules` declares the expected provi
 
 ## Full-release candidate and final validation
 
-The current proposed, **unlaunched** full-release recipe is `experiments/edugraph-20261002-qwen38-27b-full-v3.json`. It pins dataset v0.30.0-03 at `9b509867e898490615be3f59bc2f31fac429389c` and ontology v0.30.0, trains on all 1,654 official-train images, and reserves 64 official-validation images for checkpoint selection. The other 250 official-validation images form a disjoint `final_validation` cohort, sampled only once after checkpoint selection. Both cohorts are balanced between question and solution views because the pinned release is balanced. This final cohort is excluded from optimizer steps and epoch selection, but it is a remainder of the same official validation split, not an independently published test set; no semantic grouping key is exposed upstream.
+The archived, **unlaunched** full-release recipe is `experiments/edugraph-20261002-qwen38-27b-full-v3.json`. It pins dataset v0.30.0-03 at `9b509867e898490615be3f59bc2f31fac429389c` and ontology v0.30.0, trains on all 1,654 official-train images, and reserves 64 official-validation images for checkpoint selection. The other 250 official-validation images form a disjoint `final_validation` cohort, sampled only once after checkpoint selection. Both cohorts are balanced between question and solution views because the pinned release is balanced. This final cohort is excluded from optimizer steps and epoch selection, but it is a remainder of the same official validation split, not an independently published test set; no semantic grouping key is exposed upstream.
 
 Preparation downloads and validates all 1,968 release images, checks byte overlap between train and validation and between the two validation cohorts, records duplicate-byte counts, and hashes source images and rendered examples. This is a classifier-side input check, not a replacement for upstream release QA. The candidate enables language-only LoRA target checks, greedy closed-vocabulary JSON schema, per-epoch evaluation, and patience-one early stopping with a three-epoch ceiling. It retains the best checkpoint by explicit exact-set match and then F1. The schema transport still requires a live multimodal compatibility check before paid full training. Provider token prices in the recipe are a dated estimate, not a billing cap; recheck them and the live model catalog before launch.
 
@@ -83,7 +83,7 @@ Preparation exports `chat_template.jinja` with the fixed system text embedded an
 
 Fireworks supports custom `tokenizer_config.json` chat templates **for base models, not LoRA adapters**. LoRA `fireworks.json` supports generation defaults, not a system prompt. The immediate Fireworks serving path therefore uses a private LoRA on a dedicated deployment with the application injecting the fixed system message. Literal provider-side embedding requires a supported custom base/merged-model package or a serving runtime accepting custom templates. The export is locally verified; that deployment path is not provisioned or validated. See [custom models](https://docs.fireworks.ai/models/uploading-custom-models).
 
-## Commands and lifecycle
+## Historical commands and lifecycle
 
 ```powershell
 uv sync --group training-api

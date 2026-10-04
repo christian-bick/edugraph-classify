@@ -1,10 +1,10 @@
 # Training container images
 
-The [Runpod Secure workflow](RUNPOD-TRAINING.md) uses this image with the entrypoint `python -m edugraph_classify.runpod_worker`. The historical Vertex entrypoint remains the image default. W&B and the constrained decoder are locked in the `training` group. `CODE_COMMIT` is embedded at build time and checked alongside the lockfile before training; the publishing workflow passes the checked-out Git SHA. Local builds with `uncommitted` are verification images only.
+The [Runpod Secure workflow](RUNPOD-TRAINING.md) builds from the Dockerfile in this checkout. Its default entrypoint is `python -m edugraph_classify.runpod_worker`; W&B and the constrained decoder are locked in the `training` dependency group. `CODE_COMMIT` is embedded at build time and checked alongside the lockfile before training; the publishing workflow passes the checked-out Git SHA. Local builds with `uncommitted` are verification images only. The completed A40 run used an earlier pinned image digest; an image built after this cleanup is a new artifact and has not been GPU verified.
 
 ## Registry decision
 
-As of 2026-10-02, **GitHub Container Registry (GHCR)** is the default registry for new self-hosted training images, including the Runpod executor. The canonical image is `ghcr.io/christian-bick/edugraph-classify-trainer`. Its digest was anonymously verified and successfully pulled by the [Secure A40 smoke](RUNPOD-SMOKE-20261002.md). Container images hold the code and its locked Python/CUDA environment. GCS remains the artifact store for inputs, checkpoints, predictions, and run records; the registry change does not move those objects.
+As of 2026-10-02, **GitHub Container Registry (GHCR)** is the registry for Runpod training images. The canonical image is `ghcr.io/christian-bick/edugraph-classify-trainer`. The historical smoke image digest was anonymously verified and successfully pulled by the [Secure A40 smoke](RUNPOD-SMOKE-20261002.md). Container images hold the code and its locked Python/CUDA environment. GCS remains the artifact store for inputs, checkpoints, predictions, and run records; the registry change does not move those objects.
 
 GitHub currently provides free container image storage and bandwidth for both private and public packages. This repository is public and uses a standard GitHub-hosted Ubuntu runner, which is free for public repositories. Private forks and larger runners have separate Actions billing. Publication requires a manual dispatch or an explicitly pushed `trainer-*` tag; ordinary branch pushes and pull requests do not publish. No personal access token is required for publication through that workflow: it uses the job's short-lived `GITHUB_TOKEN` with `packages: write`. See [GitHub Packages billing](https://docs.github.com/en/billing/concepts/product-billing/github-packages), [Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions), and [publishing Docker images](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images).
 
@@ -12,15 +12,15 @@ The intended image visibility is **public**, matching the user's repository and 
 
 ## Build and publish
 
-The existing `containers/vertex-trainer/Dockerfile` remains the single image recipe. Its directory name reflects its origin; the image packages both the Vertex and Runpod trainers. The Runpod executor, constrained generation decoder and language-only training policy are implemented; GPU acceptance and throughput still require the smoke described in [Runpod training](RUNPOD-TRAINING.md).
+The image recipe is `containers/runpod-trainer/Dockerfile`. It packages the Runpod executor, constrained generation decoder and language-only training policy. GPU execution, learning and checkpoint recovery were verified with the earlier pinned images in the [A40 smoke](RUNPOD-SMOKE-20261002.md), [L40S benchmark](RUNPOD-HARDWARE-BENCHMARK.md) and [full A40 run](RUNPOD-FULL-A40-20261002.md). A newly built image needs its own build checks and GPU validation before training use.
 
 The Docker context includes only `pyproject.toml`, `uv.lock`, `README.md`, `LICENSE`, `src/`, and the Dockerfile. Datasets, model weights, checkpoints, local environment files, and Git credentials are excluded. The build installs from the frozen lockfile, imports the training stack without network access, verifies the CUDA 12.6 build of PyTorch, and checks the trainer CLI. These are CPU checks; they do not establish successful GPU training.
 
 The project is licensed under Apache 2.0. The image includes `LICENSE`, and the publishing workflow records `org.opencontainers.image.licenses=Apache-2.0`. Bundled dependencies and the CUDA base image retain their respective licenses.
 
-To publish before the workflow reaches the default branch, explicitly push a `trainer-*` tag pointing to a reviewed clean commit. Only that tag pattern triggers publication; ordinary branch pushes and pull requests do not. This permits publishing a pinned smoke image without merging unvalidated GPU code into main. The tag authorizes image publication, not paid training.
+An explicit `trainer-*` tag pointing to a reviewed clean commit also triggers publication; ordinary branch pushes and pull requests do not. The tag authorizes image publication, not paid training.
 
-After the workflow is available on the default branch, the manual UI is also available:
+The manual UI is available on the default branch:
 
 1. Open **Actions → Publish training image → Run workflow** and select the reviewed branch or tag.
 2. Leave **publish** unchecked for a build-only check, or check it to build and publish. A manual dispatch authorizes the selected build and any applicable Actions charges; it does not launch training.
@@ -34,17 +34,17 @@ To build and inspect locally without publication or cloud build charges, run fro
 
 ```bash
 docker build --platform linux/amd64 \
-  -f containers/vertex-trainer/Dockerfile \
+  -f containers/runpod-trainer/Dockerfile \
   -t edugraph-classify-trainer:local .
-docker run --rm --network none edugraph-classify-trainer:local --help
+docker run --rm --network none \
+  --entrypoint /app/.venv/bin/edugraph-classify \
+  edugraph-classify-trainer:local runpod --help
 ```
 
-## Existing images and Vertex compatibility
+## Historical images and retained GCP resources
 
-Historical experiment configurations retain their original image repositories and digests as provenance. On 2026-10-02, the user-authorized [GCP cleanup](GCP-CLEANUP.md) deleted both `training` repositories and the old Qwen3-VL 4B/8B trainer repositories. Those historical image URIs no longer resolve. Reproducing an old run now requires a separately retained image or a rebuild from its matching source and lockfile; a rebuild is not guaranteed to reproduce the original digest.
+Historical [experiment records](PROJECT-KICKOFF.md) retain their original image repositories and digests as provenance. On 2026-10-02, the user-authorized [GCP cleanup](GCP-CLEANUP.md) deleted both `training` repositories and the old Qwen3-VL 4B/8B trainer repositories. Those historical image URIs no longer resolve. Reproducing an old run requires a separately retained image or a rebuild from its matching source and lockfile; a rebuild is not guaranteed to reproduce the original digest.
 
 **Production inference remains on GCP with scale-to-zero.** Its `edugraph-predict` repository and earlier `gcr.io/llama-server` revision images remain, along with the separate Imagine application's repositories. GHCR is the destination for new self-hosted training images; the cleanup did not change Cloud Run deployment images, traffic, scaling, GCS storage, or access controls. The Artifact Registry API remains enabled for those retained consumers.
 
-Google's custom-training documentation currently lists **Artifact Registry and Docker Hub** as supported registries, not GHCR. A future Vertex job therefore needs a compatible mirror and its resolved digest; do not mechanically replace the image URI in an old Vertex job with a GHCR URI. The old Vertex instructions remain historical and provider-specific. See [Google custom-container requirements](https://docs.cloud.google.com/vertex-ai/docs/training/create-custom-container).
-
-Fireworks serverless training uses a provider-managed runtime and does not pull this container. Runpod and local Docker are the consumers of the new GHCR publishing path.
+The previous Vertex and local Docker training plans are archived in [their dated records](VERTEX-AI-TRAINING.md) and the [local assessment](LOCAL-TRAINING.md). The current image builds and starts the Runpod worker.

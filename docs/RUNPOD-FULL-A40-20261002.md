@@ -25,7 +25,9 @@ The final assessment was evaluated only after selecting epoch 2. Its score is a 
 | Question views, 125 images | 74.40% | 96.75% |
 | Solution views, 125 images | 70.40% | 96.14% |
 
-Label-macro F1 is **90.19%**, below micro F1. Labels seen 1–4 times in training achieved 92.59% F1, but that slice contains only 27 gold occurrences (25 correct, two missed, two extra). The final cohort contains no gold labels unseen during training, so it provides no evidence of unseen-label recall. The separate 16-image training diagnostic fell from 75% exact-set / 95.08% F1 after epoch 1 to 62.5% / 90.24% after epoch 2; selection remained governed by held-out predictions. These results establish learning on the released assessment cohort, not universal accuracy or automatic production readiness. Sixty-nine final images still have at least one incorrect or missing label. Keep this final cohort out of iterative tuning decisions.
+Label-macro F1 is **90.19%**, below micro F1. Labels seen 1–4 times in training achieved 92.59% F1, but that slice contains only 27 gold occurrences (25 correct, two missed, two extra). The final cohort contains no gold labels unseen during training, so it provides no evidence of unseen-label recall. The separate 16-image training diagnostic fell from 75% exact-set / 95.08% F1 after epoch 1 to 62.5% / 90.24% after epoch 2; selection remained governed by held-out predictions. These results establish learning on the released assessment cohort, not universal accuracy or automatic production readiness. Sixty-nine final images still have at least one incorrect or missing label.
+
+Subsequent offline error analysis on October 3 informed the [refinement plan](REFINEMENT-PLAN.md), including numerical-specificity ambiguities, local error clusters and limited combination coverage. The final cohort was excluded from this run's checkpoint selection, so the historical result stands. Its reuse for methods motivated by that analysis is exploratory or regression testing; selected follow-up improvements require fresh final assessment.
 
 ## Runtime, memory and durable artifacts
 

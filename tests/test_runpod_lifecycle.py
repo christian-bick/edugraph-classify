@@ -36,7 +36,9 @@ def test_cli_preparation_staging_render_launch_status_stop(prepared,tmp_path,mon
     parser=cli.build_parser()
     args=parser.parse_args(['runpod','check-config'])
     assert runpod_cli.run_runpod_command(args,None)[1]['status']=='valid'
-    prepare=parser.parse_args(['runpod','prepare','--runs-root',str(tmp_path)])
+    with pytest.raises(SystemExit):
+        parser.parse_args(['runpod','prepare'])
+    prepare=parser.parse_args(['runpod','prepare','--config',runpod_cli.DEFAULT_RECIPE,'--runs-root',str(tmp_path)])
     with pytest.raises(ValueError,match='clean'):runpod_cli.run_runpod_command(prepare,None)
     monkeypatch.setattr(runpod_cli,'prepare_runpod',lambda *a:prepared.manifest)
     assert runpod_cli.run_runpod_command(prepare,'a'*40)[1]['status']=='prepared'
@@ -74,7 +76,7 @@ def test_cli_preparation_staging_render_launch_status_stop(prepared,tmp_path,mon
     assert cli.main(['runpod','check-config'])==0
     monkeypatch.setattr(cli,'_code_commit',lambda p:'a'*40)
     monkeypatch.setattr(cli,'run_runpod_command',lambda *a:(0,{'status':'prepared'}))
-    assert cli.main(['runpod','prepare'])==0
+    assert cli.main(['runpod','prepare','--config',runpod_cli.DEFAULT_RECIPE])==0
 
 
 def test_resume_is_checked_before_paid_creation(prepared,tmp_path,monkeypatch):

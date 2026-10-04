@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .dataset import file_sha256
 from .learning_data import safe_relative, write_json
-from .vertex_artifacts import GcsArtifactStore, LocalArtifact, split_gcs_uri
+from .gcs_artifacts import GcsArtifactStore, LocalArtifact, split_gcs_uri
 
 
 def pack_files(root: Path, names: list[str], output: Path) -> str:

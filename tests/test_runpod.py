@@ -18,7 +18,7 @@ from edugraph_classify import training_tracking as tracking
 from edugraph_classify.learning_data import prepare_learning, write_json
 from edugraph_classify.providers.runpod import RunpodClient, RunpodPodClient, RunpodError, public_status
 from test_learning import GOLD, ROOT, png, renderer_factory
-from test_vertex_artifacts import FakeStorageClient
+from test_gcs_artifacts import FakeClient
 
 
 def recipe():
@@ -264,7 +264,7 @@ def test_bundle_roundtrip_and_path_rejection(tmp_path,monkeypatch):
 
 
 def test_gcs_immutable_publish_download_credentials(tmp_path,monkeypatch):
-    fake=FakeStorageClient()
+    fake=FakeClient()
     store=storage.GcsBundles(fake)
     path=tmp_path/'x'; path.write_bytes(b'checkpoint')
     ref=store.publish(path,'gs://bucket/run','run')

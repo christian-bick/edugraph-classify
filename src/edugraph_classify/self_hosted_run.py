@@ -12,7 +12,7 @@ from pathlib import Path
 from .checkpoint_storage import publish_snapshot
 from .evaluation import evaluate
 from .learning_data import verify_prepared, write_json
-from .learning_run import render_prepared
+from .prepared_rendering import render_prepared
 from .ontology import OntologyCatalog
 from .qwen_rendering import QwenVisionRenderer
 

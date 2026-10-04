@@ -21,6 +21,9 @@ from .output_contract import closed_vocabulary_schema
 from .qwen_training_policy import audit_qwen_language_targets
 from .qwen_rendering import QwenVisionRenderer
 
+RUNTIME_PACKAGES = ("torch", "torchvision", "transformers", "accelerate", "peft", "bitsandbytes",
+                    "wandb", "lm-format-enforcer", "edugraph-py", "pillow")
+
 
 def write_json(path: Path, payload: object) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -60,15 +63,17 @@ def load_recipe(path: Path, *, extra_fields: frozenset[str] = frozenset()) -> di
         raise ValueError("balanced question/solution cohorts require even counts")
     if config["selection"]["train_diagnostic"] > config["selection"]["train"]:
         raise ValueError("training diagnostic must be a subset of training")
+    if set(config["pricing"]) != {"compute_hour_usd", "disk_hour_usd", "estimated_hours"}:
+        raise ValueError("pricing must specify Runpod compute, disk, and estimated hours")
     for value in (*config["pricing"].values(), config["estimated_cost_limit_usd"], config["training"]["learning_rate"]):
         if not isinstance(value, (float, int)) or not math.isfinite(value) or value <= 0:
             raise ValueError("learning rate, prices, and cost limit must be positive finite numbers")
     if config["evaluation"]["temperature"] != 0:
         raise ValueError("paired learning evaluation requires greedy sampling")
-    if config["evaluation"].get("output_mode", "raw") not in ("raw", "json_schema"):
-        raise ValueError("evaluation.output_mode must be raw or json_schema")
-    if "every_epoch" in config["evaluation"] and type(config["evaluation"]["every_epoch"]) is not bool:
-        raise ValueError("evaluation.every_epoch must be boolean")
+    if config["evaluation"].get("output_mode") != "json_schema":
+        raise ValueError("Runpod evaluation requires json_schema output")
+    if config["evaluation"].get("every_epoch") is not True:
+        raise ValueError("Runpod evaluation must generate predictions every epoch")
     patience = config["training"].get("early_stop_patience")
     if patience is not None and (type(patience) is not int or patience <= 0 or not config["evaluation"].get("every_epoch", False)):
         raise ValueError("early_stop_patience requires every-epoch evaluation and a positive integer")
@@ -125,7 +130,7 @@ def conflicting_duplicate_images(examples: list[dict]) -> list[dict]:
 
 def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_commit: str,
                      fetch, capabilities: dict, renderer_factory=QwenVisionRenderer.load,
-                     runtime_packages=("fireworks-ai", "edugraph-py", "pillow")) -> dict:
+                     runtime_packages=RUNTIME_PACKAGES) -> dict:
     """Fetch public sources and prepare locally; never upload or start compute."""
     catalog = OntologyCatalog.load(config["ontology_version"])
     run.mkdir(parents=True, exist_ok=False)
@@ -168,7 +173,7 @@ def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_
         source = f"{source_split}/{row['file_name']}"
         data = fetch(f"{base}/{source}")
         if len(data) > 7_500_000:
-            raise ValueError("source image exceeds the 10 MB base64 payload budget")
+            raise ValueError("source image exceeds the 7.5 MB preparation limit")
         with Image.open(io.BytesIO(data)) as img:
             size = list(img.size)
             img.verify()
@@ -205,9 +210,7 @@ def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_
     prefill_tokens = evaluation_rounds * sum(row["prompt_tokens"] for row in sampling) + sum(row["prompt_tokens"] for row in final)
     output_tokens = (evaluation_rounds * len(sampling) + len(final)) * config["evaluation"]["max_tokens"]
     price = config["pricing"]
-    token_pricing = set(price) == {"train", "prefill", "sample"}
-    cost = ((training_tokens * price["train"] + prefill_tokens * price["prefill"] + output_tokens * price["sample"]) / 1_000_000
-            if token_pricing else price["estimated_hours"] * (price["compute_hour_usd"] + price["disk_hour_usd"]))
+    cost = price["estimated_hours"] * (price["compute_hour_usd"] + price["disk_hour_usd"])
     if cost > config["estimated_cost_limit_usd"]:
         raise ValueError("prepared cost estimate exceeds recipe limit")
     manifest = {
@@ -223,7 +226,6 @@ def prepare_learning(config: dict, root: Path, run: Path, processor: Path, code_
         "cohort_counts": {split: sum(r["split"] == split for r in examples) for split in ("train", "validation", "final_validation")},
         "optimizer_steps": math.ceil(len(train) / config["training"]["batch_size"]) * config["training"]["epochs"],
         "token_budget": {"train": training_tokens, "prefill": prefill_tokens, "sample": output_tokens},
-        "estimated_max_token_cost_usd": cost if token_pricing else None,
         "estimated_run_cost_usd": cost, "estimate_is_not_provider_billing_cap": True,
         "quality_promotion": False, "prompt_role": "system", "thinking": False,
         "language_target_audit": target_audit,

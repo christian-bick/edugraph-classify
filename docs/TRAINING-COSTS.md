@@ -1,12 +1,12 @@
 # Compact 27B training: token profile, runtime, and cost
 
-Assessed 2026-10-02, then updated with the authorized [Secure A40 smoke](RUNPOD-SMOKE-20261002.md), [L40S benchmark](RUNPOD-HARDWARE-BENCHMARK.md) and completed [full A40 run](RUNPOD-FULL-A40-20261002.md). The full two-epoch A40 run measured **5 hours 19 minutes / approximately $2.73** on October 3, including generated evaluation and running disk. The original Fireworks/A6000 comparison below used local rendering and read-only provider/catalog checks; later sections distinguish throughput forecasts from the full-run measurement. Dollar values are USD, excluding tax, deployment, engineering time, and retries.
+Historical comparison assessed 2026-10-02, then updated with the authorized [Secure A40 smoke](RUNPOD-SMOKE-20261002.md), [L40S benchmark](RUNPOD-HARDWARE-BENCHMARK.md) and completed [full A40 run](RUNPOD-FULL-A40-20261002.md). The full two-epoch A40 run measured **5 hours 19 minutes / approximately $2.73** on October 3, including generated evaluation and running disk. The original Fireworks/A6000 comparison below used local rendering and read-only provider/catalog checks; its Fireworks executor and recipe have since been removed from the current checkout. Later sections distinguish throughput forecasts from the full-run measurement. Dollar values are USD, excluding tax, deployment, engineering time, and retries.
 
 ## Workload and measured inputs
 
 The comparison covers Qwen3.8-27B, dataset v0.30.0-03 at `9b509867e898490615be3f59bc2f31fac429389c`, ontology v0.30.0, and prompt `direct-label` v3. The model/processor revision is `Qwen/Qwen3.8-27B` at `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`. It retains language-only rank-8/alpha-16 LoRA, assistant-only loss, and effective batch size four. Vision and bridge targets are excluded.
 
-Two complete epochs mean **3,308 image presentations, 828 optimizer steps, and 490 generated classifications**: 80 for the base model, 80 after each epoch, and 250 on the final assessment cohort. Each 80-image phase contains 64 checkpoint-selection images and 16 training diagnostics. Generated predictions, exact-set match, F1, validity, frequency slices, and raw responses remain required. The preserved Fireworks recipe has a three-epoch ceiling; the completed Runpod A40 recipe explicitly uses two epochs, with patience-one early stopping.
+Two complete epochs mean **3,308 image presentations, 828 optimizer steps, and 490 generated classifications**: 80 for the base model, 80 after each epoch, and 250 on the final assessment cohort. Each 80-image phase contains 64 checkpoint-selection images and 16 training diagnostics. Generated predictions, exact-set match, F1, validity, frequency slices, and raw responses remain required. The archived Fireworks proposal had a three-epoch ceiling; the completed Runpod A40 recipe explicitly used two epochs, with patience-one early stopping.
 
 The local audit checked the immutable Hub file-tree hashes for all 1,968 images and both metadata files. It reused cached bytes only after verifying them against that tree, downloading the two corrected images. It found zero byte duplicates and no train/validation overlap. The real pinned tokenizer and processor rendered every example without truncation.
 
@@ -25,7 +25,7 @@ Audit evidence is in gitignored `reports/compact-training-20261002/`: `audit_com
 
 ## Fireworks token cost
 
-Live eligibility still reports READY, image input, LoRA, training V2, and supervised-LoRA tuning support. The Qwen3.8-27B **Serverless Training API** rates checked on 2026-10-02 are $4.103/M training tokens, $1.86/M uncached sampling input, and $5.595/M generated tokens. These differ from managed-SFT pricing. Training meters include the prompt even though its loss is masked. [Fireworks pricing](https://fireworks.ai/pricing), [meter definitions](https://docs.fireworks.ai/fine-tuning/training-api/serverless#what-the-meters-mean).
+The read-only eligibility check on 2026-10-02 reported READY, image input, LoRA, training V2, and supervised-LoRA tuning support. The Qwen3.8-27B **Serverless Training API** rates checked that day were $4.103/M training tokens, $1.86/M uncached sampling input, and $5.595/M generated tokens. These differed from managed-SFT pricing. Training meters included the prompt even though its loss was masked. [Fireworks pricing](https://fireworks.ai/pricing), [meter definitions](https://docs.fireworks.ai/fine-tuning/training-api/serverless#what-the-meters-mean).
 
 | Completed epochs | Optimizer steps | Training | Generated validation allowance | Total estimate |
 |---|---:|---:|---:|---:|

@@ -2,7 +2,7 @@
 
 This document explains the stable classifier-facing concepts of [`edugraph-ontology`](https://github.com/christian-bick/edugraph-ontology).
 
-Current runtime (2026-09-29): **v0.30.0**, aligned with dataset v0.30.0-03 for the [full-training candidate](FIREWORKS-TRAINING-API.md). The completed learning smoke remains pinned to dataset v0.30.0-02 and the same ontology version. The public eligibility/relations APIs remain compatible. Unlike the earlier v0.27 client-only migration, subsequent releases contain semantic changes; historical experiments require their pinned environment. The prior review below records the older migration context.
+Current runtime (2026-10-03): **v0.30.0**, aligned with dataset v0.30.0-03 for the [completed Secure A40 baseline](RUNPOD-FULL-A40-20261002.md). The earlier Fireworks learning smoke remains pinned to dataset v0.30.0-02 and the same ontology version. The public eligibility/relations APIs remain compatible. Unlike the earlier v0.27 client-only migration, subsequent releases contain semantic changes; historical experiments require their pinned environment. The prior review below records the older migration context; the [refinement plan](REFINEMENT-PLAN.md) records new classifier-side evidence questions without redefining upstream semantics.
 
 Reviewed against release **v0.27.0** on 2026-09-13. Its authored ontology is unchanged from v0.26.0. See [the v0.27.0 adoption notes](ONTOLOGY-UPGRADE-0.27.md), [the v0.26.0 semantic migration](ONTOLOGY-UPGRADE-0.26.md), and [the dataset upgrade](DATASET-UPGRADE-0.26.0-01.md).
 
@@ -71,20 +71,24 @@ The catalog retains all descriptors for lookup and derives `eligible_labels` thr
 
 ## 5. Logical constraint relations
 
-`constrains` is the logical umbrella for relations where the truth of one entity restricts another. The two classifier-relevant specializations are:
+`constrains` groups descriptor-level constraint relations. The two classifier-relevant specializations are:
 
 | Relation | Directional meaning | Safe use |
 |---|---|---|
 | `A implies B` | Truth of A logically guarantees truth of B | Derived logical closure, constraint validation |
-| `A contradicts B` | Truth of A logically excludes truth of B | Hard set incompatibility and invalid-output detection |
+| `A contradicts B` | Requirements represented by A and B conflict wholly or partially | Recorded conflict diagnostics; hard rejection requires separately established instance-level incompatibility |
 
 `impliedBy`, `contradictedBy`, and `constrainedBy` are inverse directions.
 
 Logical implication is not the same as taxonomy. For example, one numerical bound can imply a looser bound without being a taxonomic child in the content-labeling sense.
 
-Compatibility checks should consider implication closure before contradiction. Two labels can be jointly impossible even when they have no direct `contradicts` edge, because an implied label of one may contradict an implied label of the other. Prefer the pinned client library's compatibility/deduction helpers over hand-written name or threshold logic.
+Implication is directional: a looser predicted bound does not establish a tighter one. Choosing tighter explicit labels requires visible evidence and the versioned annotation convention. A relation lookup cannot recover information the prediction omitted, and a mathematically true broad bound may still disagree with the released explicit target.
 
-Only explicit or validly inferred ontology facts support hard constraints. Absence of a relation does not prove incompatibility, prerequisite, or equivalence.
+Recorded compatibility checks should consider implication closure before contradiction: an implied descriptor may have a recorded conflict even when the original pair has no direct edge. The pinned client's helpers implement that graph policy. They do not compute exact mathematical intersections or prove that every flagged pair is impossible for a particular task.
+
+**Correction verified against v0.30.0 on 2026-10-03:** [ONT-R2](https://github.com/christian-bick/edugraph-ontology/blob/db5d9541223880ba63e2eaa6f62d8db3186a9e2c/docs/relations.md#L58) explicitly permits partial conflict. `NumbersSmaller10` and `NumbersLarger10` both include magnitude 10 while recording a contradiction. A task whose relevant quantities all have magnitude 10 satisfies both definitions. The [upstream handoff](UPSTREAM-ANNOTATION-HANDOFF-20261003.md#42-recorded-contradictions-are-not-always-impossible-conjunctions) therefore requires an explicit instance-validity contract before using these relations for hard range correction. This corrects the earlier summary's strict-exclusion interpretation; no baseline output or metric has changed.
+
+Hard constraints require explicit or validly inferred facts with the corresponding hard-exclusion semantics; a partial-conflict edge alone is insufficient. Absence of a relation does not prove incompatibility, prerequisite, or equivalence.
 
 ## 6. Progression and composition relations
 
@@ -153,8 +157,8 @@ The ontology supplies facts; `edugraph-classify` supplies the explicit-output po
 1. validate identifier membership in the pinned ontology;
 2. resolve Area, Scope, and Ability dimensions;
 3. remove exact duplicates and impose serialization order;
-4. flag or remove redundant specialization ancestors according to the documented minimal-label contract;
-5. reject logically incompatible sets using implication-aware contradiction checks;
+4. flag redundant specialization ancestors; remove them only under an explicitly validated, versioned output policy consistent with the relevant gold contract;
+5. report implication-aware recorded conflicts; reject a set only under a separately validated instance-incompatibility rule, respecting partial conflicts and shared numeric endpoints;
 6. compute optional derived closures without mixing them into explicit output.
 
 It may not:
@@ -167,6 +171,8 @@ It may not:
 - hide changes by discarding the raw prediction.
 
 Every evaluation record should retain raw structured output, parsed explicit labels, canonical labels, validation findings, and any separately derived view.
+
+The current baseline performs no ancestor pruning or logical graph repair. Its `invalid_output_rate` measures the implemented JSON/schema, membership, dimension and duplicate checks; it is not a comprehensive logical-consistency or visible-evidence metric. The [post-run graph audit](REFINEMENT-PLAN.md#graph-validation-and-explicit-serialization) found no recorded contradiction conflicts, while some exact predictions and their released gold both retain specialization ancestors. Such cases require upstream convention review before introducing cleanup rules. Eligibility, recorded descriptor compatibility, instance satisfiability and support in the image remain separate questions.
 
 ## 11. Versioning and client libraries
 

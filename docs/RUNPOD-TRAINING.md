@@ -1,6 +1,6 @@
 # Runpod Secure training with W&B
 
-Implemented 2026-10-02; full-run results verified 2026-10-03. The [full two-epoch Secure A40 run](RUNPOD-FULL-A40-20261002.md) completed 828 optimizer steps over 1,654 training images. Its selected epoch-2 adapter achieved **72.4% exact-set match (181/250)** and **96.44% label F1**, with zero invalid outputs on the separate final assessment cohort. It took **5 hours 19 minutes / approximately $2.73**. Raw predictions reproduced all metrics locally; model and continuation bundles passed independent verification. Runtime and tensor audits confirmed language-only adapters and zero trainable vision/bridge parameters. The Pod terminated automatically with zero ongoing Runpod spend. See the earlier [smoke record](RUNPOD-SMOKE-20261002.md) for initial learning evidence. Production inference remains on GCP; the trained candidate has not been deployed. The Fireworks executor and experiment records remain available for comparison.
+Implemented 2026-10-02; full-run results verified 2026-10-03. This is the supported training workflow in the current checkout. The [full two-epoch Secure A40 run](RUNPOD-FULL-A40-20261002.md) completed 828 optimizer steps over 1,654 training images. Its selected epoch-2 adapter achieved **72.4% exact-set match (181/250)** and **96.44% label F1**, with zero invalid outputs on the separate final assessment cohort. It took **5 hours 19 minutes / approximately $2.73**. Raw predictions reproduced all metrics locally; model and continuation bundles passed independent verification. Runtime and tensor audits confirmed language-only adapters and zero trainable vision/bridge parameters. The Pod terminated automatically with zero ongoing Runpod spend. See the earlier [smoke record](RUNPOD-SMOKE-20261002.md) for initial learning evidence. Production inference remains on GCP; the trained candidate has not been deployed. The [Fireworks record](FIREWORKS-TRAINING-API.md) remains archival comparison evidence.
 
 ## Pinned training policy
 
@@ -50,24 +50,24 @@ W&B receives pinned configuration, losses, gradient norms, generated-validation 
 ## Local preparation and explicit launch
 
 ```powershell
-uv sync --group training --group training-api
+uv sync --group training
 uv run --no-sync edugraph-classify runpod check-config
 uv run --no-sync pytest --cov=edugraph_classify --cov-report=term-missing
 ```
 
 Commit reviewed code and lockfile, then publish the image from that commit through the [GHCR workflow](CONTAINER-IMAGES.md). Use its **digest**, not a mutable tag. The image embeds `EDUGRAPH_CODE_COMMIT`; the worker checks this and `/app/uv.lock` against preparation. Local builds with `CODE_COMMIT=uncommitted` are verification images and cannot launch pinned experiments.
 
-Prepare the smoke from a clean checkout; this downloads public inputs locally without creating provider resources:
+For a new experiment, copy and review the successful [full A40 recipe](../experiments/edugraph-20261002-qwen38-27b-runpod-full-a40-v1.json), assign a new run ID, and commit the new recipe. Preparation from a clean checkout downloads public inputs locally without creating provider resources:
 
 ```powershell
 uv run --group training edugraph-classify runpod prepare `
-  --config experiments/edugraph-20261002-qwen38-27b-runpod-smoke-v2.json
+  --config 'experiments/<new-run-id>.json'
 ```
 
-The following operations are separate and require explicit user authorization. `stage` uploads to GCS; `launch` creates a paid Pod. Both require exact run-ID confirmation. The examples below reproduce the earlier smoke; the separately authorized full A40 run and its reviewed request are recorded in [the full-run log](RUNPOD-FULL-A40-20261002.md).
+The following operations are separate and require explicit user authorization. `stage` uploads to GCS; `launch` creates a paid Pod. Both require exact run-ID confirmation. The completed A40 run and its reviewed request are recorded in [the full-run log](RUNPOD-FULL-A40-20261002.md).
 
 ```powershell
-$runId = 'edugraph-20261002-qwen38-27b-runpod-smoke-v2'
+$runId = '<new-run-id>'
 $manifest = "runs/$runId/manifest.json"
 $image = 'ghcr.io/christian-bick/edugraph-classify-trainer@sha256:<published-digest>'
 uv run --no-sync edugraph-classify runpod stage --manifest $manifest --confirm-run-id $runId
@@ -83,6 +83,8 @@ The GPU ceiling is **$0.60/hour**, checked after creation and again by the worke
 Success publishes the selected model and completion marker, flushes W&B, then **terminates the Pod**, removing its volume. Failure or a cooperative pause stops the Pod while preserving its billable volume. An immediate `runpod stop --launch-record ... --confirm-run-id ...` releases compute; recover from the last external checkpoint. Do not assume a Pod disk survives host loss or that a stopped Pod can reacquire its GPU.
 
 ## Recovery and one-epoch continuation
+
+The completed A40 baseline's checkpoints are pinned to its original code and lockfile. This cleanup changed both, so the current checkout cannot resume that baseline without a designed checkpoint migration. Its completion marker also blocks another same-run launch. The commands below apply to compatible checkpoints created by a new run on the current code revision.
 
 Checkpoints contain the current adapter, AdamW state, Python/Torch/CUDA RNG states, data position, global step, best adapter, selection history, reports and source manifest. The best adapter is separate from the current training adapter so optimizer state remains coherent. Constant LR needs no scheduler state. CPU tests compare uninterrupted and interrupted/resumed updates and image order; cross-GPU bitwise identity is not promised.
 

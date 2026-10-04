@@ -1,12 +1,14 @@
-# EduGraph classifier: kickoff brief
+# EduGraph classifier: design and experiment direction
 
-Status: accepted direction; first executable baseline selected
+Status (2026-10-03): full baseline established; targeted refinement research planned. The [refinement plan](REFINEMENT-PLAN.md) records the current evidence, priorities and evaluation boundaries. Earlier dated decisions below retain their original pins and are historical where superseded. Historical recipe and prompt paths identify files removed from the current checkout; the original commits preserve them for reproduction.
 
-Training execution update (2026-10-02): the user selected **Runpod Secure with W&B**, replacing the earlier Community choice to simplify the credential trust boundary. The NF4 QLoRA executor shares the compact prompt, ontology validation, deterministic cohorts and generated evaluation with Fireworks. It adds language-only parameter auditing, periodic GCS optimizer/RNG/data-position checkpoints, verified recovery and W&B reference artifacts under `edugraph-io/edugraph-classify`. The full A6000 recipe targets two epochs; an authorized 160-image Secure A40 smoke precedes it because A6000 capacity was unavailable. Both launcher and worker enforce the Secure allocation and price ceiling. See [Runpod training](RUNPOD-TRAINING.md). Production inference stays unchanged.
+Accepted dataset priorities (2026-10-03): one consistent realized-task range policy and complete coverage of legitimate, observable labels across task generators and views. The [upstream handoff](UPSTREAM-ANNOTATION-HANDOFF-20261003.md) contains source-level analyses and implementation acceptance checks. This supersedes treating omission of an independently supported facet as an acceptable distinguishability convention; it does not mutate historical releases or settle every individual semantic case.
+
+Current reference: **Qwen3.8-27B NF4 QLoRA on Runpod Secure A40**, dataset **v0.30.0-03**, ontology **0.30.0**, compact v3 system prompt, W&B tracking and GCS recovery artifacts. The completed two-epoch run achieved **72.4% exact-set match and 96.44% label F1 on 250 final images**, with zero invalid outputs. Only language adapters trained; vision and bridge stayed frozen. Model and continuation artifacts were independently verified, the Pod terminated automatically, and the candidate remains undeployed. See the [full-run record](RUNPOD-FULL-A40-20261002.md) for provenance and [Runpod training](RUNPOD-TRAINING.md) for execution policy.
 
 Container registry decision (2026-10-02): use **GHCR** for new self-hosted training images, retaining GCS for run artifacts and **GCP scale-to-zero for production inference**. Publication is a manual workflow with CPU import/CLI checks, commit tags, and an immutable digest in the result. The authorized [GCP cleanup](GCP-CLEANUP.md) removed four obsolete training repositories (164.65 GiB); production and rollback image repositories remain. Historical training image references remain pinned for provenance but no longer resolve to the deleted images. See [container images](CONTAINER-IMAGES.md).
 
-Preserved Fireworks candidate (2026-10-02): user-selected **Qwen3.8-27B**, dataset **v0.30.0-03**, ontology **v0.30.0**. The completed 160-image learning smoke and one-image diagnostic remain pinned to v0.30.0-02. The compact v3 system prompt, closed-vocabulary schema, generated checkpoint selection, untouched final-validation cohort and language-only LoRA policy carry into the new Runpod executor. See [Training API setup](FIREWORKS-TRAINING-API.md) for the managed path and [training costs](TRAINING-COSTS.md) for the full-release audit. Earlier plans below retain their historical pins.
+Archived Fireworks candidate (2026-10-02): user-selected **Qwen3.8-27B**, dataset **v0.30.0-03**, ontology **v0.30.0**. Its completed 160-image learning smoke and one-image diagnostic remain pinned to v0.30.0-02. The compact prompt, closed schema, generated checkpoint selection and language-only LoRA policy informed the Runpod executor. See the [Training API record](FIREWORKS-TRAINING-API.md) and [training costs](TRAINING-COSTS.md) for comparison evidence. The Runpod final cohort has now been examined for error analysis; the refinement plan governs subsequent reuse.
 
 Initial model hypothesis: Qwen3.5-9B
 
@@ -14,13 +16,13 @@ Initial managed provider: Fireworks AI
 
 First executable baseline: Qwen3-VL-8B-Instruct
 
-Current local-training plan (2026-09-13): user-selected Qwen3.5-9B, revision `c202236235762e1c871ad0ccb60c8ee5ba337b9a`, with QLoRA on both RTX 3090s from the first diagnostic. DDP is the initial backend; two-GPU FSDP-QLoRA is the memory fallback. There is no preceding single-GPU or 4B training milestone. GCP remains responsible for surrounding services and completed model uploads. This updates the planned local path; the managed-run history below retains its original identities. See [Local Docker training](LOCAL-TRAINING.md).
+Historical local-training plan (2026-09-13): user-selected Qwen3.5-9B, revision `c202236235762e1c871ad0ccb60c8ee5ba337b9a`, with QLoRA on both RTX 3090s from the first diagnostic. DDP was the initial backend; two-GPU FSDP-QLoRA the memory fallback. This earlier plan remains in [Local Docker training](LOCAL-TRAINING.md); the current reference is the completed Runpod 27B run above.
 
 ## 1. Core decision
 
-Current data preparation (2026-09-13): the new local 9B recipe pins dataset v0.26.0-01 at `cee47a3b49503e2637759a8a0e59e071c271b415`, records its source ontology v0.26.0, validates with the semantically identical v0.27.0 ontology client, uses the explicit `labels` field, and preserves the full official splits. All 1,944 images convert, all labels are eligible, and no image bytes cross splits. One within-training duplicate with different gold sets is preserved and recorded in the [release audit](DATASET-UPGRADE-0.26.0-01.md). Historical managed recipes below keep their original data and ontology provenance.
+Historical data preparation (2026-09-13): the local 9B recipe pinned dataset v0.26.0-01 at `cee47a3b49503e2637759a8a0e59e071c271b415`, retaining its source ontology v0.26.0 while validating with the semantically identical v0.27.0 client. Its [release audit](DATASET-UPGRADE-0.26.0-01.md) remains specific to that release. The current baseline and refinement plan use the full-run record's v0.30.0-03/0.30.0 identities.
 
-Start with the smallest credible experiment: fine-tune a vision-language model to assign the explicit EduGraph ontology labels supported by one isolated educational task.
+Use direct vision-language labeling of one isolated educational task as the reference experiment:
 
 ```text
 atomic task image
@@ -58,13 +60,13 @@ Area, Scope, and Ability are strongly correlated. The model should learn their j
 
 The classifier predicts the most specific concepts independently demonstrated by the task. It should not repeat broader facts that can be recovered mechanically from the pinned ontology.
 
-Raw predictions, validated explicit predictions, and any ontology-derived expansion remain separate. Under the current ontology, only pure `specializes` paths support inheritance; `partOf` provides structural context. Neither `partOf` nor progression relations such as `integrates` justify automatic label addition or removal. Nodes with constituent children are organizational and are ineligible for direct labeling.
+Raw predictions, validated explicit predictions, and any ontology-derived expansion remain separate. Pure `specializes` paths support taxonomic inheritance; recorded `implies` relations separately support logical closure. `partOf` provides structural context, and progression relations such as `integrates` justify no automatic label addition or removal. Nodes with constituent children are organizational and are ineligible for direct labeling. Observable specificity remains the goal, but the baseline preserves released explicit gold without ancestor pruning; suspected convention conflicts require upstream review and a versioned policy, not silent target repair.
 
-## 3. Starting model hypothesis
+## 3. Model selection and historical starting hypothesis
 
-The first model hypothesis is **Qwen3.5-9B**, not a Qwen3 model. Earlier Qwen3 or Qwen3-VL experiments may be useful historical comparisons, but they are not the intended starting baseline.
+The established reference is **Qwen3.8-27B**, with frozen vision/bridge and language-only QLoRA. The original **Qwen3.5-9B** hypothesis and the first executable Qwen3-VL-8B provider experiment are historical decisions, retained below for provenance.
 
-Fireworks AI is the first managed provider to test. Before work depends on this combination, a live capability check must confirm that the exact Qwen3.5-9B checkpoint supports the required vision inference and fine-tuning surfaces. Availability is a preflight result, not an assumption embedded in core code. If the combination is unavailable or materially unsuitable, changing it should be an explicit experiment decision rather than a silent substitution.
+Before a future provider/model comparison, verify the exact checkpoint's required vision inference and training capabilities. Availability is a live preflight result, not an assumption embedded in core code. Model or provider changes are explicit experiment decisions, supported by a concrete research question rather than silent substitution.
 
 The kickoff does not prescribe LoRA rank, epochs, learning rate, context size, prompt wording, JSON representation, or deployment lifetime. Those choices can be made during implementation from the actual model/provider surface and recorded in the resulting experiment manifest.
 
@@ -78,14 +80,14 @@ dataset + ontology + evaluation core
                  v
            adapter boundary
             /            \
- Fireworks adapter    self-hosted adapter
-    /       \                 |
-serverless  dedicated     owned runtime
+ Runpod adapter       future adapter
+       |                   |
+self-hosted         explicit mode
 ```
 
 The neutral core owns dataset ingestion, ontology validation, prediction contracts, canonicalization, metrics, and reproducibility metadata. A provider adapter translates those contracts into model discovery, training, inference, artifact, and deployment operations for a particular provider.
 
-Provider choice may differ by operation. For the local training path, the accepted boundary is `local_docker` / `self_hosted` for training compute. New container images use GHCR, while input staging and model/artifact uploads remain on GCS. Record these responsibilities separately; GCS use does not make a training run a Vertex job. Shared artifact operations should be reusable by either training executor. Earlier GCP container and downstream-service decisions below describe their historical scope.
+Provider choice may differ by operation. Current training uses Runpod Secure with self-hosted execution; the historical local Docker path is another self-hosted executor. New container images use GHCR, while input staging and model/artifact uploads remain on GCS. Record these responsibilities separately; GCS use does not make a training run a Vertex job. Shared artifact operations remain reusable across executors. Earlier GCP container and downstream-service decisions below describe their historical scope.
 
 Execution mode is recorded separately from provider identity:
 
@@ -93,7 +95,7 @@ Execution mode is recorded separately from provider identity:
 - **Provider-hosted dedicated:** a provider manages a training job or dedicated deployment. This is managed infrastructure, but it is not serverless and should not be mislabeled as self-hosted.
 - **Self-hosted:** EduGraph controls the model runtime and compute environment, whether local or on rented cloud infrastructure.
 
-The first implementation only needs the Fireworks path, but its adapter boundary must not leak into provider-neutral modules. No speculative self-hosted stack needs to be built now; the code should simply preserve the distinction so a later adapter or runtime does not require rewriting data and evaluation logic.
+The Runpod executor uses provider-neutral preparation, output contracts and evaluation. Refinement experiments must preserve that boundary so an inference or training adapter can change without redefining the data or metrics. The Fireworks adapter described in older sections is archived.
 
 ## 5. Repository boundaries
 
@@ -115,15 +117,17 @@ This repository must not redefine upstream gold labels or ontology semantics. Su
 
 The baseline should answer a small set of questions:
 
-- Can Qwen3.5-9B learn the complete explicit label set rather than only frequent or visually obvious concepts?
+- Can the selected model learn the complete explicit label set, including infrequent concepts and unfamiliar combinations?
 - Where is the balance between missing labels and plausible but unsupported extra labels?
-- How much harder are unsolved questions than worked solutions?
+- How does performance differ between unsolved questions and worked solutions, accounting for their different content?
 - Which failures are related to rare labels, cross-dimension combinations, mathematical inference, output validity, or ontology canonicalization?
-- What quality, latency, and cost does the managed execution path provide?
+- What quality, latency, and cost does the selected execution path provide?
 
 Exact-set match is the primary metric. Precision, recall, F1, per-dimension results, question/solution slices, rare-label coverage, invalid outputs, latency, and cost provide the diagnosis. Raw and canonicalized predictions are both retained so deterministic post-processing gains remain visible.
 
 The initial evaluator should compare an untuned checkpoint and its fine-tuned counterpart under equivalent conditions. Other model comparisons are useful only when they answer a concrete question.
+
+The first full run now provides that comparison. Its error analysis identifies numerical specificity, required cognitive action and fraction-related distinctions as priorities. All final gold combinations occur in training, and the released metadata has no supported task-group identity; unseen-combination generalization and semantic independence remain unestablished. See the [evidence and limits](REFINEMENT-PLAN.md#1-evidence-and-its-limits).
 
 ## 7. Reasoning
 
@@ -131,21 +135,21 @@ Reasoning may matter most when an unsolved task does not visually state the rele
 
 This can first be investigated at inference time without reasoning fine-tuning, while scoring only the final label set. If later evidence supports reasoning supervision, the useful target is concise and verifiable evidence connected to the retained labels, with the final canonical labels kept separate. Free-form reasoning is not assumed to be beneficial: it may also introduce related but unsupported concepts and reduce precision.
 
-## 8. Outlook beyond direct VLM classification
+The current baseline does not establish a general question-versus-solution difficulty ordering. Prefer targeted tests that identify visible inputs/results, the unknown quantity or the requested cognitive action, after clarifying ambiguous label conventions. Measure final-label quality and added latency against direct prediction; do not turn an unverified explanation into new gold supervision.
 
-Direct labeling is the reference point, not the limit of the project. Plausible directions include:
+## 8. Current refinement priorities
 
-- improving data coverage, sampling, prompts, or model scale;
-- using inference-time or supervised reasoning for tasks that require mathematical derivation;
-- retrieving ontology definitions or nearby concepts when the full vocabulary becomes difficult to distinguish;
-- using ontology structure for validation, candidate generation, reranking, or joint selection while preserving recall;
-- aligning training more directly with set quality through weighting, preference learning, or reward-based methods;
-- replacing generative labels with discriminative multilabel heads, label embeddings, or graph-aware decoders when calibrated scores or fixed-vocabulary efficiency become more important;
-- moving selected workloads from provider-managed execution to self-hosted training or serving when control, cost, or unsupported model changes justify it.
+The [refinement plan](REFINEMENT-PLAN.md) orders the next studies from the observed error distribution:
 
-None of these is selected in advance. Candidate filtering, for example, can reduce work but can also impose a hard recall ceiling. A custom multilabel head can provide direct scores but introduces calibration, class-imbalance, and ontology-migration questions. Ontology-aware decoding can improve consistency but must not turn statistical correlations or `integrates` relations into false logical rules.
+1. Audit numerical bounds and other evidence/serialization ambiguities with the upstream owners.
+2. Create controlled contrast examples for the resolved scope, operation/strategy and ability distinctions.
+3. Establish new development/challenge data and a fresh final assessment with supported grouping, unfamiliar combinations and visual styles.
+4. Test narrowly retrieved definitions or short verifiable task evidence while retaining the compact direct baseline.
+5. Compare training duration, learning rate and targeted sampling on development data, recording regressions as well as gains.
 
-The next architecture should follow the observed error distribution and operational constraints of the baseline. “The direct model is sufficient” remains a valid result.
+Checkpoint disagreement is a candidate human-review signal to validate independently. The existing final cohort has now informed these hypotheses; future methods selected from it need fresh confirmation. Keep exact-set match primary and report label support, coverage and positive controls. Do not restrict predictions to label combinations observed in training.
+
+Additional format repair, blanket reasoning, hard graph correction, larger models and reward/preference training are lower priorities under current evidence. Keep vision and bridge frozen. Discriminative heads and graph-aware decoders remain options for latency, calibrated scores or a demonstrated accuracy limitation, with calibration, imbalance and ontology-migration work included in the comparison. Candidate filtering must preserve recall; ontology neighborhoods and empirical correlations cannot become unsupported hard constraints. “The direct model is sufficient” remains a valid result.
 
 ## 9. Durable engineering principles
 
@@ -156,21 +160,13 @@ The next architecture should follow the observed error distribution and operatio
 - Keep credentials, provider-ready datasets, model artifacts, and generated reports out of Git.
 - Make paid training and deployments explicit operations that require user confirmation.
 
-## 10. Immediate scope
+## 10. Immediate research scope
 
-The first implementation phase should establish only what is needed to run and evaluate the direct baseline:
+The baseline implementation and first full run are complete. The immediate research work is to document the upstream evidence questions, define controlled contrasts and fresh assessment requirements, and specify bounded development experiments. The [refinement plan](REFINEMENT-PLAN.md#3-ordered-research-plan) records their order and evidence requirements. Changes to data, model or training policy must be separately versioned; paid runs, uploads and deployments retain their explicit authorization boundary.
 
-1. confirm the live Qwen3.5-9B and Fireworks capability combination;
-2. define provider-neutral request, prediction, and run identities;
-3. connect Fireworks through an adapter;
-4. convert and validate a pinned dataset/ontology pair;
-5. evaluate the untuned and fine-tuned model with the same set-based metrics.
+## 11. Historical accepted implementation defaults
 
-Implementation details that do not affect these durable boundaries can be decided as they arise and documented at the point they become real decisions.
-
-## 11. Accepted implementation defaults
-
-The following decisions define the initial implementation without changing the durable architecture above.
+The following decisions describe the initial implementation. Dated dataset and model pins, provider adapters, recipes and CLI commands in this section are historical; the current baseline identity and supported Runpod workflow are recorded above. The durable provider-neutral contracts remain relevant.
 
 ### Data and ontology pinning
 
@@ -178,13 +174,13 @@ Use the latest public `christian-bick/edugraph-exercises` release on Hugging Fac
 
 The initial baseline pair is dataset tag `v0.21.0-01` at commit `ed47264f751a8a67c480dbe4eb7397e317a722eb` with ontology release `v0.21.0`. Treat this pair as run configuration and consume it directly through the dataset library; Hugging Face is a data source, not a classifier provider adapter.
 
-As of 2026-09-13 the development package pins ontology client v0.27.0. Its authored ontology and normalized classifier snapshot are unchanged from v0.26.0, so the aligned v0.26.0-01 dataset remains valid while retaining its source version in the recipe. The initial experiment files retain their historical v0.21.0 pins and fail the version check in the current environment. Neither the initial dataset nor the newer v0.22.2 dataset is approved as v0.26.0 gold data; see [the v0.26.0 migration assessment](ONTOLOGY-UPGRADE-0.26.md) and [v0.27.0 adoption notes](ONTOLOGY-UPGRADE-0.27.md). Historical reproduction requires the corresponding code commit and lockfile. The [local Docker training assessment](LOCAL-TRAINING.md) proposes a `local_docker` / `self_hosted` training adapter while retaining GCP for all surrounding services, including model upload after training. The assessment does not launch a run.
+As of 2026-09-13 the development package pins ontology client v0.27.0. Its authored ontology and normalized classifier snapshot are unchanged from v0.26.0, so the aligned v0.26.0-01 dataset remains valid while retaining its source version in the recipe. The initial experiment files and their v0.21.0 pins are retained only at the original code commits; those historical recipes would fail the current ontology version check. Neither the initial dataset nor the newer v0.22.2 dataset is approved as v0.26.0 gold data; see [the v0.26.0 migration assessment](ONTOLOGY-UPGRADE-0.26.md) and [v0.27.0 adoption notes](ONTOLOGY-UPGRADE-0.27.md). Historical reproduction requires the corresponding code commit and lockfile. The [local Docker training assessment](LOCAL-TRAINING.md) proposes a `local_docker` / `self_hosted` training adapter while retaining GCP for all surrounding services, including model upload after training. The assessment does not launch a run.
 
 Public dataset discovery and download do not require a Hugging Face credential. Authentication is introduced only if a future source is private or gated, or when an explicit model-publication step is approved.
 
 ### Model capability preflight
 
-Resolve the exact Fireworks model identity behind the Qwen3.5-9B hypothesis through a live, read-only capability check. Eligibility requires vision inference plus a compatible fine-tuning surface reporting `Tunable: true`. If no eligible checkpoint exists, stop and report the observed capabilities and alternatives; do not silently substitute a nearby model.
+For a new Fireworks experiment, resolve the selected model's exact identity through a live, read-only capability check. Eligibility requires vision inference plus a compatible fine-tuning surface reporting `Tunable: true`. If no eligible checkpoint exists, stop and report the observed capabilities and alternatives; do not silently substitute a nearby model.
 
 ### Prediction contract
 

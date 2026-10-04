@@ -17,7 +17,7 @@ import statistics
 from edugraph_classify.checkpoint_storage import publish_snapshot, unpack_verified
 from edugraph_classify.dataset import file_sha256
 from edugraph_classify.learning_data import safe_relative, verify_prepared, write_json
-from edugraph_classify.learning_run import render_prepared
+from edugraph_classify.prepared_rendering import render_prepared
 from edugraph_classify.ontology import OntologyCatalog
 from edugraph_classify.qwen_rendering import QwenVisionRenderer
 from edugraph_classify.self_hosted_run import verify_resume

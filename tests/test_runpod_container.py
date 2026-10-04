@@ -8,8 +8,8 @@ ROOT = Path(__file__).parents[1]
 CUDA_INDEX = "https://download.pytorch.org/whl/cu126"
 
 
-def test_vertex_container_and_lock_pin_cuda_126_runtime() -> None:
-    dockerfile = (ROOT / "containers" / "vertex-trainer" / "Dockerfile").read_text(
+def test_runpod_container_and_lock_pin_cuda_126_runtime() -> None:
+    dockerfile = (ROOT / "containers" / "runpod-trainer" / "Dockerfile").read_text(
         encoding="utf-8"
     )
     assert (
@@ -19,6 +19,7 @@ def test_vertex_container_and_lock_pin_cuda_126_runtime() -> None:
     assert "UV_NO_CACHE=1" in dockerfile
     assert "--no-install-project" in dockerfile
     assert "uv sync --frozen --no-dev --group training" in dockerfile
+    assert 'ENTRYPOINT ["/app/.venv/bin/python", "-m", "edugraph_classify.runpod_worker"]' in dockerfile
 
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     sources = project["tool"]["uv"]["sources"]

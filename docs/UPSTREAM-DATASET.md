@@ -4,9 +4,11 @@ This document transports the stable consumer-facing contract of [`edugraph-datas
 
 The pinned upstream release remains authoritative. If this summary and a released artifact disagree, the released artifact and its documentation win.
 
-**Current full-training candidate, 2026-09-29:** v0.30.0-03 at `9b509867e898490615be3f59bc2f31fac429389c`, aligned with ontology v0.30.0. Its 1,654 train and 314 validation metadata rows are byte-identical to v0.30.0-02 and still use `labels`; two formerly identical training images with conflicting gold sets now have distinct bytes. The full-preparation manifest verifies every selected image and records any remaining duplicates. The completed 160-image learning smoke remains pinned to v0.30.0-02 at `c1a474c2ed2c8b8b959d3205483ec32a3108c52d`; its preparation checked 224 selected images, not full-release image integrity. See [Training API setup](FIREWORKS-TRAINING-API.md). The earlier full-release audit below remains specific to v0.26.0-01.
+**Pending upstream migration:** the accepted goal is complete coverage of legitimate, observable facts and consistent realized-task range annotations. The [annotation handoff](UPSTREAM-ANNOTATION-HANDOFF-20261003.md) separates that future contract from the released constraint-driven behavior described below. Minimal serialization may omit guaranteed derived redundancy, but must not justify omitting an independent supported facet. No corrected release is adopted by this note.
 
-**Release compatibility, checked 2026-09-13:** the current recipe pins v0.26.0-01 at `cee47a3b49503e2637759a8a0e59e071c271b415` together with ontology v0.26.0. Its actual metadata uses `labels`, although the pinned dataset README still says `tags`. The importer selects the field explicitly through `dataset.label_field`; old configurations without it retain the `tags` contract. It rejects missing, unexpected, or simultaneous fields without guessing or merging. See [the release audit](DATASET-UPGRADE-0.26.0-01.md) for measured compatibility and data-quality findings.
+**Current completed baseline, 2026-10-03:** v0.30.0-03 at `9b509867e898490615be3f59bc2f31fac429389c`, aligned with ontology v0.30.0. Its 1,654 train and 314 validation metadata rows are byte-identical to v0.30.0-02 and still use `labels`; two formerly identical training images with conflicting gold sets now have distinct bytes. The [full Secure A40 run](RUNPOD-FULL-A40-20261002.md) used all released images, splitting official validation into 64 selection and 250 final-assessment images. The earlier Fireworks 160-image learning smoke remains pinned to v0.30.0-02 at `c1a474c2ed2c8b8b959d3205483ec32a3108c52d`; its preparation checked 224 selected images, not full-release image integrity. The [refinement plan](REFINEMENT-PLAN.md) records subsequent error analysis and open evidence questions. The older full-release audit below remains specific to v0.26.0-01.
+
+**Release compatibility, checked 2026-09-13:** the then-current recipe pinned v0.26.0-01 at `cee47a3b49503e2637759a8a0e59e071c271b415` together with ontology v0.26.0. Its actual metadata uses `labels`, although the pinned dataset README still says `tags`. The importer selects the field explicitly through `dataset.label_field`; old configurations without it retain the `tags` contract. It rejects missing, unexpected, or simultaneous fields without guessing or merging. See [the release audit](DATASET-UPGRADE-0.26.0-01.md) for measured compatibility and data-quality findings.
 
 ## 1. Purpose and ownership
 
@@ -98,6 +100,8 @@ derived ancestors / implications
 
 Derived labels must not be mixed into direct SFT targets or counted as additional explicit-label successes. Keeping the two representations separate also permits ontology closures to be recomputed after a version change without rewriting historical predictions.
 
+The minimal-explicit convention does not authorize local repair of a released label set. If visible evidence, a bound's specificity or coexisting ancestor labels appear ambiguous, record the case separately for upstream adjudication. Distinguish a broad but true descriptor from an unsupported descriptor; preserve the original gold and score until a versioned upstream decision resolves the convention. Model confidence is not evidence that a gold label is wrong.
+
 ## 6. Question and solution samples
 
 The `solution` field defines two important cohorts:
@@ -130,6 +134,8 @@ Classifier tooling should check for duplicate paths and bytes as an ingestion sa
 Preserve these splits for the baseline. Arbitrary row-level resplitting can introduce semantic leakage or separate related material because the public schema intentionally omits richer grouping identity.
 
 If a new held-out test set is needed, it should be published upstream or constructed from additional stable grouping metadata rather than inferred from filenames.
+
+Once assessment errors guide annotation, prompt or training choices, subsequent reuse is exploratory or regression testing for those changes. Preserve the original result and record that use; confirm the selected follow-up on a fresh assessment set excluded from those decisions. Equal gold label sets do not establish task identity, and byte deduplication does not establish template or semantic independence. The [current refinement plan](REFINEMENT-PLAN.md#4-evaluation-rules-for-follow-up-work) applies this distinction to the completed baseline.
 
 Classifier ingestion should still fail closed on:
 

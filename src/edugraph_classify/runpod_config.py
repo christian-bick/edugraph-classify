@@ -6,11 +6,9 @@ import hashlib
 import json
 from pathlib import Path
 
-from .learning_data import load_recipe
-from .vertex_artifacts import split_gcs_uri
+from .learning_data import RUNTIME_PACKAGES, load_recipe
+from .gcs_artifacts import split_gcs_uri
 
-RUNTIME_PACKAGES = ("torch", "torchvision", "transformers", "accelerate", "peft", "bitsandbytes",
-                    "wandb", "lm-format-enforcer", "edugraph-py", "pillow")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")
 

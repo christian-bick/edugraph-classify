@@ -15,7 +15,7 @@ from .providers.runpod import RunpodClient, public_status, require_secure, check
 from .runpod_config import RUNTIME_PACKAGES, load_runpod_recipe, pod_request, manifest_identity
 from .self_hosted_run import verify_resume
 
-DEFAULT_RECIPE = "experiments/edugraph-20261002-qwen38-27b-runpod-v1.json"
+DEFAULT_RECIPE = "experiments/edugraph-20261002-qwen38-27b-runpod-full-a40-v1.json"
 
 
 def add_runpod_parser(commands):
@@ -24,7 +24,7 @@ def add_runpod_parser(commands):
     check = actions.add_parser("check-config", help="validate the local recipe; no provider calls")
     check.add_argument("--config", default=DEFAULT_RECIPE)
     prepare = actions.add_parser("prepare", help="public downloads and local conversion only")
-    prepare.add_argument("--config", default=DEFAULT_RECIPE)
+    prepare.add_argument("--config", required=True, help="committed recipe with a new run ID")
     prepare.add_argument("--runs-root", default="runs")
     for action in ("stage", "render", "launch"):
         sub = actions.add_parser(action)
