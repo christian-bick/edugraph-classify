@@ -8,7 +8,7 @@ See [Runpod training](docs/RUNPOD-TRAINING.md) for the supported training workfl
 
 The next dataset priorities are **consistent realized-task ranges** and **complete coverage of legitimate, observable labels**. The [upstream annotation handoff](docs/UPSTREAM-ANNOTATION-HANDOFF-20261003.md) traces generator/view causes and specifies implementation boundaries, examples and acceptance checks for both changes.
 
-The optional [Runpod inference benchmark](docs/RUNPOD-INFERENCE-BENCHMARK.md) merges the selected adapter, exports Q4_K_M GGUF for llama.cpp, and measures accuracy, latency and GPU fit on the original validation cohort. The [first completed L40S run](docs/RUNPOD-GGUF-BENCHMARK-20261004.md) scored 19/64 exact after export, versus 43/64 for the selected NF4 training model on the same cohort; it was not promoted. This workflow is separate from training and does not change the Imagine deployment.
+The optional [Runpod inference benchmark](docs/RUNPOD-INFERENCE-BENCHMARK.md) merges the selected adapter, exports Q4_K_M GGUF for llama.cpp, and measures accuracy, latency and GPU fit on the original validation cohort. The [L40S run record](docs/RUNPOD-GGUF-BENCHMARK-20261004.md) shows 19/64 exact initially and 37/64 after correcting JSON property order, versus 43/64 for the selected NF4 training model on the same cohort. The GGUF candidate has not been promoted; this workflow does not change the Imagine deployment.
 
 ## Development
 

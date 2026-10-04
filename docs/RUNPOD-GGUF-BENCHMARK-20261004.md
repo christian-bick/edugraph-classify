@@ -1,8 +1,8 @@
 # Secure L40S GGUF inference benchmark, 2026-10-04
 
-**Completed, with no model promotion or GCP inference change.** The selected epoch-2 Runpod adapter was merged with its pinned BF16 base, exported to llama.cpp GGUF, quantized to Q4_K_M, and replayed on the original 64-image validation cohort. The first concurrency-one round scored **19/64 exact-set match (29.69%) and 88.49% micro label F1**. The matching NF4-plus-adapter selection result is **43/64 (67.19%) and 95.26% F1**. The 250-image final assessment from the training run is a separate cohort and is not used as this comparison. The merged BF16 model was hashed but not scored independently, so this run does not identify how much of the loss comes from merging, quantization, the llama.cpp serving path, or their interaction.
+**Two completed Secure L40S runs, with no model promotion or GCP inference change.** The selected epoch-2 Runpod adapter was merged with its pinned BF16 base, exported to llama.cpp GGUF, quantized to Q4_K_M, and replayed on the original 64-image validation cohort. The first run (v3) scored **19/64 exact-set match (29.69%) and 88.49% micro label F1** at concurrency one. A controlled replay (v4) corrected the order of JSON properties sent to llama.cpp, retained identical merged and GGUF model hashes, and scored **37/64 (57.81%) and 93.69% F1**. The matching NF4-plus-adapter selection result is **43/64 (67.19%) and 95.26% F1**. The 250-image final assessment from the training run is a separate cohort and is not used as this comparison. The merged BF16 model was hashed but not scored independently, so the remaining gap cannot be assigned specifically to merging, quantization or the llama.cpp serving path.
 
-## Run contract and artifacts
+## Original v3 run contract and artifacts
 
 - Run ID: `edugraph-20261004-qwen38-27b-gguf-benchmark-v3`; Secure NVIDIA L40S Pod `vg8sgfoyvohz9h`, one GPU, no public ports; worker code commit `6071d2698aa3b342255293c15063235ff288fae6`.
 - Image: `ghcr.io/christian-bick/edugraph-classify-inference-benchmark@sha256:cc11fd49420681839ce27c36b13c6b32c7ad9de63b085ad512e383b521599ee3`; llama.cpp commit `0faee5004297c3bcfa40b7bf11750127b8c1fd7d` (`b11384`).
@@ -14,7 +14,7 @@
 
 The worker recorded all merged Hugging Face shard hashes and the BF16 language GGUF hash (`492282b16f6247d7e447cebcc9decd92c9de9175298bf13cbb76e7ac0e531eca`). It did not preserve those large intermediates as separate durable model bundles. No merged-BF16 inference score exists.
 
-## Accuracy on the matched validation cohort
+## Original v3 accuracy on the matched validation cohort
 
 The first concurrency-one round is the reference result below. Explicit and canonicalized aggregate metrics were identical. Exact-set match is primary; precision, recall and F1 are micro-averaged over explicit dimension labels. Two raw outputs were invalid because of duplicate labels, which deterministic canonicalization removed. Derived ontology closure was not scored.
 
@@ -35,7 +35,7 @@ The 24-case exact-set difference is **37.50 percentage points**. A paired case a
 
 Label-macro F1 was 79.13%. Labels appearing one to four times in training had five true positives, two false positives and two false negatives; this is too small for a stable rare-label estimate. There were no gold labels unseen during training, although the model predicted 13 such labels, so unseen-label recall is unmeasured.
 
-## Runtime, capacity and cost
+## Original v3 runtime, capacity and cost
 
 The Pod reported **46,068 MiB (44.988 GiB)** total GPU memory, **188.0 decimal GB** effective host RAM and **13.6** effective CPUs. An earlier 45 GiB minimum rejected this normal L40S before model work; the executed v3 recipe uses a 44 GiB minimum. Peak sampled GPU use was **18,840 MiB** of 46,068 MiB, with mean sampled GPU utilization of **51.46%** across 752 samples. This establishes fit for the tested L40S configuration, not for the 24 GB GCP L4 or a production concurrency/load pattern.
 
@@ -47,6 +47,34 @@ The Pod reported **46,068 MiB (44.988 GiB)** total GPU memory, **188.0 decimal G
 
 The second repeats were close: median latencies 2.30, 3.59 and 6.03 seconds; throughput 0.448, 0.565 and 0.667 images/s. Per-image latency includes image hashing, JPEG conversion, request construction and server response; it is not pure model execution. Server startup above measures an already allocated Pod starting `llama-server`; it is not a Cloud Run cold start. The complete worker interval recorded in the completion marker was **3,239.6 seconds (54.0 minutes)** at a reviewed **$1.09/hour compute + $0.05/hour running disk**, yielding a **$1.0259 estimate** for that interval. Of this, `result.json` records 2,523.6 seconds and $0.7991 before final publication; the later interval includes artifact upload. Both estimates exclude time before the worker timer, retained GCS storage, tax and other provider charges. Actual billed spend was not independently measured. The Pod terminated automatically after publication; a fresh Runpod list found no active Pod. The two earlier 45 GiB preflight attempts, Pods `20kqn58g7jy54m` and `poh7npbq99xeoi`, were removed after failing before model work; their charges are not included in the v3 worker estimate.
 
+## Controlled v4 replay
+
+The v4 replay used run ID `edugraph-20261004-qwen38-27b-gguf-benchmark-v4`, Secure L40S Pod `xley3b4hyp4a5q`, code commit `0a6cc246889ea1087df88126d26d5642e9b285a2`, and image `ghcr.io/christian-bick/edugraph-classify-inference-benchmark@sha256:69ac9903fb848d4ebee943b43be65e553ef5f4b9c7983452882657c58598dc79`. The llama.cpp commit, source adapter and base model revision, dataset and ontology, prompt/schema/template, quantization, and benchmark settings remained pinned as in v3. The independently replayed comparison verified the same 64 validation IDs, image hashes, gold labels and evaluator. Hashes of every merged-model shard, BF16 language GGUF, Q4_K_M language GGUF (`bd2ec1357e84b27b58ec0b1c83e143028f9b54e42989dc9f3db7c59aed870639`) and BF16 projector (`3248a0391bed86eef3842121dab70d4657da244bde47ae02ce37580351bd0138`) matched v3.
+
+- Prepared input: `gs://edugraph-classify/runpod/inputs/edugraph-20261004-qwen38-27b-gguf-benchmark-v4/bf0b36a7eadd8a5486decb07aaa46fc729f8580ff1ff19f8843887be24351983.tar` (25,671,680 bytes). It was a new immutable run bundle; non-recipe inputs matched v3.
+- Downloaded and SHA-256-verified report: `gs://edugraph-classify/runpod/benchmarks/edugraph-20261004-qwen38-27b-gguf-benchmark-v4/41bdd7535b410fc3f23a4095975ba9bfcbe6af692290a275455cf597ffe0b0d1.tar` (1,361,920 bytes). The local copy is in gitignored `reports/gguf-benchmark-v4/`; the paired replay is in gitignored `reports/gguf-paired-analysis/paired-v4.json`.
+- Published candidate reference: `gs://edugraph-classify/runpod/inference-models/edugraph-20261004-qwen38-27b-gguf-benchmark-v4/7fc4a0f8fc21761615751107e92b44ffe4f9f75a9cde3aaac6613e4d51c33c72.tar` (17,478,901,760 bytes). Its GCS metadata and size were checked; the 17.5 GB payload was not downloaded for an independent whole-bundle SHA-256 check. The differing tar hash reflects a new run bundle; the contained model hashes above match v3. This is a benchmark candidate, not a deployed model.
+
+The reference concurrency-one first repeat improved by **18/64 cases, or 28.13 percentage points**, over v3. It remains **6/64 cases, or 9.38 points**, below the selected NF4 validation baseline. Explicit and canonicalized aggregate metrics were identical in v4, and no v4 output was invalid. In the v3-to-v4 paired comparison, 20 cases recovered, two regressed, 17 were correct in both, and 25 were wrong in both. Against NF4, v4 shared 35 correct cases, missed eight NF4-correct cases, recovered two NF4-wrong cases, and shared 19 wrong cases.
+
+| Configuration, concurrency 1 repeat 1 | Exact-set match | Precision | Recall | F1 | Invalid |
+|---|---:|---:|---:|---:|---:|
+| Selected epoch-2 NF4 + adapter | 43/64 (67.19%) | 94.93% | 95.60% | 95.26% | 1/64 |
+| v3 Q4_K_M GGUF, original property order | 19/64 (29.69%) | 89.69% | 87.32% | 88.49% | 2/64 |
+| v4 Q4_K_M GGUF, training property order | 37/64 (57.81%) | 94.61% | 92.78% | 93.69% | 0/64 |
+
+| Exact-set slice | NF4 | v3 GGUF | v4 GGUF |
+|---|---:|---:|---:|
+| Abilities | 58/64 | 29/64 | 56/64 |
+| Areas | 54/64 | 53/64 | 54/64 |
+| Scopes | 48/64 | 38/64 | 43/64 |
+| Question views | 19/32 | 7/32 | 16/32 |
+| Solution views | 24/32 | 12/32 | 21/32 |
+
+Generated output texts were byte-identical across the two v4 concurrency-one repeats, which both scored 37/64. Concurrency-two repeats also scored 37/64; concurrency-four repeats scored 38/64 and 37/64. All 384 v4 responses had `areas, scopes, abilities` order, versus `abilities, areas, scopes` in all 384 v3 responses. All v4 responses stopped normally, with no output truncation. The ability-dimension recovery from 29/64 to 56/64 is the largest slice change. This paired result strongly supports the schema property order as a major contributor to the v3 regression, although the six remaining exact-set cases below NF4 cannot be assigned to a specific export or serving step.
+
+The v4 Pod reported 46,068 MiB GPU memory and 125.0 decimal GB effective host RAM; peak sampled GPU use was again 18,840 MiB. Median/p95 per-image latency and throughput were 2.15/2.52 seconds and 0.472 images/s at concurrency one, 3.21/4.06 seconds and 0.626 images/s at concurrency two, and 5.34/6.93 seconds and 0.745 images/s at concurrency four (first repeats). Server startup-to-healthy was 5.76, 5.62 and 5.65 seconds respectively. V4's host allocation differed from v3's 188 GB, so the latency change cannot be assigned solely to schema ordering. The completion marker recorded a **2,652-second worker interval** and a **$0.8398 compute-plus-running-disk estimate** at $1.09/hour compute plus $0.05/hour disk. The pre-publication report covered 2,196.1 seconds and $0.6954; neither estimate includes pre-worker allocation time, retained GCS storage, tax or other provider charges, and actual billed spend was not independently measured. The Pod terminated automatically; a fresh Runpod list found no active Pod.
+
 ## Interpretation and next check
 
-The pinned llama.cpp JSON-schema path emits properties in their request order ([schema conversion](https://github.com/ggml-org/llama.cpp/blob/0faee5004297c3bcfa40b7bf11750127b8c1fd7d/common/json-schema.cpp), [grammar conversion](https://github.com/ggml-org/llama.cpp/blob/0faee5004297c3bcfa40b7bf11750127b8c1fd7d/common/json-schema-to-grammar.cpp)). All 384 GGUF responses in this run started with `abilities, areas, scopes`; the supervised targets and NF4 outputs used `areas, scopes, abilities`. This is a generation-context mismatch even though the evaluator treats dimensions as sets. The benchmark request builder has since been adjusted to send an ordered shallow copy of the same closed schema with `areas, scopes, abilities`, preserving its meanings and the original file. That correction has **not** been measured on a GPU; the v3 report and hashes still describe the original request. A new controlled run would be needed to learn whether it recovers accuracy. A merged BF16 evaluation would then help separate numerical conversion effects from serving behavior. Neither rerun nor model promotion is authorized by this record.
+The pinned llama.cpp JSON-schema path emits properties in their request order ([schema conversion](https://github.com/ggml-org/llama.cpp/blob/0faee5004297c3bcfa40b7bf11750127b8c1fd7d/common/json-schema.cpp), [grammar conversion](https://github.com/ggml-org/llama.cpp/blob/0faee5004297c3bcfa40b7bf11750127b8c1fd7d/common/json-schema-to-grammar.cpp)). The v3 request supplied the same closed schema with alphabetically ordered properties, and all 384 responses began with `abilities, areas, scopes`; the supervised targets and NF4 outputs used `areas, scopes, abilities`. The v4 request supplied an ordered copy of those properties without changing the schema file or allowed labels. Its measured quality recovery shows that JSON property order matters to this generation path even though the evaluator treats dimensions as sets. The merged BF16 checkpoint still needs an independent evaluation to separate any remaining numerical-conversion loss from serving differences. The L40S fit and timing do not establish fit on the 24 GB GCP L4 or Cloud Run cold-start behavior. Neither completed run authorized model promotion or a GCP inference change.
