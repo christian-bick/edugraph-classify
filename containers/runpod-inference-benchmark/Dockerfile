@@ -7,7 +7,7 @@ ARG LLAMA_CPP_COMMIT
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
-        ca-certificates cmake g++ git libgomp1 ninja-build \
+        ca-certificates cmake g++ git libgomp1 ninja-build tar \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
@@ -31,6 +31,9 @@ RUN cmake -S . -B build -G Ninja \
     && cp -a build/bin/llama-quantize build/bin/llama-server /out/bin/ \
     && find build -name '*.so*' -exec cp -P {} /out/bin/ \;
 
+# Carry the pinned checkout metadata via an archive; BuildKit cannot COPY .git directly.
+RUN tar -C /src/llama.cpp -cf /out/llama-git.tar .git
+
 FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04@sha256:23debbe74125dc84df96df79cff42079b3b15265c27140714fd27b5aa718faa4
 
 ARG LLAMA_CPP_COMMIT
@@ -45,7 +48,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
-        ca-certificates git libgomp1 python3.12 python3.12-venv \
+        ca-certificates git libgomp1 python3.12 python3.12-venv tar \
     && rm -rf /var/lib/apt/lists/* \
     && python3.12 -m venv /opt/uv \
     && /opt/uv/bin/pip install --no-cache-dir uv==0.7.12
@@ -63,7 +66,8 @@ COPY src ./src
 RUN uv sync --frozen --no-dev --group training --group inference-benchmark --python /usr/bin/python3.12
 
 COPY --from=llama-build /src/llama.cpp/convert_hf_to_gguf.py /opt/llama.cpp/
-COPY --from=llama-build /src/llama.cpp/.git /opt/llama.cpp/.git
+COPY --from=llama-build /out/llama-git.tar /tmp/llama-git.tar
+RUN tar -C /opt/llama.cpp -xf /tmp/llama-git.tar && rm /tmp/llama-git.tar
 COPY --from=llama-build /src/llama.cpp/LICENSE /opt/llama.cpp/LICENSE
 COPY --from=llama-build /src/llama.cpp/requirements.txt /opt/llama.cpp/requirements.txt
 COPY --from=llama-build /src/llama.cpp/requirements /opt/llama.cpp/requirements
