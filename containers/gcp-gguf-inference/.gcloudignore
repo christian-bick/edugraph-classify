@@ -1,0 +1,5 @@
+**
+!Dockerfile
+!cloudbuild.yaml
+!prepare_context.py
+!.gcloudignore
