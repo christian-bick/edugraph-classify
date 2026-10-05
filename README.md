@@ -8,7 +8,7 @@ See [Runpod training](docs/RUNPOD-TRAINING.md) for the supported training workfl
 
 The next dataset priorities are **consistent realized-task ranges** and **complete coverage of legitimate, observable labels**. The [upstream annotation handoff](docs/UPSTREAM-ANNOTATION-HANDOFF-20261003.md) traces generator/view causes and specifies implementation boundaries, examples and acceptance checks for both changes.
 
-The optional [Runpod inference benchmark](docs/RUNPOD-INFERENCE-BENCHMARK.md) now has a merged-BF16 diagnostic as well as the Q4_K_M GGUF route for llama.cpp. Both use the original validation cohort. The [L40S run record](docs/RUNPOD-GGUF-BENCHMARK-20261004.md) shows 19/64 exact initially and 37/64 after correcting JSON property order, versus 43/64 for the selected NF4 training model on the same cohort. The merged BF16 model has not yet been scored, the GGUF candidate has not been promoted, and neither benchmark changes the Imagine deployment.
+The optional [Runpod inference benchmark](docs/RUNPOD-INFERENCE-BENCHMARK.md) now has a merged-BF16 diagnostic as well as the Q4_K_M GGUF route for llama.cpp. Both use the original validation cohort. The [L40S run record](docs/RUNPOD-GGUF-BENCHMARK-20261004.md) shows 19/64 exact initially and 37/64 after correcting JSON property order, versus 43/64 for the selected NF4 training model on the same cohort. The [first BF16 diagnostic](docs/RUNPOD-BF16-BENCHMARK-20261005.md) verified an identical merged checkpoint but failed in Triton on its first warmup, before any prediction. BF16 accuracy remains unmeasured, the GGUF candidate has not been promoted, and neither benchmark changes the Imagine deployment.
 
 ## Development
 

@@ -182,6 +182,6 @@ def pod_request(manifest: dict, image: str, staged: dict) -> dict:
             "EDUGRAPH_BUNDLE_URI": staged["uri"], "EDUGRAPH_BUNDLE_SHA256": staged["sha256"],
             "EDUGRAPH_RUN_ID": recipe["run_id"], "EDUGRAPH_EXPECTED_COMMIT": manifest["code_commit"],
             "EDUGRAPH_MAX_HOURS": str(execution["max_hours"]), "HF_HOME": "/workspace/huggingface",
-            "TOKENIZERS_PARALLELISM": "false",
+            "TORCH_DISABLE_NATIVE_JIT": "1", "TOKENIZERS_PARALLELISM": "false",
         },
     }

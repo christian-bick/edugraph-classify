@@ -198,6 +198,7 @@ def test_stage_render_launch_boundaries_and_secret_free_request(case, tmp_path, 
     assert request["cloudType"] == "SECURE" and request["ports"] == []
     assert request["dockerEntrypoint"][-1] == "edugraph_classify.inference_benchmark_worker"
     assert request["env"]["EDUGRAPH_GCS_CREDENTIALS_JSON"].startswith("{{ RUNPOD_SECRET_")
+    assert request["env"]["TORCH_DISABLE_NATIVE_JIT"] == "1"
     assert "WANDB_API_KEY" not in request["env"]
     assert "fake" not in json.dumps(request)
     with pytest.raises(ValueError, match="digest"):
