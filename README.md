@@ -10,6 +10,8 @@ The next dataset priorities are **consistent realized-task ranges** and **comple
 
 The optional [Runpod inference benchmark](docs/RUNPOD-INFERENCE-BENCHMARK.md) measures the merged-BF16 checkpoint and the Q4_K_M GGUF route for llama.cpp on the original validation cohort. The [BF16 run record](docs/RUNPOD-BF16-BENCHMARK-20261005.md) reports 40/64 exact in both A100 repeats after an initial failed warmup attempt. The [L40S GGUF record](docs/RUNPOD-GGUF-BENCHMARK-20261004.md) reports 37/64 after correcting JSON property order, versus 43/64 for the selected NF4 training model on the same 64 cases. No benchmark candidate has been promoted, and Imagine deployment is unchanged.
 
+The [Hugging Face GGUF release workflow](docs/HUGGINGFACE-GGUF-RELEASE.md) prepares a hash-verified, curated model package locally; the weight license remains an explicit release decision. The [Imagine baseline promotion plan](docs/IMAGINE-BASELINE-PROMOTION.md) records deployment checks. Neither workflow has published the candidate or changed inference.
+
 ## Development
 
 Python 3.12 and [uv](https://docs.astral.sh/uv/) manage environments, dependencies, execution, locking, and builds.

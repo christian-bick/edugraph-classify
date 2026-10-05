@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from .providers.runpod import RunpodError
+from .hf_gguf_release import add_hf_gguf_release_parser, run_hf_gguf_release_command
 from .inference_benchmark_cli import add_inference_benchmark_parser, run_inference_benchmark_command
 from .runpod_cli import add_runpod_parser, run_runpod_command
 
@@ -38,12 +39,17 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     add_runpod_parser(commands)
     add_inference_benchmark_parser(commands)
+    add_hf_gguf_release_parser(commands)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if args.command == "hf-gguf-release":
+            exit_code, payload = run_hf_gguf_release_command(args)
+            print(json.dumps(payload, indent=2))
+            return exit_code
         commit = None if args.action in ("check-config", "status", "stop") else _code_commit(Path.cwd())
         if args.command == "inference-benchmark":
             exit_code, payload = run_inference_benchmark_command(args, commit)

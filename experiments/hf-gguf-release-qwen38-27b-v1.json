@@ -1,0 +1,42 @@
+{
+  "kind": "huggingface_gguf_release_v1",
+  "repository": "christian-bick/EduGraph-Classifier-Qwen3.8-27B-GGUF",
+  "candidate": {
+    "run_id": "edugraph-20261004-qwen38-27b-gguf-benchmark-v4",
+    "archive_sha256": "7fc4a0f8fc21761615751107e92b44ffe4f9f75a9cde3aaac6613e4d51c33c72",
+    "archive_bytes": 17478901760,
+    "source_model_sha256": "28aa0526e1b693d7bff66d97b8823ff23bc06082bc3eb3d2a1f9d5cb4020ec49",
+    "source_training_run_id": "edugraph-20261002-qwen38-27b-runpod-full-a40-v1"
+  },
+  "base_model": {
+    "repository": "Qwen/Qwen3.8-27B",
+    "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0"
+  },
+  "dataset": {
+    "repository": "christian-bick/edugraph-exercises",
+    "release": "v0.30.0-03",
+    "revision": "9b509867e898490615be3f59bc2f31fac429389c"
+  },
+  "ontology_version": "0.30.0",
+  "llama_cpp_commit": "0faee5004297c3bcfa40b7bf11750127b8c1fd7d",
+  "benchmark_code_commit": "0a6cc246889ea1087df88126d26d5642e9b285a2",
+  "files_sha256": {
+    "model-Q4_K_M.gguf": "bd2ec1357e84b27b58ec0b1c83e143028f9b54e42989dc9f3db7c59aed870639",
+    "mmproj-BF16.gguf": "3248a0391bed86eef3842121dab70d4657da244bde47ae02ce37580351bd0138",
+    "chat_template.jinja": "4813f6c608147061ba44f17b01aa344de7b5036cb97bb39200a3b2bb6e26a0c5",
+    "prompt.json": "17e336fff2c539d9413defc12a8578e770e220f272e1ef92f90dfedc38c7c949",
+    "closed_schema.json": "a59c3cbed3a817bc20fec04c2d13c003b9be6360b0f8d3348036da884376f5b6",
+    "manifest.json": "92e6a5214a18663ca1d81bea5e142db995d75a6f64daf107f6ebca819a62ff4e"
+  },
+  "evaluation": {
+    "validation_count": 64,
+    "nf4_exact": 43,
+    "bf16_exact": 40,
+    "gguf_exact": 37,
+    "gguf_micro_f1_percent": 93.69,
+    "gguf_invalid": 0,
+    "gguf_report_sha256": "41bdd7535b410fc3f23a4095975ba9bfcbe6af692290a275455cf597ffe0b0d1",
+    "nf4_final_exact": 181,
+    "nf4_final_count": 250
+  }
+}
