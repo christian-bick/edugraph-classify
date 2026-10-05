@@ -56,4 +56,4 @@ The following records describe retired training paths. Their executors, recipes,
 
 ## License
 
-This project's code is licensed under the [Apache License 2.0](LICENSE). Upstream datasets, ontology content, model weights, and bundled dependencies retain their own licenses.
+This project's code is licensed under the [Apache License 2.0](LICENSE). New EduGraph model-weight releases target Apache-2.0 after verifying the exact upstream checkpoint's redistribution terms; see the [GGUF release workflow](docs/HUGGINGFACE-GGUF-RELEASE.md). Upstream datasets, ontology content, and bundled dependencies retain their own licenses.

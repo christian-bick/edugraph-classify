@@ -85,6 +85,7 @@ def test_license_requires_explicit_id_and_file_and_never_uploads(tmp_path):
     archive, recipe, _, _ = example(tmp_path)
     license_path = tmp_path / "chosen-license.txt"
     license_path.write_text("Owner-approved sample license", encoding="utf-8")
+    recipe["model_license"]["upstream_license_sha256"] = sha(license_path.read_bytes())
     with pytest.raises(ValueError, match="together"):
         prepare_release(archive, recipe, tmp_path / "missing-file", license_id="apache-2.0")
     with pytest.raises(ValueError, match="together"):
@@ -94,11 +95,21 @@ def test_license_requires_explicit_id_and_file_and_never_uploads(tmp_path):
     with pytest.raises(ValueError, match="missing or empty"):
         prepare_release(archive, recipe, tmp_path / "bad-file", license_id="apache-2.0",
                         license_file=tmp_path / "missing")
+    with pytest.raises(ValueError, match="differs from release recipe"):
+        prepare_release(archive, recipe, tmp_path / "wrong-id", license_id="mit", license_file=license_path)
+    license_path.write_text("Different terms", encoding="utf-8")
+    with pytest.raises(ValueError, match="differs from pinned upstream LICENSE"):
+        prepare_release(archive, recipe, tmp_path / "wrong-license", license_id="apache-2.0",
+                        license_file=license_path)
+    license_path.write_text("Owner-approved sample license", encoding="utf-8")
     output = tmp_path / "licensed"
     result = prepare_release(archive, recipe, output, license_id="apache-2.0", license_file=license_path)
     assert result["license_gate"] == "passed"
     assert (output / "LICENSE").read_text(encoding="utf-8") == "Owner-approved sample license"
     assert "license: apache-2.0" in (output / "README.md").read_text(encoding="utf-8")
+    assert "License and attribution" in (output / "README.md").read_text(encoding="utf-8")
+    provenance = json.loads((output / "provenance.json").read_text(encoding="utf-8"))
+    assert provenance["model_license_sha256"] == recipe["model_license"]["upstream_license_sha256"]
     assert not (output / "DO_NOT_PUBLISH_LICENSE_PENDING.txt").exists()
     with pytest.raises(FileExistsError):
         prepare_release(archive, recipe, output)
@@ -185,6 +196,8 @@ def test_recipe_pins_and_cli_output_boundary(tmp_path, monkeypatch):
         lambda r: r["candidate"].update(run_id="not a run ID"),
         lambda r: r["base_model"].update(repository="invalid"),
         lambda r: r["base_model"].update(revision="main"),
+        lambda r: r["model_license"].update(id="invalid license"),
+        lambda r: r["model_license"].update(upstream_license_sha256="not a checksum"),
         lambda r: r["dataset"].update(repository="invalid"),
         lambda r: r.update(ontology_version="latest"),
         lambda r: r["files_sha256"].pop("manifest.json"),
@@ -195,3 +208,12 @@ def test_recipe_pins_and_cli_output_boundary(tmp_path, monkeypatch):
         recipe_path.write_text(json.dumps(invalid), encoding="utf-8")
         with pytest.raises(ValueError):
             load_release_recipe(recipe_path)
+
+
+def test_release_recipe_pins_exact_upstream_license():
+    root = Path(__file__).resolve().parents[1]
+    recipe = load_release_recipe(root / "experiments" / "hf-gguf-release-qwen38-27b-v1.json")
+    upstream_license = root / "experiments" / "licenses" / "Qwen3.8-27B-1d4bf0f-LICENSE"
+    assert upstream_license.is_file()
+    assert sha(upstream_license.read_bytes()) == recipe["model_license"]["upstream_license_sha256"]
+    assert recipe["model_license"]["id"] == "apache-2.0"

@@ -12,6 +12,10 @@
     "repository": "Qwen/Qwen3.8-27B",
     "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0"
   },
+  "model_license": {
+    "id": "apache-2.0",
+    "upstream_license_sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a"
+  },
   "dataset": {
     "repository": "christian-bick/edugraph-exercises",
     "release": "v0.30.0-03",
