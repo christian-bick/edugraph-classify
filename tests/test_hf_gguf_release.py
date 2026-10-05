@@ -74,6 +74,8 @@ def test_prepare_stages_only_verified_public_files_and_marks_license_pending(tmp
     assert "181/250 final-assessment result belongs only to the NF4-plus-adapter" in card
     assert "areas`, `scopes`, `abilities` order" in card
     assert "--ubatch-size 1024" in card and "--mmproj mmproj-BF16.gguf" in card
+    assert "library_name: gguf" in card
+    assert f"blob/{recipe['benchmark_record_commit']}/docs/RUNPOD-GGUF-BENCHMARK" in card
     provenance = json.loads((output / "provenance.json").read_text(encoding="utf-8"))
     assert provenance["candidate_archive_sha256"] == recipe["candidate"]["archive_sha256"]
     assert provenance["source_model_sha256"] == recipe["candidate"]["source_model_sha256"]
@@ -196,6 +198,7 @@ def test_recipe_pins_and_cli_output_boundary(tmp_path, monkeypatch):
         lambda r: r["candidate"].update(run_id="not a run ID"),
         lambda r: r["base_model"].update(repository="invalid"),
         lambda r: r["base_model"].update(revision="main"),
+        lambda r: r.update(benchmark_record_commit="main"),
         lambda r: r["model_license"].update(id="invalid license"),
         lambda r: r["model_license"].update(upstream_license_sha256="not a checksum"),
         lambda r: r["dataset"].update(repository="invalid"),

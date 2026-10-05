@@ -45,7 +45,7 @@ def _digest(value: object, section: str, pattern=SHA256) -> None:
 def load_release_recipe(path: Path) -> dict:
     recipe = json.loads(path.read_text(encoding="utf-8"))
     _keys(recipe, {"kind", "repository", "candidate", "base_model", "dataset",
-                   "ontology_version", "llama_cpp_commit", "benchmark_code_commit",
+                   "ontology_version", "llama_cpp_commit", "benchmark_code_commit", "benchmark_record_commit",
                    "files_sha256", "evaluation", "model_license"}, "release recipe")
     if recipe["kind"] != "huggingface_gguf_release_v1" or not REPO.fullmatch(recipe["repository"]):
         raise ValueError("invalid release repository or recipe kind")
@@ -72,7 +72,7 @@ def load_release_recipe(path: Path) -> dict:
     if not REPO.fullmatch(recipe["dataset"]["repository"]):
         raise ValueError("invalid dataset repository")
     _digest(recipe["dataset"]["revision"], "dataset revision", COMMIT)
-    for field in ("llama_cpp_commit", "benchmark_code_commit"):
+    for field in ("llama_cpp_commit", "benchmark_code_commit", "benchmark_record_commit"):
         _digest(recipe[field], field, COMMIT)
     if not isinstance(recipe["ontology_version"], str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", recipe["ontology_version"]):
         raise ValueError("invalid ontology version")
@@ -107,6 +107,7 @@ The EduGraph fine-tuned and Q4_K_M-converted model weights are released under Ap
 """ if license_id else "")
     return f"""---
 {license_metadata}pipeline_tag: image-text-to-text
+library_name: gguf
 base_model: {recipe['base_model']['repository']}
 datasets:
   - {recipe['dataset']['repository']}
@@ -127,7 +128,7 @@ This research model labels **one educational task image** with explicit EduGraph
 - Pinned llama.cpp converter/runtime commit: `{recipe['llama_cpp_commit']}`
 - Selected training run: `{candidate['source_training_run_id']}`; GGUF validation run: `{candidate['run_id']}` at code commit `{recipe['benchmark_code_commit']}`
 - Training dataset: [{recipe['dataset']['repository']}](https://huggingface.co/datasets/{recipe['dataset']['repository']}) release `{recipe['dataset']['release']}` at revision `{recipe['dataset']['revision']}`; ontology `{recipe['ontology_version']}`
-- `provenance.json` contains the source archive and curated-file checksums. The benchmark record is in [EduGraph Classify](https://github.com/christian-bick/edugraph-classify/blob/{recipe['benchmark_code_commit']}/docs/RUNPOD-GGUF-BENCHMARK-20261004.md).
+- `provenance.json` contains the source archive and curated-file checksums. The [immutable benchmark record](https://github.com/christian-bick/edugraph-classify/blob/{recipe['benchmark_record_commit']}/docs/RUNPOD-GGUF-BENCHMARK-20261004.md) documents the corrected v4 score; the execution code remains pinned separately above.
 
 ## Use with llama.cpp
 
@@ -235,6 +236,7 @@ def prepare_release(archive_path: Path, recipe: dict, output: Path, *,
                           "ontology_version": recipe["ontology_version"],
                           "llama_cpp_commit": recipe["llama_cpp_commit"],
                           "benchmark_code_commit": recipe["benchmark_code_commit"],
+                          "benchmark_record_commit": recipe["benchmark_record_commit"],
                           "source_files_sha256": recipe["files_sha256"],
                           "gguf_report_sha256": recipe["evaluation"]["gguf_report_sha256"],
                           "model_license": license_id,

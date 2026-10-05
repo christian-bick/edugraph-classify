@@ -24,6 +24,7 @@
   "ontology_version": "0.30.0",
   "llama_cpp_commit": "0faee5004297c3bcfa40b7bf11750127b8c1fd7d",
   "benchmark_code_commit": "0a6cc246889ea1087df88126d26d5642e9b285a2",
+  "benchmark_record_commit": "60e2e2b710b262cc527137ffc75aa61fe868d679",
   "files_sha256": {
     "model-Q4_K_M.gguf": "bd2ec1357e84b27b58ec0b1c83e143028f9b54e42989dc9f3db7c59aed870639",
     "mmproj-BF16.gguf": "3248a0391bed86eef3842121dab70d4657da244bde47ae02ce37580351bd0138",
