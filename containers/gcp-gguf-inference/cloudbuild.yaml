@@ -2,7 +2,8 @@
 # inside Cloud Build and cryptographically checked before Docker sees any model files.
 steps:
   - id: prepare-verified-context
-    name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
+    # The pinned slim variant includes python3; stable did not expose it in PATH.
+    name: gcr.io/google.com/cloudsdktool/google-cloud-cli:slim@sha256:be4876b4311056bf3ce236a14a7dea1288e70b7cfea2454ea15e4165c819921f
     entrypoint: python3
     args:
       - prepare_context.py

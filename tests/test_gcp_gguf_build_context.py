@@ -4,11 +4,12 @@ import hashlib
 import importlib.util
 import io
 import json
-from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
 import tarfile
+from pathlib import Path
 
 import pytest
 
@@ -106,6 +107,15 @@ def test_prepare_context_rejects_unexpected_tar_members(tmp_path, names, link):
     with pytest.raises(ValueError, match="pinned regular files"):
         build_context.prepare_context(archive, tmp_path / "context", candidate=candidate)
     assert not (tmp_path / "context").exists()
+
+
+def test_build_python_step_uses_pinned_python_capable_image():
+    config = (HELPER.parent / "cloudbuild.yaml").read_text()
+    assert re.search(
+        r"name: gcr\.io/google\.com/cloudsdktool/google-cloud-cli:slim@sha256:[0-9a-f]{64}",
+        config,
+    )
+    assert "entrypoint: python3" in config
 
 
 def test_build_pins_match_public_release_recipe():
