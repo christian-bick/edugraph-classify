@@ -1,0 +1,127 @@
+{
+  "kind": "imagine_classification_only_backend_canary_v1",
+  "date_utc": "2026-10-06",
+  "project": "edugraph-438718",
+  "region": "europe-west4",
+  "source": {
+    "backend_commit": "73b09e0e41da831667d9808ce01e23435cfa88e7",
+    "web_commit": "6d3abd056c6a7d6c4b12db9179a3ad79b7a29919",
+    "release_manifest_sha256": "a662669ed309bfe2eb6c90f21dd2a570b0bcadcc456db0e22dc397ede1ddc5c6"
+  },
+  "image": {
+    "tag": "europe-west4-docker.pkg.dev/edugraph-438718/imagine-server/imagine-server:qwen38-classify-73b09e0",
+    "index_digest": "sha256:9184afa8c3d343e19d8378d0b5773372ec5fcb1ec16656dad19455f6844afd81",
+    "cloud_run_linux_amd64_manifest_digest": "sha256:ec911239673c83b867e215f70062563df12cc7d7888849b420700f0c1ee6ca2b",
+    "local_docker_build": true,
+    "local_smoke_passed": true,
+    "artifact_registry_digest_verified": true,
+    "unpacked_bytes": 1244665413,
+    "buildkit_push_seconds": 2092.3,
+    "cloud_build_used": false
+  },
+  "deployment": {
+    "service": "imagine-server",
+    "revision": "imagine-server-qwen38-73b09e0",
+    "predictor_revision": "edugraph-predict-00006-nej",
+    "predictor_tag": "qwen38-canary",
+    "runtime_service_account": "imagine-server@edugraph-438718.iam.gserviceaccount.com",
+    "ready": true,
+    "image_import_seconds": 116.94,
+    "container_healthy_seconds": 13.23,
+    "concurrency": 1,
+    "min_instances": 0,
+    "max_instances": 1,
+    "public_traffic_percent": 0,
+    "tag": "qwen38-classify-canary",
+    "tag_removed_after_testing": true,
+    "removed_tag_http_status": 404,
+    "old_revision": "imagine-server-00038-hjn",
+    "old_traffic_percent": 100,
+    "web_deployed": false
+  },
+  "checks": {
+    "root_status": 200,
+    "ontology": {
+      "area": 283,
+      "scope": 353,
+      "ability": 130
+    },
+    "search_disabled_status": 503,
+    "validation_upload": {
+      "source_image_sha256": "e623a9ceeef189c458e1aef1ec1e19f1b05e17f9ec59528d878ad1092e1ca513",
+      "http_status": 200,
+      "client_seconds": 38.041,
+      "expected_labels_matched": true,
+      "areas": [
+        "Addition",
+        "AdjacentAngles",
+        "AngleCalculation"
+      ],
+      "scopes": [
+        "DegreeScale"
+      ],
+      "abilities": [
+        "ProcedureExecution"
+      ]
+    },
+    "built_in_example_upload": {
+      "source": "addition_01.jpg",
+      "source_image_sha256": "82784a73467c422f6e2fc73e802cc326457bbe7fab35aaaa8d0734a429aa074f",
+      "dimensions": [
+        1495,
+        1920
+      ],
+      "http_status": 502,
+      "client_seconds": 1.521,
+      "predictor_http_status": 400,
+      "predictor_error": "request (2933 tokens) exceeds the available context size (2048 tokens)"
+    },
+    "resized_diagnostic": {
+      "dimensions": [
+        797,
+        1024
+      ],
+      "source_image_sha256": "e39f5f200780688d193ddbbcb4f7cae3374acc26e7160e12d9ff1775a8d71c4d",
+      "http_status": 200,
+      "client_seconds": 5.638
+    },
+    "local_browser_upload": {
+      "real_backend_http_status": 200,
+      "client_seconds": 2.945,
+      "rendered_addition": true,
+      "find_similar_hidden": true
+    }
+  },
+  "prepared_local_fix": {
+    "backend_commit": "40135eb2b17b231725d5a1ffc90decdb7a21ead3",
+    "max_qwen_image_dimension": 1024,
+    "all_64_pinned_validation_images_below_cap": true,
+    "actual_example_render_dimensions": [
+      797,
+      1024
+    ],
+    "focused_tests_passed": 17,
+    "broader_tests_passed": 64,
+    "broader_tests_skipped": 7,
+    "excluded_preexisting_test": "tests/imagine/storage/test_meta_embed.py",
+    "pushed": false,
+    "deployed": false,
+    "image_cap_commit": "c2ced30cc5959fc98d2b83db9e12c8ac7fb01827",
+    "release_manifest_sha256": "861470532e2942e14a216d23588d8ee27ea17278121414a8e380a9265b735e4b",
+    "staged_context_bytes": 710372,
+    "local_image_id": "sha256:1652ae95f5b2e156c187cd231f464c622f1d1d8c95ed3ad618644435f5f071cd",
+    "local_image_unpacked_bytes": 1244665507,
+    "local_image_label_matches_source_commit": true,
+    "local_image_deep_verification_passed": true,
+    "local_image_smoke": {
+      "root_status": 200,
+      "ontology_scope": 353,
+      "ontology_area": 283,
+      "ontology_ability": 130,
+      "search_disabled_status": 503
+    },
+    "final_focused_tests_passed": 29,
+    "registry_tag_proposed": "europe-west4-docker.pkg.dev/edugraph-438718/imagine-server/imagine-server:qwen38-classify-40135eb"
+  },
+  "decision": "Do not shift production traffic. A new paid canary run requires fresh approval after the local fix."
+}
