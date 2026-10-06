@@ -25,7 +25,7 @@ RUN cmake -S . -B build -G Ninja \
         -DLLAMA_BUILD_TESTS=OFF \
         -DLLAMA_BUILD_TOOLS=ON \
         -DLLAMA_BUILD_SERVER=ON \
-    && cmake --build build --config Release --target llama-server -j 8 \
+    && cmake --build build --config Release --target llama-server -j 2 \
     && mkdir -p /out/bin \
     && cp -a build/bin/llama-server /out/bin/ \
     && find build -name '*.so*' -exec cp -P {} /out/bin/ \;

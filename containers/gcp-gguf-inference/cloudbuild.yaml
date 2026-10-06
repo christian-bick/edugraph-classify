@@ -21,7 +21,7 @@ images:
   - 'europe-west4-docker.pkg.dev/edugraph-438718/edugraph-predict/qwen38-27b-gguf:${_MODEL_HF_REVISION}'
 timeout: 7200s
 options:
-  machineType: E2_HIGHCPU_32
+  machineType: E2_HIGHCPU_8
   diskSizeGb: '500'
   logging: CLOUD_LOGGING_ONLY
   sourceProvenanceHash:
