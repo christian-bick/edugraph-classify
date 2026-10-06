@@ -43,7 +43,7 @@ RUN apt-get update \
 
 COPY --from=llama-build /out/bin /opt/llama.cpp/bin
 RUN /opt/llama.cpp/bin/llama-server --help 2>&1 | grep -q -- '--chat-template-file' \
-    && printf '%s' "$MODEL_HF_REVISION" | grep -Eq '^[0-9a-f]{40}$'
+    && test "$MODEL_HF_REVISION" = "477e3caf32eced2a9e002ead1edccc9a5c458f0c"
 COPY model-Q4_K_M.gguf mmproj-BF16.gguf chat_template.jinja /model/
 RUN printf '%s  %s\n' \
         bd2ec1357e84b27b58ec0b1c83e143028f9b54e42989dc9f3db7c59aed870639 /model/model-Q4_K_M.gguf \

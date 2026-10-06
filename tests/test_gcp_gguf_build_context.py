@@ -110,7 +110,13 @@ def test_prepare_context_rejects_unexpected_tar_members(tmp_path, names, link):
 
 def test_build_pins_match_public_release_recipe():
     recipe = json.loads((ROOT / "experiments" / "hf-gguf-release-qwen38-27b-v1.json").read_text())
+    publication = json.loads((ROOT / "experiments" / "hf-gguf-publication-qwen38-27b-v1.json").read_text())
     candidate = build_context.CANDIDATE
+    assert build_context.MODEL_HF_REVISION == publication["revision"]
+    assert (
+        f'&& test "$MODEL_HF_REVISION" = "{publication["revision"]}"'
+        in (HELPER.parent / "Dockerfile").read_text()
+    )
     assert candidate.archive_bytes == recipe["candidate"]["archive_bytes"]
     assert candidate.archive_sha256 == recipe["candidate"]["archive_sha256"]
     assert candidate.member_sha256 == recipe["files_sha256"]
@@ -119,14 +125,15 @@ def test_build_pins_match_public_release_recipe():
     )
 
 
-def test_cli_requires_hub_commit_before_downloading(tmp_path, monkeypatch):
+@pytest.mark.parametrize("revision", ["main", "a" * 40])
+def test_cli_requires_published_hub_commit_before_downloading(tmp_path, monkeypatch, revision):
     monkeypatch.setattr(build_context, "__file__", str(tmp_path / "prepare_context.py"))
     monkeypatch.setattr(
         build_context.subprocess, "run",
         lambda *args, **kwargs: pytest.fail("download must not start"),
     )
     with pytest.raises(SystemExit):
-        build_context.main(["--model-hf-revision", "main"])
+        build_context.main(["--model-hf-revision", revision])
     assert not (tmp_path / "candidate.tar").exists()
 
 
@@ -146,7 +153,7 @@ def test_cli_uses_generation_pin_and_cleans_download(tmp_path, monkeypatch):
         shutil.copyfile(archive, args[-1])
 
     monkeypatch.setattr(build_context.subprocess, "run", fake_download)
-    assert build_context.main(["--model-hf-revision", "a" * 40]) == 0
+    assert build_context.main(["--model-hf-revision", build_context.MODEL_HF_REVISION]) == 0
     assert calls == [(
         ["gcloud", "storage", "cp", "gs://fake/candidate.tar#123",
          str(workspace / "candidate.tar")], True
@@ -164,6 +171,6 @@ def test_cli_cleans_partial_download_on_gcloud_failure(tmp_path, monkeypatch):
 
     monkeypatch.setattr(build_context.subprocess, "run", fake_download)
     with pytest.raises(subprocess.CalledProcessError):
-        build_context.main(["--model-hf-revision", "a" * 40])
+        build_context.main(["--model-hf-revision", build_context.MODEL_HF_REVISION])
     assert not (tmp_path / "candidate.tar").exists()
     assert not (tmp_path / "build-context").exists()

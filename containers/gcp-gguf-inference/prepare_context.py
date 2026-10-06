@@ -6,7 +6,6 @@ import argparse
 import hashlib
 import os
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import tarfile
@@ -43,6 +42,7 @@ CANDIDATE = Candidate(
 )
 
 IMAGE_FILES = ("model-Q4_K_M.gguf", "mmproj-BF16.gguf", "chat_template.jinja")
+MODEL_HF_REVISION = "477e3caf32eced2a9e002ead1edccc9a5c458f0c"
 CHUNK_BYTES = 4 * 1024 * 1024
 
 
@@ -112,8 +112,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model-hf-revision", required=True)
     args = parser.parse_args(argv)
-    if re.fullmatch(r"[0-9a-f]{40}", args.model_hf_revision) is None:
-        parser.error("--model-hf-revision must be an immutable 40-character Hub commit")
+    if args.model_hf_revision != MODEL_HF_REVISION:
+        parser.error("--model-hf-revision must match the published Hub release")
 
     workspace = Path(__file__).resolve().parent
     archive_path = workspace / "candidate.tar"
