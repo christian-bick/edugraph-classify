@@ -1,8 +1,12 @@
 # Vertex AI serverless training
 
+**Archived training record.** The Vertex executor, old recipe files and Vertex trainer image were removed from the current checkout after the successful [Runpod Secure A40 run](RUNPOD-FULL-A40-20261002.md). The commands below document earlier implementation and diagnostics at their original commits; they cannot be run from the current checkout. Use [Runpod training](RUNPOD-TRAINING.md) for the supported workflow.
+
 ## Scope
 
-The recipes below retain their historical ontology v0.21.0 provenance. With the current v0.26.0 dependency, preparation fails closed; use the matching historical code/lockfile to reproduce those runs. The current dataset v0.26.0-01 is now aligned and validated in a separate preparation recipe; see [the dataset upgrade](DATASET-UPGRADE-0.26.0-01.md). For the proposed standalone GPU host, see [Local Docker training](LOCAL-TRAINING.md).
+Registry update (2026-10-02): **GHCR** is the default for new self-hosted training images; see [container publishing](CONTAINER-IMAGES.md). The historical Vertex examples below retain Artifact Registry references because Google's documented custom-training registries are Artifact Registry and Docker Hub. Both regional `training` repositories were deleted in the authorized [GCP cleanup](GCP-CLEANUP.md), so these historical image URIs no longer resolve. GHCR publication does not make a GHCR URI eligible for a Vertex job; a future Vertex run needs a rebuilt or separately retained image in a supported registry.
+
+The recipes below retain their historical ontology v0.21.0 provenance. At the time, the v0.26.0 dependency made preparation fail closed; matching historical code and lockfile are required to reproduce those runs. Dataset v0.26.0-01 was subsequently aligned and validated in a separate preparation recipe; see [the dataset upgrade](DATASET-UPGRADE-0.26.0-01.md). For the former standalone GPU host plan, see [Local Docker training](LOCAL-TRAINING.md).
 
 The GCP adapter submits custom-container training through Vertex AI CustomJob. Vertex owns provisioning, monitoring, and teardown, so this repository records the execution mode as `serverless`. A job still specifies ephemeral machine, GPU, disk, replica, timeout, and scheduling values; “serverless” does not mean that compute choices or GPU quota disappear.
 
