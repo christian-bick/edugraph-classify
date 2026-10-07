@@ -23,6 +23,8 @@
   },
   "live_web": {
     "url": "https://imagine-web.web.app",
+    "custom_domain": "https://demo.edugraph.io",
+    "custom_domain_hosting_status": "HOST_ACTIVE",
     "firebase_hosting_version": "38068e44e1c57937",
     "firebase_release": "1791359180549000",
     "previous_live_version": "cfea93f26577ad49",
@@ -75,6 +77,26 @@
       "abilities": [
         "http://edugraph.io/edu/ProcedureExecution"
       ]
+    },
+    "custom_domain_validation_image": {
+      "url": "https://demo.edugraph.io",
+      "classify_http_status": 200,
+      "result_route": "/search",
+      "exact_expected_uris_matched": true,
+      "areas": [
+        "http://edugraph.io/edu/Addition",
+        "http://edugraph.io/edu/AdjacentAngles",
+        "http://edugraph.io/edu/AngleCalculation"
+      ],
+      "scopes": [
+        "http://edugraph.io/edu/DegreeScale"
+      ],
+      "abilities": [
+        "http://edugraph.io/edu/ProcedureExecution"
+      ],
+      "find_similar_hidden": true,
+      "javascript_errors_observed": false,
+      "network_failures_observed": false
     },
     "javascript_errors_observed": false,
     "network_failures_observed": false,
