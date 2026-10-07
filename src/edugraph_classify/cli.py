@@ -50,7 +50,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             exit_code, payload = run_hf_gguf_release_command(args)
             print(json.dumps(payload, indent=2))
             return exit_code
-        commit = None if args.action in ("check-config", "status", "stop") else _code_commit(Path.cwd())
+        commit = None if args.action in ("check-config", "compare", "status", "stop") else _code_commit(Path.cwd())
         if args.command == "inference-benchmark":
             exit_code, payload = run_inference_benchmark_command(args, commit)
         else:

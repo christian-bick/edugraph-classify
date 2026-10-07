@@ -12,6 +12,8 @@ The optional [Runpod inference benchmark](docs/RUNPOD-INFERENCE-BENCHMARK.md) me
 
 The [Qwen3.8-27B Q4_K_M GGUF release](docs/HUGGINGFACE-GGUF-RELEASE.md) is public under Apache-2.0 at a verified immutable Hugging Face revision. The [Imagine baseline promotion record](docs/IMAGINE-BASELINE-PROMOTION.md) records the canaries, hosted preview, live classification-only release, and retained rollback routes.
 
+For the reusable path from a selected training checkpoint through matched validation, model publication, a tagged GCP canary and blue-green web cutover, see [Model to production](docs/MODEL-TO-PRODUCTION.md).
+
 ## Development
 
 Python 3.12 and [uv](https://docs.astral.sh/uv/) manage environments, dependencies, execution, locking, and builds.

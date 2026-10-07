@@ -8,6 +8,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from .benchmark_comparison import compare_validation
 from .checkpoint_storage import GcsBundles, pack_files, unpack_verified
 from .configuration import load_local_environment
 from .dataset import file_sha256
@@ -27,6 +28,15 @@ def add_inference_benchmark_parser(commands):
     actions = parser.add_subparsers(dest="action", required=True)
     check = actions.add_parser("check-config", help="validate a recipe without provider calls")
     check.add_argument("--config", required=True)
+    compare = actions.add_parser("compare", help="replay and pair local NF4, BF16 and GGUF validation reports")
+    compare.add_argument("--training-manifest", required=True)
+    compare.add_argument("--source-model-bundle", required=True)
+    compare.add_argument("--selected-epoch", required=True, type=int)
+    compare.add_argument("--training-predictions", required=True)
+    compare.add_argument("--training-metrics", required=True)
+    compare.add_argument("--benchmark-manifest", required=True, action="append")
+    compare.add_argument("--benchmark-result", required=True, action="append")
+    compare.add_argument("--output", required=True, help="JSON result under reports/ or temp/")
     prepare = actions.add_parser("prepare", help="verify selected model and prepare local validation inputs")
     prepare.add_argument("--config", required=True)
     prepare.add_argument("--training-manifest", required=True)
@@ -135,6 +145,23 @@ def prepare_inference_benchmark(config: dict, training_manifest_path: Path, mode
 
 
 def run_inference_benchmark_command(args, code_commit):
+    if args.action == "compare":
+        if len(args.benchmark_manifest) != len(args.benchmark_result):
+            raise ValueError("each benchmark manifest requires one report result")
+        output = Path(args.output).resolve()
+        allowed = [(Path.cwd() / name).resolve() for name in ("reports", "temp")]
+        if not any(output.is_relative_to(root) for root in allowed):
+            raise ValueError("comparison output must be under reports/ or temp/")
+        result = compare_validation(
+            Path(args.training_manifest), Path(args.source_model_bundle), args.selected_epoch,
+            Path(args.training_predictions), Path(args.training_metrics),
+            list(zip(map(Path, args.benchmark_manifest), map(Path, args.benchmark_result))),
+        )
+        output.parent.mkdir(parents=True, exist_ok=True)
+        write_json(output, result)
+        return 0, {"status": "compared", "output": str(output),
+                   "cohort_count": result["cohort_count"],
+                   "benchmark_count": len(result["benchmarks"])}
     if args.action in ("check-config", "prepare"):
         config = load_inference_recipe(Path(args.config))
         if args.action == "check-config":
