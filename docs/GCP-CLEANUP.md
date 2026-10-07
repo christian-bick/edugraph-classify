@@ -58,14 +58,51 @@ The dependency audit found no snapshots, custom images, machine images, reserved
 
 Before/after checks confirmed unchanged Cloud Run image/traffic/scaling configuration, GCS bucket names, and shared firewall rules. No GCS objects, service-account credentials, IAM bindings, or application container images were changed. Evidence is saved in `reports/gcp-cleanup-20261002/hermes-before.json`, `hermes-cleanup-plan.json`, and `hermes-cleanup-result.json`; the scripts are in `temp/gcp-cleanup/`.
 
+## Imagine release cleanup on 2026-10-07
+
+The Imagine backend's original 4B revision `imagine-server-00038-hjn` had a
+revision-level minimum of one instance and instance-based CPU billing. A
+replacement revision, `imagine-server-legacy-zero-20261007`, uses the **same
+pinned image and legacy request contract**, but sets the minimum to zero,
+maximum to one, and request-based CPU billing. A zero-traffic tag passed
+`/`, `/ontology`, `/taxonomy`, and the old browser's multipart
+`/classify_and_search` upload. After an ETag-guarded, validate-only-tested
+traffic change, the untagged `https://api.edugraph.io` route passed the same
+upload. The two uploads returned HTTP 200 with matching dimension counts and
+six neighbors. The new revision is 100% of backend default traffic; the
+Qwen3.8-27B backend retains its `qwen38-classify-v2` tag and 0% default
+traffic. The original warm revision and its image are retained for rollback
+with no tag or traffic. The 4B predictor default, 27B predictor tag, and
+Firebase Hosting version were unchanged. The backend's
+`docs/BLUE-GREEN-RELEASE.md` is the current rollout/rollback runbook.
+
+After confirming no revision, tag, job, or service depended on it, the
+abandoned backend revision `imagine-server-qwen38-73b09e0` and its sole
+Artifact Registry index, amd64 child image, and attestation were deleted.
+The child image record was 1,244,661,589 bytes; shared-layer accounting
+means this is **not** a measured storage saving. Three obsolete Cloud Build
+source objects totaling 12,486 bytes were also removed by exact generation.
+The reviewed old rollback and current green image digests remain pullable.
+
+The redundant failed-v3 GGUF candidate archive (17,478,901,760 bytes) was
+deleted by its exact GCS generation after verifying that the successful v4
+archive remained at generation `1791147881432887` with the same model and
+contract hashes. The bucket's seven-day soft-delete policy may delay storage
+savings. Benchmark reports and input bundles remain available for provenance.
+Sanitized cleanup and legacy-smoke receipts are retained locally in
+`reports/gcp-cleanup-20261007/`; the canonical release identities are in
+the tracked promotion and deployment records.
+
 ## Other cost-saving candidates
 
-These were investigated but not modified; the request to identify other resources does not establish whether their application data or operating behavior can be discarded.
+These were investigated on 2026-10-02. The first two rows have the dated
+follow-up above; the others remain unmodified because their application data
+or operating behavior has not been cleared for removal.
 
 | Resource | Finding | Next decision |
 | --- | --- | --- |
-| Cloud Run `imagine-server` | Latest serving revision has minimum 1 and maximum 1 instance | Review whether a warm instance is required; allowing zero could reduce idle charges but changes cold-start behavior |
-| `imagine-server` registry history | 138 image records occupy 21.78 GiB | Prune only after selecting required rollback revisions and checking image/index dependencies; an age-based blanket deletion could remove needed deployment images |
+| Cloud Run `imagine-server` | On 2026-10-02, the then-serving revision had minimum 1 and maximum 1 instance | Resolved 2026-10-07 with the tested scale-to-zero legacy replacement; original revision retained only for rollback |
+| `imagine-server` registry history | On 2026-10-02, 138 image records occupied 21.78 GiB | One abandoned image chain removed 2026-10-07; retain the remaining history until rollback dependencies are checked individually |
 | `imagine-ml` and `imagine-content` | Latest storage samples show 71.08 GiB and 17.85 GiB respectively | Preserve model/application data; consider lifecycle rules only for clearly identified disposable caches or temporary checkpoints |
 | Old Vertex job/model/TensorBoard records | No active custom training or deployed Vertex endpoints observed in the checked regions | Retain provenance; a historical job or enabled API alone is not evidence of running GPU cost |
 
