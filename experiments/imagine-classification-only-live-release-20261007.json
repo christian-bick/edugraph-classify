@@ -1,0 +1,91 @@
+{
+  "kind": "imagine_classification_only_live_release_v1",
+  "date_utc": "2026-10-07",
+  "project": "edugraph-438718",
+  "region": "europe-west4",
+  "source": {
+    "web_repository": "christian-bick/imagine-web",
+    "web_commit": "e7e8b27499852784c480bcb55db3bfa1ea15f78e",
+    "web_branch": "main",
+    "backend_repository": "christian-bick/imagine-server",
+    "backend_commit": "40135eb2b17b231725d5a1ffc90decdb7a21ead3",
+    "backend_release_manifest_sha256": "861470532e2942e14a216d23588d8ee27ea17278121414a8e380a9265b735e4b",
+    "dataset_release": "v0.30.0-03",
+    "dataset_revision": "9b509867e898490615be3f59bc2f31fac429389c",
+    "ontology_version": "v0.30.0",
+    "prompt_sha256": "17e336fff2c539d9413defc12a8578e770e220f272e1ef92f90dfedc38c7c949",
+    "closed_schema_sha256": "a59c3cbed3a817bc20fec04c2d13c003b9be6360b0f8d3348036da884376f5b6"
+  },
+  "preview": {
+    "url": "https://imagine-web--qwen38-classification-only-qoio3gws.web.app",
+    "firebase_hosting_version": "dee51af11f7e9432",
+    "channel_deleted_after_live_release": true
+  },
+  "live_web": {
+    "url": "https://imagine-web.web.app",
+    "firebase_hosting_version": "38068e44e1c57937",
+    "firebase_release": "1791359180549000",
+    "previous_live_version": "cfea93f26577ad49",
+    "javascript_asset": "/assets/index-B49uXGkw.js",
+    "javascript_asset_sha256": "64bb7585cc4999d2410da4ace7aa72e8b415fe3baa53cb5a8075f4939985134d",
+    "javascript_asset_matches_tested_local_bundle": true,
+    "classification_only": true,
+    "find_similar_hidden": true
+  },
+  "backend": {
+    "service": "imagine-server",
+    "revision": "imagine-server-qwen38-40135eb",
+    "tag": "qwen38-classify-v2",
+    "image_index_digest": "sha256:6ea12076f06953b9188055a75b4453c0faa8efe2dded5fd80f47a90ab8892ed3",
+    "normal_traffic_percent": 0,
+    "old_default_revision": "imagine-server-00038-hjn",
+    "old_default_traffic_percent": 100,
+    "search_mode": "disabled"
+  },
+  "predictor": {
+    "service": "edugraph-predict",
+    "revision": "edugraph-predict-00006-nej",
+    "tag": "qwen38-canary",
+    "image_digest": "sha256:64c5b5ff8fdac5eeeeed45cd6eb3dc65850f65f7d9436c0eb1ab8bd819c58b58",
+    "model_repository": "christian-bick/EduGraph-Classifier-Qwen3.8-27B-GGUF",
+    "model_revision": "477e3caf32eced2a9e002ead1edccc9a5c458f0c",
+    "normal_traffic_percent": 0,
+    "old_default_revision": "edugraph-predict-00005-59s",
+    "old_default_traffic_percent": 100
+  },
+  "live_browser_checks": {
+    "built_in_example": {
+      "name": "addition_01.jpg",
+      "source_image_sha256": "82784a73467c422f6e2fc73e802cc326457bbe7fab35aaaa8d0734a429aa074f",
+      "classify_http_status": 200,
+      "classification_rendered": true
+    },
+    "pinned_validation_image": {
+      "source_image_sha256": "e623a9ceeef189c458e1aef1ec1e19f1b05e17f9ec59528d878ad1092e1ca513",
+      "classify_http_status": 200,
+      "exact_expected_uris_matched": true,
+      "areas": [
+        "http://edugraph.io/edu/Addition",
+        "http://edugraph.io/edu/AdjacentAngles",
+        "http://edugraph.io/edu/AngleCalculation"
+      ],
+      "scopes": [
+        "http://edugraph.io/edu/DegreeScale"
+      ],
+      "abilities": [
+        "http://edugraph.io/edu/ProcedureExecution"
+      ]
+    },
+    "javascript_errors_observed": false,
+    "network_failures_observed": false,
+    "find_similar_hidden": true
+  },
+  "quality_reference": {
+    "run_id": "edugraph-20261004-qwen38-27b-gguf-benchmark-v4",
+    "validation_cohort_size": 64,
+    "exact_set_matches": 37,
+    "new_full_validation_benchmark_run": false,
+    "live_uploads_are_compatibility_smoke": true
+  },
+  "decision": "The public Imagine web release uses the tagged 27B classification-only backend and predictor. The old 4B default Cloud Run routes remain at 100% for stale clients and rollback; the preview channel was deleted after release."
+}
