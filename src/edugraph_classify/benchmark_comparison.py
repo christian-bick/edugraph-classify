@@ -75,17 +75,63 @@ def _paired(examples: list[dict], baseline: list[dict], candidate: list[dict],
             "regressed_ids": groups["regressed"], "recovered_ids": groups["recovered"]}
 
 
-def _verify_source_bundle(bundle: Path, source_model: dict, selected_epoch: int,
-                          predictions_path: Path, metrics_path: Path) -> None:
+def _copied_controls(files: dict[str, str]) -> set[str]:
+    required = {"prompt.json", "schema.json", "closed_schema.json", "chat_template.jinja"}
+    processor = {name for name in files if name.startswith("processor/")}
+    if not required.issubset(files) or not processor:
+        raise ValueError("original training manifest lacks prompt, schema, template or processor")
+    return required | processor
+
+
+def _verify_copied_inputs(original_files: dict[str, str], candidate_files: dict[str, str],
+                          examples: list[dict]) -> None:
+    controls = _copied_controls(original_files)
+    if {name for name in candidate_files if name.startswith("processor/")} != {
+            name for name in controls if name.startswith("processor/")}:
+        raise ValueError("benchmark processor file set differs from training")
+    shared = controls | {row["image_path"] for row in examples}
+    for name in shared:
+        if (not original_files.get(name) or
+                candidate_files.get(name) != original_files[name]):
+            raise ValueError(f"benchmark copied input differs from training: {name}")
+    if any(row["image_sha256"] != original_files[row["image_path"]] for row in examples):
+        raise ValueError("training validation image hash differs from its manifest")
+
+
+def _archive_member(packed: tarfile.TarFile, name: str) -> bytes:
+    try:
+        member = packed.extractfile(name)
+    except KeyError as error:
+        raise ValueError(f"source model bundle lacks {name}") from error
+    if member is None:
+        raise ValueError(f"source model bundle lacks {name}")
+    return member.read()
+
+
+def _verify_source_bundle(bundle: Path, source_model: dict, training_manifest_path: Path,
+                          training_manifest: dict, selected_epoch: int,
+                          predictions_path: Path, metrics_path: Path,
+                          baseline_metrics: dict) -> None:
     if bundle.stat().st_size != source_model["bytes"] or file_sha256(bundle) != source_model["sha256"]:
         raise ValueError("source model bundle differs from its pinned reference")
-    for path, member_name in (
-        (predictions_path, f"reports/epoch-{selected_epoch}-predictions.json"),
-        (metrics_path, f"reports/epoch-{selected_epoch}-metrics.json"),
-    ):
-        with tarfile.open(bundle, "r") as packed:
-            member = packed.extractfile(member_name)
-            if member is None or member.read() != path.read_bytes():
+    with tarfile.open(bundle, "r") as packed:
+        if _archive_member(packed, "manifest.json") != training_manifest_path.read_bytes():
+            raise ValueError("source model bundle contains a different training manifest")
+        result = json.loads(_archive_member(packed, "result.json"))
+        if (result.get("status") != "completed" or
+                result.get("run_id") != training_manifest["run_id"] or
+                result.get("selected_epoch") != selected_epoch or
+                result.get("selected_validation") != baseline_metrics["explicit"]):
+            raise ValueError("source model bundle selected result differs from replayed validation")
+        for name in _copied_controls(training_manifest["files_sha256"]):
+            if hashlib.sha256(_archive_member(packed, name)).hexdigest() != \
+                    training_manifest["files_sha256"][name]:
+                raise ValueError(f"source model bundle differs at {name}")
+        for path, member_name in (
+            (predictions_path, f"reports/epoch-{selected_epoch}-predictions.json"),
+            (metrics_path, f"reports/epoch-{selected_epoch}-metrics.json"),
+        ):
+            if _archive_member(packed, member_name) != path.read_bytes():
                 raise ValueError(f"source model bundle differs at {member_name}")
 
 
@@ -132,6 +178,7 @@ def compare_validation(
         "benchmarks": [],
     }
     merged_by_route = {}
+    rounds_by_route = {}
     source_model = None
     expected_training = [{"id": row["id"], "gold": row["gold"],
                           "solution": row["solution"]} for row in training]
@@ -143,21 +190,28 @@ def compare_validation(
         if (source["run_id"] != training_manifest["run_id"] or
                 source["manifest_sha256"] != comparison["source_training_manifest_sha256"] or
                 source["code_commit"] != training_manifest["code_commit"] or
+                source["uv_lock_sha256"] != training_manifest["uv_lock_sha256"] or
                 source["recipe"] != training_manifest["recipe"] or
                 source["ontology_snapshot_sha256"] != catalog.snapshot_sha256 or
                 source["selected_epoch"] != selected_epoch):
             raise ValueError("benchmark source training differs from the selected checkpoint")
         if _by_id(candidate_examples) != _by_id(examples):
             raise ValueError("benchmark validation IDs, gold labels or render inputs differ")
+        _verify_copied_inputs(training_manifest["files_sha256"],
+                              manifest["files_sha256"], candidate_examples)
         if _load(manifest_path.parent / "training_examples.json") != expected_training:
             raise ValueError("benchmark training-frequency reference differs")
         if source_model is None:
             source_model = manifest["source_model"]
-            _verify_source_bundle(source_model_bundle, source_model, selected_epoch,
-                                  training_predictions_path, training_metrics_path)
+            _verify_source_bundle(source_model_bundle, source_model, training_manifest_path,
+                                  training_manifest, selected_epoch,
+                                  training_predictions_path, training_metrics_path,
+                                  baseline_metrics)
         elif source_model != manifest["source_model"]:
             raise ValueError("benchmark source model bundles differ")
         route = manifest["recipe"]["benchmark"].get("route", GGUF_ROUTE)
+        if route in merged_by_route:
+            raise ValueError("duplicate benchmark route in paired comparison")
         report = _load(report_path)
         expected_kind = ("merged_bf16_inference_benchmark_result_v1" if route == BF16_ROUTE
                          else "inference_benchmark_result_v1")
@@ -192,6 +246,7 @@ def compare_validation(
         entry = {"run_id": manifest["run_id"], "route": route,
                  "input_manifest_sha256": expected["input_manifest_sha256"],
                  "report_sha256": file_sha256(report_path), "rounds": []}
+        paired_rounds = []
         for round_data in sorted(rounds, key=lambda row: row["repeat"]):
             if round_data["concurrency"] != 1:
                 raise ValueError("concurrency-one setting contains another concurrency")
@@ -206,9 +261,17 @@ def compare_validation(
             entry["rounds"].append({"repeat": round_data["repeat"],
                                     "metrics": _summary(metrics),
                                     "paired_to_nf4": _paired(examples, baseline, predictions, catalog)})
+            paired_rounds.append((round_data["repeat"], predictions))
+        rounds_by_route[route] = paired_rounds
         comparison["benchmarks"].append(entry)
     if BF16_ROUTE in merged_by_route and GGUF_ROUTE in merged_by_route:
         if merged_by_route[BF16_ROUTE] != merged_by_route[GGUF_ROUTE]:
             raise ValueError("BF16 and GGUF reports used different merged checkpoints")
         comparison["merged_checkpoint_match"] = True
+        comparison["bf16_to_gguf"] = [
+            {"bf16_repeat": bf16_repeat, "gguf_repeat": gguf_repeat,
+             "paired": _paired(examples, bf16_predictions, gguf_predictions, catalog)}
+            for bf16_repeat, bf16_predictions in rounds_by_route[BF16_ROUTE]
+            for gguf_repeat, gguf_predictions in rounds_by_route[GGUF_ROUTE]
+        ]
     return comparison

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -33,7 +34,7 @@ def _hashes(root: Path) -> dict[str, str]:
             for path in sorted(root.rglob("*")) if path.is_file()}
 
 
-def _benchmark(root: Path, name: str, route: str, source_model: dict,
+def _benchmark(root: Path, controls_root: Path, name: str, route: str, source_model: dict,
                source_training: dict, examples: list[dict], training: list[dict],
                predictions: list[dict], catalog: OntologyCatalog, merged: dict):
     root.mkdir()
@@ -58,6 +59,11 @@ def _benchmark(root: Path, name: str, route: str, source_model: dict,
     write_json(root / "recipe.json", recipe)
     write_json(root / "examples.json", examples)
     write_json(root / "training_examples.json", training)
+    for control_name in ("prompt.json", "schema.json", "closed_schema.json",
+                         "chat_template.jinja", "processor/tokenizer.json"):
+        target = root / control_name
+        target.parent.mkdir(exist_ok=True)
+        shutil.copyfile(controls_root / control_name, target)
     for row in examples:
         target = root / row["image_path"]
         target.parent.mkdir(exist_ok=True)
@@ -113,6 +119,10 @@ def comparison_case(tmp_path):
     recipe = {"ontology_version": "0.30.0"}
     write_json(training_root / "recipe.json", recipe)
     write_json(training_root / "examples.json", examples)
+    for name in ("prompt.json", "schema.json", "closed_schema.json", "chat_template.jinja"):
+        (training_root / name).write_text(name, encoding="utf-8")
+    (training_root / "processor").mkdir()
+    (training_root / "processor" / "tokenizer.json").write_text("{}", encoding="utf-8")
     source_manifest = {"run_id": "training-run", "code_commit": "a" * 40,
                        "uv_lock_sha256": "e" * 64, "recipe": recipe,
                        "ontology_snapshot_sha256": catalog.snapshot_sha256,
@@ -125,9 +135,19 @@ def comparison_case(tmp_path):
     raw_path = source / "reports" / "epoch-2-predictions.json"
     metrics_path = source / "reports" / "epoch-2-metrics.json"
     write_json(raw_path, raw)
-    write_json(metrics_path, {"validation": evaluate(validation, raw, training, catalog)})
+    baseline_metrics = evaluate(validation, raw, training, catalog)
+    write_json(metrics_path, {"validation": baseline_metrics})
+    shutil.copyfile(source_manifest_path, source / "manifest.json")
+    write_json(source / "result.json", {"status": "completed", "run_id": "training-run",
+                                        "selected_epoch": 2,
+                                        "selected_validation": baseline_metrics["explicit"]})
+    for name in ("prompt.json", "schema.json", "closed_schema.json",
+                 "chat_template.jinja", "processor/tokenizer.json"):
+        target = source / name
+        target.parent.mkdir(exist_ok=True)
+        shutil.copyfile(training_root / name, target)
     bundle = tmp_path / "model.tar"
-    pack_files(source, ["reports/epoch-2-predictions.json", "reports/epoch-2-metrics.json"], bundle)
+    pack_files(source, _hashes(source), bundle)
     source_model = {"uri": "gs://bucket/root/models/training-run/" + file_sha256(bundle) + ".tar",
                     "sha256": file_sha256(bundle), "bytes": bundle.stat().st_size}
     source_training = {"run_id": "training-run", "manifest_sha256": file_sha256(source_manifest_path),
@@ -136,11 +156,11 @@ def comparison_case(tmp_path):
                        "ontology_snapshot_sha256": catalog.snapshot_sha256,
                        "recipe": recipe, "selected_epoch": 2}
     merged = {"model.safetensors": "f" * 64}
-    bf16 = _benchmark(tmp_path / "bf16", "bf16-run", "merged_bf16_hf", source_model,
+    bf16 = _benchmark(tmp_path / "bf16", training_root, "bf16-run", "merged_bf16_hf", source_model,
                       source_training, validation, training,
                       [_prediction(validation[0], ADDITION), _prediction(validation[1], SUBTRACTION)],
                       catalog, merged)
-    gguf = _benchmark(tmp_path / "gguf", "gguf-run", "gguf_q4_k_m", source_model,
+    gguf = _benchmark(tmp_path / "gguf", training_root, "gguf-run", "gguf_q4_k_m", source_model,
                       source_training, validation, training,
                       [_prediction(validation[0], EMPTY), _prediction(validation[1], SUBTRACTION)],
                       catalog, merged)
@@ -159,6 +179,34 @@ def test_paired_comparison_replays_all_three_stages(comparison_case):
     assert result["benchmarks"][0]["rounds"][0]["paired_to_nf4"]["counts"]["recovered"] == 1
     assert result["benchmarks"][1]["rounds"][0]["paired_to_nf4"]["counts"]["regressed"] == 1
     assert result["merged_checkpoint_match"] is True
+    assert result["bf16_to_gguf"] == [{
+        "bf16_repeat": 1, "gguf_repeat": 1,
+        "paired": {"counts": {"both_correct": 1, "regressed": 1,
+                              "recovered": 0, "both_wrong": 0},
+                   "regressed_ids": ["validation/one"], "recovered_ids": []},
+    }]
+
+
+def test_cross_route_pairing_covers_every_concurrency_one_repeat(comparison_case):
+    _, _, _, _, benchmarks = comparison_case
+    for manifest_path, report_path in benchmarks:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["recipe"]["benchmark"]["repeats"] = 2
+        write_json(manifest_path.parent / "recipe.json", manifest["recipe"])
+        manifest["files_sha256"]["recipe.json"] = file_sha256(manifest_path.parent / "recipe.json")
+        write_json(manifest_path, manifest)
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        report["benchmark_recipe"] = manifest["recipe"]
+        report["input_manifest_sha256"] = file_sha256(manifest_path)
+        second = json.loads(json.dumps(report["settings"][0]["rounds"][0]))
+        second["repeat"] = 2
+        report["settings"][0]["rounds"].append(second)
+        write_json(report_path, report)
+    result = _compare(comparison_case)
+    assert [(row["bf16_repeat"], row["gguf_repeat"])
+            for row in result["bf16_to_gguf"]] == [(1, 1), (1, 2), (2, 1), (2, 2)]
+    assert all(row["paired"]["counts"]["regressed"] == 1
+               for row in result["bf16_to_gguf"])
 
 
 @pytest.mark.parametrize("tamper,match", [
@@ -241,6 +289,91 @@ def test_paired_comparison_requires_selected_epoch_and_candidate(comparison_case
     one = compare_validation(manifest, bundle, 2, raw, metrics, benchmarks[:1])
     assert len(one["benchmarks"]) == 1
     assert "merged_checkpoint_match" not in one
+
+
+@pytest.mark.parametrize("control", [
+    "prompt.json", "schema.json", "closed_schema.json", "chat_template.jinja",
+    "processor/tokenizer.json", "validation_image", "extra_processor",
+])
+def test_self_consistent_copied_input_tampering_is_rejected(comparison_case, control):
+    _, _, _, _, benchmarks = comparison_case
+    manifest_path, report_path = benchmarks[0]
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if control == "validation_image":
+        name = json.loads((manifest_path.parent / "examples.json").read_text())[0]["image_path"]
+    elif control == "extra_processor":
+        name = "processor/unexpected.json"
+    else:
+        name = control
+    path = manifest_path.parent / name
+    path.parent.mkdir(exist_ok=True)
+    path.write_bytes(b"self-consistent but not the original training input")
+    manifest["files_sha256"][name] = file_sha256(path)
+    write_json(manifest_path, manifest)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["input_manifest_sha256"] = file_sha256(manifest_path)
+    write_json(report_path, report)
+    with pytest.raises(ValueError, match="copied input|processor file set"):
+        _compare(comparison_case)
+
+
+def test_original_training_manifest_must_be_the_selected_export(comparison_case):
+    manifest_path, _, _, _, benchmarks = comparison_case
+    original = json.loads(manifest_path.read_text(encoding="utf-8"))
+    original["note"] = "locally altered after model export"
+    write_json(manifest_path, original)
+    for candidate_path, report_path in benchmarks:
+        candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+        candidate["source_training"]["manifest_sha256"] = file_sha256(manifest_path)
+        write_json(candidate_path, candidate)
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        report["source_training"] = candidate["source_training"]
+        report["input_manifest_sha256"] = file_sha256(candidate_path)
+        write_json(report_path, report)
+    with pytest.raises(ValueError, match="different training manifest"):
+        _compare(comparison_case)
+
+
+def test_selected_export_result_must_match_replayed_training_score(comparison_case):
+    _, bundle, _, _, benchmarks = comparison_case
+    source = bundle.parent / "model"
+    result_path = source / "result.json"
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    result["selected_validation"]["exact_set_match"] = 0
+    write_json(result_path, result)
+    pack_files(source, _hashes(source), bundle)
+    replacement = {"uri": "gs://bucket/root/models/training-run/" + file_sha256(bundle) + ".tar",
+                   "sha256": file_sha256(bundle), "bytes": bundle.stat().st_size}
+    for candidate_path, report_path in benchmarks:
+        candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+        candidate["source_model"] = replacement
+        candidate["recipe"]["source_model"] = replacement
+        write_json(candidate_path.parent / "recipe.json", candidate["recipe"])
+        candidate["files_sha256"]["recipe.json"] = file_sha256(candidate_path.parent / "recipe.json")
+        write_json(candidate_path, candidate)
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        report["source_model"] = replacement
+        report["benchmark_recipe"] = candidate["recipe"]
+        report["input_manifest_sha256"] = file_sha256(candidate_path)
+        write_json(report_path, report)
+    with pytest.raises(ValueError, match="selected result differs"):
+        _compare(comparison_case)
+
+
+def test_duplicate_route_and_changed_training_lock_are_rejected(comparison_case):
+    manifest, bundle, raw, metrics, benchmarks = comparison_case
+    with pytest.raises(ValueError, match="duplicate benchmark route"):
+        compare_validation(manifest, bundle, 2, raw, metrics, [*benchmarks, benchmarks[0]])
+    candidate_path, report_path = benchmarks[0]
+    candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+    candidate["source_training"]["uv_lock_sha256"] = "0" * 64
+    write_json(candidate_path, candidate)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["source_training"] = candidate["source_training"]
+    report["input_manifest_sha256"] = file_sha256(candidate_path)
+    write_json(report_path, report)
+    with pytest.raises(ValueError, match="source training differs"):
+        _compare(comparison_case)
 
 
 def test_compare_cli_is_local_and_limits_output_location(tmp_path, monkeypatch):
