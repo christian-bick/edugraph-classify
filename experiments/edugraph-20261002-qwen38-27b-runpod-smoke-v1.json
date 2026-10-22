@@ -1,0 +1,100 @@
+{
+  "run_id": "edugraph-20261002-qwen38-27b-runpod-smoke-v1",
+  "dataset": {
+    "repository": "christian-bick/edugraph-exercises",
+    "release": "v0.30.0-03",
+    "revision": "9b509867e898490615be3f59bc2f31fac429389c",
+    "label_field": "labels",
+    "source_ontology_version": "0.30.0"
+  },
+  "ontology_version": "0.30.0",
+  "prompt_path": "prompts/direct-label-v3.json",
+  "schema_path": "schemas/dimension-labels-v1.json",
+  "model": {
+    "provider": "runpod",
+    "execution_mode": "self_hosted",
+    "id": "Qwen/Qwen3.8-27B",
+    "hf_repository": "Qwen/Qwen3.8-27B",
+    "hf_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0"
+  },
+  "selection": {
+    "train": 160,
+    "validation": 64,
+    "final_validation": 0,
+    "train_diagnostic": 16,
+    "seed": 42
+  },
+  "training": {
+    "epochs": 1,
+    "early_stop_patience": 1,
+    "batch_size": 4,
+    "rank": 8,
+    "alpha": 16,
+    "learning_rate": 0.0001,
+    "beta1": 0.9,
+    "beta2": 0.95,
+    "eps": 1e-08,
+    "weight_decay": 0.0,
+    "max_context_tokens": 2048,
+    "seed": 42,
+    "train_attn": true,
+    "train_mlp": true,
+    "train_unembed": false,
+    "expected_target_modules": [
+      "down_proj",
+      "gate_proj",
+      "in_proj_a",
+      "in_proj_b",
+      "in_proj_qkv",
+      "in_proj_z",
+      "k_proj",
+      "o_proj",
+      "out_proj",
+      "q_proj",
+      "up_proj",
+      "v_proj"
+    ],
+    "method": "nf4_qlora_bf16",
+    "micro_batch_size": 1,
+    "gradient_checkpointing": true,
+    "lora_dropout": 0.0,
+    "max_grad_norm": 1.0,
+    "lr_schedule": "constant"
+  },
+  "evaluation": {
+    "max_tokens": 512,
+    "temperature": 0.0,
+    "seed": 42,
+    "output_mode": "json_schema",
+    "every_epoch": true
+  },
+  "pricing": {
+    "compute_hour_usd": 0.49,
+    "disk_hour_usd": 0.024,
+    "estimated_hours": 3
+  },
+  "estimated_cost_limit_usd": 3.0,
+  "execution": {
+    "cloud_type": "SECURE",
+    "gpu_type": "NVIDIA A40",
+    "gpu_count": 1,
+    "minimum_vram_gib": 48,
+    "minimum_ram_gib": 48,
+    "minimum_vcpus": 8,
+    "container_disk_gb": 30,
+    "volume_gb": 140,
+    "max_hours": 4,
+    "max_compute_hour_usd": 0.6,
+    "checkpoint_steps": 10,
+    "completion_action": "terminate"
+  },
+  "tracking": {
+    "entity": "edugraph-io",
+    "project": "edugraph-classify",
+    "api_key_secret": "WANDB_API_KEY"
+  },
+  "artifacts": {
+    "root_uri": "gs://edugraph-classify/runpod",
+    "credentials_secret": "edugraph-gcs"
+  }
+}

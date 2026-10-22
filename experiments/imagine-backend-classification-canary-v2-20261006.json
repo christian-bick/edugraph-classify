@@ -1,0 +1,122 @@
+{
+  "kind": "imagine_classification_only_backend_canary_v2",
+  "date_utc": "2026-10-06",
+  "project": "edugraph-438718",
+  "region": "europe-west4",
+  "source": {
+    "backend_repository": "christian-bick/imagine-server",
+    "backend_branch": "codex/imagine-model-contract",
+    "backend_commit": "40135eb2b17b231725d5a1ffc90decdb7a21ead3",
+    "web_commit": "6d3abd056c6a7d6c4b12db9179a3ad79b7a29919",
+    "release_manifest_sha256": "861470532e2942e14a216d23588d8ee27ea17278121414a8e380a9265b735e4b",
+    "dataset_release": "v0.30.0-03",
+    "dataset_revision": "9b509867e898490615be3f59bc2f31fac429389c",
+    "ontology_version": "v0.30.0",
+    "prompt_sha256": "17e336fff2c539d9413defc12a8578e770e220f272e1ef92f90dfedc38c7c949",
+    "closed_schema_sha256": "a59c3cbed3a817bc20fec04c2d13c003b9be6360b0f8d3348036da884376f5b6",
+    "image_max_dimension": 1024
+  },
+  "image": {
+    "tag": "europe-west4-docker.pkg.dev/edugraph-438718/imagine-server/imagine-server:qwen38-classify-40135eb",
+    "index_digest": "sha256:6ea12076f06953b9188055a75b4453c0faa8efe2dded5fd80f47a90ab8892ed3",
+    "cloud_run_linux_amd64_manifest_digest": "sha256:cca0a049d8d9e3a29eb4ba492c62e19447155571dacdd0aa212066fa7f14f1c8",
+    "local_build": true,
+    "buildkit_push_seconds": 4.3,
+    "cloud_build_used": false
+  },
+  "deployment": {
+    "service": "imagine-server",
+    "revision": "imagine-server-qwen38-40135eb",
+    "ready": true,
+    "tag": "qwen38-classify-v2",
+    "tag_removed_after_testing": true,
+    "removed_tag_head_status": 404,
+    "public_traffic_percent": 0,
+    "old_revision": "imagine-server-00038-hjn",
+    "old_traffic_percent": 100,
+    "cpu": 1,
+    "memory": "1Gi",
+    "concurrency": 1,
+    "timeout_seconds": 300,
+    "min_instances": 0,
+    "max_instances": 1,
+    "web_deployed": false
+  },
+  "predictor": {
+    "model_repository": "christian-bick/EduGraph-Classifier-Qwen3.8-27B-GGUF",
+    "model_revision": "477e3caf32eced2a9e002ead1edccc9a5c458f0c",
+    "canary_revision": "edugraph-predict-00006-nej",
+    "canary_tag": "qwen38-canary",
+    "canary_public_traffic_percent": 0,
+    "old_revision": "edugraph-predict-00005-59s",
+    "old_public_traffic_percent": 100
+  },
+  "checks": {
+    "root_status": 200,
+    "ontology": {
+      "area": 283,
+      "scope": 353,
+      "ability": 130
+    },
+    "search_disabled_status": 503,
+    "validation_upload": {
+      "source_image_sha256": "e623a9ceeef189c458e1aef1ec1e19f1b05e17f9ec59528d878ad1092e1ca513",
+      "http_status": 200,
+      "client_seconds": 37.433,
+      "exact_expected_uris_matched": true,
+      "areas": [
+        "http://edugraph.io/edu/Addition",
+        "http://edugraph.io/edu/AdjacentAngles",
+        "http://edugraph.io/edu/AngleCalculation"
+      ],
+      "scopes": [
+        "http://edugraph.io/edu/DegreeScale"
+      ],
+      "abilities": [
+        "http://edugraph.io/edu/ProcedureExecution"
+      ]
+    },
+    "built_in_example_upload": {
+      "source": "addition_01.jpg",
+      "source_image_sha256": "82784a73467c422f6e2fc73e802cc326457bbe7fab35aaaa8d0734a429aa074f",
+      "source_dimensions": [
+        1495,
+        1920
+      ],
+      "expected_render_dimensions_from_local_test": [
+        797,
+        1024
+      ],
+      "backend_http_status": 200,
+      "backend_client_seconds": 6.492,
+      "rendered_addition": true,
+      "find_similar_hidden": true,
+      "areas": [
+        "Addition"
+      ],
+      "scopes": [
+        "ArabicNumerals",
+        "Base10",
+        "IntegerNumbers",
+        "NumbersSmaller20",
+        "NumbersWithoutNegatives",
+        "NumbersWithoutZero",
+        "PhysicalNumbers"
+      ],
+      "abilities": [
+        "ProcedureExecution"
+      ],
+      "predictor_prompt_tokens": 820,
+      "predictor_completion_tokens": 44,
+      "prior_canary_prompt_tokens_rejected": 2933
+    },
+    "canary_errors_observed": false
+  },
+  "local_backend_tests": {
+    "focused_passed": 29,
+    "broader_passed": 64,
+    "broader_skipped": 7,
+    "excluded_preexisting_test": "tests/imagine/storage/test_meta_embed.py"
+  },
+  "decision": "Two uploads passed compatibility smoke, not a quality benchmark. The tag was retired, neither service shifted normal traffic, and the web was not deployed. Matching web preview or controlled traffic rollout requires separate approval."
+}

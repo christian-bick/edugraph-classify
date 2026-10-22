@@ -29,3 +29,6 @@
 *.ttf binary
 *.otf binary
 *.eot binary
+
+# Preserve the upstream model license byte-for-byte for its SHA-256 pin.
+experiments/licenses/Qwen3.8-27B-1d4bf0f-LICENSE -text -eol whitespace=cr-at-eol

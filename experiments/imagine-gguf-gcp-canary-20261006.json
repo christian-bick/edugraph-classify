@@ -1,0 +1,121 @@
+{
+  "kind": "imagine_gguf_gcp_canary_v1",
+  "approved_on": "2026-10-06",
+  "project": "edugraph-438718",
+  "region": "europe-west4",
+  "code_commit": "5a59ecc124312a94f74f9d8d146be6f707fac235",
+  "hub_repo": "christian-bick/EduGraph-Classifier-Qwen3.8-27B-GGUF",
+  "hub_revision": "477e3caf32eced2a9e002ead1edccc9a5c458f0c",
+  "candidate_gcs_generation": "1791147881432887",
+  "candidate_tar_sha256": "7fc4a0f8fc21761615751107e92b44ffe4f9f75a9cde3aaac6613e4d51c33c72",
+  "build": {
+    "id": "d3f8411e-e4b1-4d17-b9db-45f651f7dc54",
+    "status": "SUCCESS",
+    "started_at_utc": "2026-10-06T00:51:44.580476118Z",
+    "finished_at_utc": "2026-10-06T01:56:13.461826Z",
+    "machine": "E2_HIGHCPU_8",
+    "disk_gb": 500,
+    "timeout_seconds": 7200,
+    "service_account": "edugraph-gguf-build@edugraph-438718.iam.gserviceaccount.com",
+    "archive_and_member_hashes_verified": true,
+    "model_and_runtime_image_hashes_verified": true
+  },
+  "image": {
+    "tag": "europe-west4-docker.pkg.dev/edugraph-438718/edugraph-predict/qwen38-27b-gguf:477e3caf32eced2a9e002ead1edccc9a5c458f0c",
+    "digest": "sha256:64c5b5ff8fdac5eeeeed45cd6eb3dc65850f65f7d9436c0eb1ab8bd819c58b58",
+    "artifact_registry_readback_matched_cloud_build": true
+  },
+  "canary": {
+    "service": "edugraph-predict",
+    "revision": "edugraph-predict-00006-nej",
+    "tag": "qwen38-canary",
+    "url": "https://qwen38-canary---edugraph-predict-6ikwdry2zq-ez.a.run.app",
+    "ready": true,
+    "image_import_seconds": 707.11,
+    "container_healthy_seconds": 30,
+    "gpu_type": "nvidia-l4",
+    "gpu_count": 1,
+    "cpu": 4,
+    "host_memory_gib": 16,
+    "concurrency": 1,
+    "min_instances": 0,
+    "max_instances": 1,
+    "service_account": "edugraph-tools@edugraph-438718.iam.gserviceaccount.com",
+    "private_invoker": "serviceAccount:imagine-server@edugraph-438718.iam.gserviceaccount.com",
+    "public_traffic_percent": 0,
+    "old_revision": "edugraph-predict-00005-59s",
+    "old_traffic_percent": 100
+  },
+  "smoke": {
+    "case_id": "validation/angle-arithmetic/4-MD-C-7-unknown-angles-addd94b2_angle-arithmetic_geometry-angle-arithmetic-execution_inst-0_mode-Q.png",
+    "request_sha256": "f0e681f179afd154d733e5dc2c4635750234424989a45b5c0cc979692a10c6e0",
+    "request_bytes": 46739,
+    "http_status": 200,
+    "schema_valid": true,
+    "expected_labels_matched": true,
+    "labels": {
+      "areas": [
+        "Addition",
+        "AdjacentAngles",
+        "AngleCalculation"
+      ],
+      "scopes": [
+        "DegreeScale"
+      ],
+      "abilities": [
+        "ProcedureExecution"
+      ]
+    },
+    "finish_reason": "stop",
+    "prompt_tokens": 465,
+    "completion_tokens": 24,
+    "cloud_run_request_latency_seconds": 34.008680024,
+    "client_elapsed_seconds": 36.0,
+    "model_load_seconds_approx": 23.8,
+    "prompt_eval_seconds": 2.24291,
+    "generation_seconds": 1.70737,
+    "one_case_only": true,
+    "request_builder_source_sha256": "d00e9ddc824c95329c784d282b49a39964d82d67ee8749ebc3c6088257f67145",
+    "source_image_sha256": "e623a9ceeef189c458e1aef1ec1e19f1b05e17f9ec59528d878ad1092e1ca513",
+    "request_settings": {
+      "image_rendering": "RGB JPEG quality 75 data URL",
+      "user_text": "Classify this task image.",
+      "ordered_schema_dimensions": [
+        "areas",
+        "scopes",
+        "abilities"
+      ],
+      "temperature": 0,
+      "max_tokens": 512,
+      "enable_thinking": false,
+      "stream": false
+    },
+    "raw_http_response_body_retained": false,
+    "output_processing": "Parsed JSON, validated closed-schema labels, compared exact labels; no canonicalization"
+  },
+  "monitoring": {
+    "gpu_memory_metric": "run.googleapis.com/container/gpu/memory_usages",
+    "gpu_memory_max_sample_bytes": 17867735040,
+    "host_memory_metric": "run.googleapis.com/container/memory/usage",
+    "host_memory_max_sample_bytes": 912801792,
+    "samples_per_point": 1
+  },
+  "temporary_id_token_grant_removed": true,
+  "imagine_backend_and_web_deployed": false,
+  "public_prediction_traffic_changed": false,
+  "benchmark": {
+    "run_id": "edugraph-20261004-qwen38-27b-gguf-benchmark-v4",
+    "code_commit": "0a6cc246889ea1087df88126d26d5642e9b285a2",
+    "report_uri": "gs://edugraph-classify/runpod/benchmarks/edugraph-20261004-qwen38-27b-gguf-benchmark-v4/41bdd7535b410fc3f23a4095975ba9bfcbe6af692290a275455cf597ffe0b0d1.tar",
+    "report_sha256": "41bdd7535b410fc3f23a4095975ba9bfcbe6af692290a275455cf597ffe0b0d1",
+    "report_contains_raw_validation_responses": true,
+    "dataset_release": "v0.30.0-03",
+    "dataset_revision": "9b509867e898490615be3f59bc2f31fac429389c",
+    "ontology_version": "v0.30.0",
+    "base_model": "Qwen/Qwen3.8-27B",
+    "base_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "prompt_sha256": "17e336fff2c539d9413defc12a8578e770e220f272e1ef92f90dfedc38c7c949",
+    "closed_schema_sha256": "a59c3cbed3a817bc20fec04c2d13c003b9be6360b0f8d3348036da884376f5b6",
+    "chat_template_sha256": "4813f6c608147061ba44f17b01aa344de7b5036cb97bb39200a3b2bb6e26a0c5"
+  }
+}

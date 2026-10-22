@@ -1,25 +1,14 @@
-"""Provider-neutral identities and prediction contracts."""
+"""Dimension-aware label sets and deterministic structural canonicalization."""
 
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
-from enum import StrEnum
-from typing import Any
+from dataclasses import dataclass
 
 
 class ContractError(ValueError):
-    """Raised when data violates a provider-neutral classifier contract."""
-
-
-class ExecutionMode(StrEnum):
-    """Infrastructure ownership, intentionally independent from provider identity."""
-
-    SERVERLESS = "serverless"
-    PROVIDER_DEDICATED = "provider_dedicated"
-    SELF_HOSTED = "self_hosted"
+    """Raised when labels violate the classifier output contract."""
 
 
 def _require_text(value: str, field_name: str) -> str:
@@ -28,91 +17,6 @@ def _require_text(value: str, field_name: str) -> str:
     if value != value.strip():
         raise ContractError(f"{field_name} must not contain surrounding whitespace")
     return value
-
-
-@dataclass(frozen=True, slots=True)
-class ArtifactIdentity:
-    """Immutable upstream or generated artifact reference."""
-
-    repository: str
-    revision: str
-    content_hash: str | None = None
-
-    def __post_init__(self) -> None:
-        _require_text(self.repository, "repository")
-        _require_text(self.revision, "revision")
-        if self.content_hash is not None:
-            _require_text(self.content_hash, "content_hash")
-
-
-@dataclass(frozen=True, slots=True)
-class ModelIdentity:
-    """Exact model identity without provider SDK objects."""
-
-    provider: str
-    model_id: str
-    revision: str | None = None
-
-    def __post_init__(self) -> None:
-        _require_text(self.provider, "provider")
-        _require_text(self.model_id, "model_id")
-        if self.revision is not None:
-            _require_text(self.revision, "revision")
-
-
-@dataclass(frozen=True, slots=True)
-class PromptSchemaIdentity:
-    """Versioned prompt and output-schema pair."""
-
-    prompt_id: str
-    prompt_version: str
-    schema_id: str
-    schema_version: str
-
-    def __post_init__(self) -> None:
-        for field_name in ("prompt_id", "prompt_version", "schema_id", "schema_version"):
-            _require_text(getattr(self, field_name), field_name)
-
-
-@dataclass(frozen=True, slots=True)
-class RunIdentity:
-    """Minimum reproducibility identity shared by all execution adapters."""
-
-    run_id: str
-    dataset: ArtifactIdentity
-    ontology: ArtifactIdentity
-    prompt_schema: PromptSchemaIdentity
-    code_commit: str
-    model: ModelIdentity
-    execution_mode: ExecutionMode
-
-    def __post_init__(self) -> None:
-        _require_text(self.run_id, "run_id")
-        _require_text(self.code_commit, "code_commit")
-
-
-_SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
-
-
-@dataclass(frozen=True, slots=True)
-class ClassificationRequest:
-    """Identity for one atomic classification unit in a pinned run."""
-
-    request_id: str
-    run_id: str
-    source_id: str
-    image_sha256: str
-    solution: bool
-
-    def __post_init__(self) -> None:
-        _require_text(self.request_id, "request_id")
-        _require_text(self.run_id, "run_id")
-        _require_text(self.source_id, "source_id")
-        if not _SHA256_RE.fullmatch(self.image_sha256):
-            raise ContractError("image_sha256 must be a 64-character hexadecimal digest")
-        object.__setattr__(self, "image_sha256", self.image_sha256.lower())
-        if not isinstance(self.solution, bool):
-            raise ContractError("solution must be a boolean")
 
 
 def _label_tuple(values: object, field_name: str) -> tuple[str, ...]:
@@ -182,32 +86,3 @@ def canonicalize_structure(labels: LabelSet) -> CanonicalizationResult:
             findings.append(f"sorted {field_name} labels")
         canonical[field_name] = ordered
     return CanonicalizationResult(labels=LabelSet(**canonical), findings=tuple(findings))
-
-
-@dataclass(frozen=True, slots=True)
-class RawPrediction:
-    """Provider response retained before parsing or canonicalization."""
-
-    content: str
-    metadata: Mapping[str, Any] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.content, str):
-            raise ContractError("raw prediction content must be a string")
-
-
-@dataclass(frozen=True, slots=True)
-class PredictionViews:
-    """Non-overwriting progression from provider output to ontology derivation."""
-
-    raw: RawPrediction
-    parsed: LabelSet | None = None
-    canonical: LabelSet | None = None
-    derived: LabelSet | None = None
-    findings: tuple[str, ...] = ()
-
-    def __post_init__(self) -> None:
-        if self.canonical is not None and self.parsed is None:
-            raise ContractError("canonical labels require parsed labels")
-        if self.derived is not None and self.canonical is None:
-            raise ContractError("derived labels require canonical labels")

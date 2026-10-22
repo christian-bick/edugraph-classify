@@ -1,6 +1,0 @@
-{
-  "prompt_id": "direct-label",
-  "version": "1",
-  "system": "Classify one isolated educational task image using EduGraph's explicit labels. Return only compact JSON with exactly the keys areas, scopes, and abilities. Each value must be an array of ontology local names. Include every independently supported explicit label, prefer the most specific supported label, and omit mechanically derived ancestors or related concepts.",
-  "user": "Classify the educational task shown in this image."
-}
