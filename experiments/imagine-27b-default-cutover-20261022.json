@@ -1,0 +1,128 @@
+{
+  "kind": "imagine_27b_default_cutover_v1",
+  "date_utc": "2026-10-22",
+  "status": "complete_for_confirmed_4b_resources",
+  "project": "edugraph-438718",
+  "region": "europe-west4",
+  "model": {
+    "hub_repository": "christian-bick/EduGraph-Classifier-Qwen3.8-27B-GGUF",
+    "hub_revision": "477e3caf32eced2a9e002ead1edccc9a5c458f0c",
+    "shared_validation_cases": 64,
+    "nf4_exact": 43,
+    "merged_bf16_exact": 40,
+    "gguf_q4_k_m_exact": 37
+  },
+  "predictor": {
+    "service": "edugraph-predict",
+    "default_revision": "edugraph-predict-00006-nej",
+    "image_digest": "sha256:64c5b5ff8fdac5eeeeed45cd6eb3dc65850f65f7d9436c0eb1ab8bd819c58b58",
+    "default_traffic_percent": 100,
+    "service_generation": 9,
+    "legacy_4b_rollback_tag": "legacy-4b-rollback",
+    "legacy_4b_tag_status": "removed",
+    "current_27b_canary_tag": "qwen38-canary"
+  },
+  "backend": {
+    "repository": "christian-bick/imagine-server",
+    "source_commit": "d8813a55302b5ebec63439f825876d3aceb544eb",
+    "merged_pr": "https://github.com/christian-bick/imagine-server/pull/2",
+    "merge_commit": "8b39fa06efaccd4511aaa9e4c00f289addb80460",
+    "service": "imagine-server",
+    "default_revision": "imagine-server-27b-default-d8813a5",
+    "default_traffic_percent": 100,
+    "service_generation": 52,
+    "predictor_endpoint_kind": "untagged_private_service",
+    "predictor_endpoint": "https://edugraph-predict-6ikwdry2zq-ez.a.run.app/v1/chat/completions",
+    "predictor_oidc_audience": "https://edugraph-predict-6ikwdry2zq-ez.a.run.app",
+    "previous_27b_tag": "qwen38-classify-v2",
+    "previous_27b_tag_status": "retained_as_27b_canary",
+    "release_manifest_sha256": "defcf74dd7358dae344409fd41b1e7b3a5016fa35f15bfd14db26df9d41a40f1",
+    "image_index_digest": "sha256:ddfabed6fa4137bd187f963c6cfc6e898810afa8816d0e07bd82270c193c9631",
+    "image_linux_amd64_digest": "sha256:29479fcf7b275f27b748137a34a417de1af44908435c82004e24530005abd97f",
+    "legacy_4b_tag_status": "removed"
+  },
+  "checks": {
+    "existing_27b_canary": "passed",
+    "new_backend_tag": "passed",
+    "new_backend_default": "passed",
+    "built_in_image_sha256": "82784a73467c422f6e2fc73e802cc326457bbe7fab35aaaa8d0734a429aa074f",
+    "shared_validation_image_sha256": "e623a9ceeef189c458e1aef1ec1e19f1b05e17f9ec59528d878ad1092e1ca513",
+    "shared_validation_expected_uris": {
+      "Area": [
+        "http://edugraph.io/edu/Addition",
+        "http://edugraph.io/edu/AdjacentAngles",
+        "http://edugraph.io/edu/AngleCalculation"
+      ],
+      "Scope": ["http://edugraph.io/edu/DegreeScale"],
+      "Ability": ["http://edugraph.io/edu/ProcedureExecution"]
+    },
+    "both_images_exact_expected_labels": true,
+    "two_simultaneous_builtin_uploads": {
+      "http_statuses": [200, 200],
+      "exact_expected_labels": [true, true],
+      "client_seconds": [8.015, 4.483]
+    }
+  },
+  "web": {
+    "repository": "christian-bick/imagine-web",
+    "source_commit": "ebda6c312ce8b5ec6a693790c2ad2153c1e997e4",
+    "merged_pr": "https://github.com/christian-bick/imagine-web/pull/2",
+    "merge_commit": "c29e5f56ff5ea0e75ca03ff4af95db24591d2934",
+    "target_backend_origin": "https://api.edugraph.io",
+    "initial_preview_actions_run": 39789102272,
+    "initial_preview_status": "failed_before_publication",
+    "initial_preview_failure": "Firebase service account lacked serviceusage.services.get; GitHub build and release guards passed",
+    "preview_status": "passed_via_hosting_rest",
+    "preview_version": "sites/imagine-web/versions/5478bb45b1ea67b5",
+    "preview_channel_status": "deleted_after_live_smoke",
+    "live_status": "passed",
+    "live_version": "sites/imagine-web/versions/5478bb45b1ea67b5",
+    "live_release": "sites/imagine-web/releases/1792677401792000",
+    "live_custom_domain": "https://demo.edugraph.io",
+    "live_javascript_asset": "/assets/index-FuVyqANV.js",
+    "live_javascript_sha256": "69035370f33dc775ca95ceb0356990ebae608405abea3b64ce68df46d7eba7f1",
+    "hosted_chrome_smoke": {
+      "builtin_http_status": 200,
+      "shared_validation_http_status": 200,
+      "exact_expected_labels": true,
+      "browser_errors_observed": false
+    },
+    "previous_live_version": "38068e44e1c57937"
+  },
+  "cleanup": {
+    "status": "complete_for_confirmed_4b_resources",
+    "legacy_backend_tag": "removed",
+    "legacy_predictor_tag": "removed",
+    "confirmed_4b_revisions_deleted": {
+      "backend": 2,
+      "predictor": 5
+    },
+    "confirmed_4b_image_manifests_absent": {
+      "backend": 3,
+      "predictor_packages": 20
+    },
+    "exact_4b_gcs_prefixes": [
+      "gs://imagine-ml/edugraph-qwen-3vl-4b/",
+      "gs://imagine-content/edugraph-qwen-3vl-4b/"
+    ],
+    "gcs_objects_removed_from_live_listing": 179,
+    "gcs_logical_bytes_removed_from_live_listing": 95233535057,
+    "gcs_soft_delete_days": 7,
+    "obsolete_hosting_versions_deleted": 15,
+    "preview_channel_deleted": true,
+    "retained_unclassified_backend_history": {
+      "revisions": 37,
+      "old_manifests": 135,
+      "reason": "not proven to be 4B"
+    },
+    "final_dry_run_remaining": {
+      "images": 0,
+      "gcs_objects": 0,
+      "hosting_versions": 0
+    },
+    "resumed_after_fresh_inventory": [
+      "Artifact Registry dependent-manifest 404",
+      "GCS transient 503"
+    ]
+  }
+}
