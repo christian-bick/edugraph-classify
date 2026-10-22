@@ -68,13 +68,49 @@ transient 503; both resumed only after fresh inventory. Final dry-runs returned
 zero remaining allow-listed images, GCS objects, and Hosting versions. The
 current 27B predictor, backend, live web version and 27B canary tags remain.
 
-The other **37 historical backend revisions and 135 older image manifests**
-were retained because their relationship to the 4B model was not established.
-They receive no traffic and are not part of the confirmed 4B deletion claim.
+At the first cleanup, **37 historical backend revisions and 135 older image
+manifests** were retained because their relationship to the 4B model had not
+been established. They receive no traffic and were not part of that deletion.
 The [cutover receipt](../experiments/imagine-27b-default-cutover-20261022.json)
 records exact source and deployment pins. Historical 4B experiments and
 migration evidence remain in Git as dated provenance, not active deployment
 instructions.
+
+### Attested backend provenance and follow-up cleanup
+
+A 2026-10-22 source-attestation audit resolved the first cleanup's 37-revision,
+135-manifest historical backend inventory. SHA-256-checked OCI indexes,
+attestation manifests, in-toto blobs, and runtime subjects map **31 OCI
+families / 93 manifests** to `imagine-server` source commits whose active route
+used the old predictor client. Thirty of those families backed **34 inactive
+backend revisions**, `imagine-server-00004-bnj` through
+`imagine-server-00037-hfr`; one image family had no retained revision. The
+remaining **14 families / 42 manifests** map to Gemini-route source and are
+protected, along with their three retained revisions. The in-toto records
+provide content-addressed source evidence, not an independently signed
+attestation. These are application **client** images, not 4B model weights;
+the confirmed 4B predictor and weight storage were handled in the first
+cleanup. The local ignored audit file
+`reports/imagine-27b-default-20261022/backend-provenance-assessment.md`
+explains the source boundary and exact proposals.
+
+All **34 source-proven 4B-client backend revisions** were deleted and verified
+absent. The eight-image strict subset with an explicit old predictor endpoint
+contributed **24 OCI manifests**, all verified absent. The guarded follow-up
+helper then completed deletion of the other **23 attested 4B-client image
+families / 69 manifests** with successful per-batch checks. Together with the
+first cleanup, the confirmed removal totals are **36 backend revisions**
+(2 + 34), **96 backend manifests** (3 + 24 + 69), five 4B predictor revisions,
+20 predictor package manifests, 179 live GCS objects under the two exact 4B
+prefixes, and 15 obsolete Hosting versions. The 27B backend and predictor
+defaults, canaries, and live Hosting version were protected by the deletion
+guards. The **14 Gemini families / 42 manifests**, three Gemini or transition
+backend revisions, and six 27B backend manifests were outside the allow-lists
+and retained. An independent final provider inventory is still pending; this
+paragraph reports the guarded helper's completed deletions, not that later
+cross-check. Artifact Registry manifest absence alone does not establish
+storage savings because layers can be shared and accounting can lag. GCS
+objects remain under seven-day soft deletion before hard deletion.
 
 On **2026-10-02**, the user authorized removal of obsolete Docker registry storage in project `edugraph-438718`, while retaining **GCS model artifacts** and **production inference on GCP with scale-to-zero**. Four unused training repositories were deleted. A subsequent explicit request authorized removal of the retired Hermes VM, its disks, and dedicated leftovers; that cleanup is also complete. Production services and their deployment/rollback images remain available.
 
