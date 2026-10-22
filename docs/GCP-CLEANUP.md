@@ -106,11 +106,24 @@ prefixes, and 15 obsolete Hosting versions. The 27B backend and predictor
 defaults, canaries, and live Hosting version were protected by the deletion
 guards. The **14 Gemini families / 42 manifests**, three Gemini or transition
 backend revisions, and six 27B backend manifests were outside the allow-lists
-and retained. An independent final provider inventory is still pending; this
-paragraph reports the guarded helper's completed deletions, not that later
-cross-check. Artifact Registry manifest absence alone does not establish
-storage savings because layers can be shared and accounting can lag. GCS
-objects remain under seven-day soft deletion before hard deletion.
+and retained. An independent read-only provider inventory at **2026-10-22
+15:32:58 UTC** confirmed all 34 follow-up revisions and 93 attested 4B-client
+manifests absent. Only five backend revisions remain: the three Gemini or
+transition revisions and two pinned 27B revisions. Artifact Registry lists
+exactly **48 backend manifests**, all 42 Gemini and six 27B, with no other
+manifests. The predictor repository lists only the pinned 27B image; legacy
+`us/gcr.io` lists zero images. Backend and predictor defaults remain 100% on
+the tested 27B revisions, with canaries retained; the live Hosting release
+still serves version `5478bb45b1ea67b5`, and all 15 old versions are
+`DELETED`. Both exact 4B GCS prefixes have zero live objects, while all 179
+allow-listed generations are soft-deleted and scheduled for hard deletion on
+**2026-10-29 between 14:07:48 and 14:12:56 UTC**. The sanitized independent
+inventory has SHA-256
+`db55af6f1c4f36531643c6ea202c34a21bfce972cbbcd4acaf8d563c67f15718`,
+also recorded in the cutover receipt. Artifact Registry reports
+24,775,978,366 backend repository bytes despite the manifest removals;
+shared layers or delayed accounting prevent a measured savings claim. GCS
+soft-deleted bytes may remain billable until their scheduled hard deletion.
 
 On **2026-10-02**, the user authorized removal of obsolete Docker registry storage in project `edugraph-438718`, while retaining **GCS model artifacts** and **production inference on GCP with scale-to-zero**. Four unused training repositories were deleted. A subsequent explicit request authorized removal of the retired Hermes VM, its disks, and dedicated leftovers; that cleanup is also complete. Production services and their deployment/rollback images remain available.
 

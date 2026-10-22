@@ -1,7 +1,7 @@
 {
   "kind": "imagine_27b_default_cutover_v1",
   "date_utc": "2026-10-22",
-  "status": "live_27b_complete_guarded_cleanup_done_independent_inventory_pending",
+  "status": "live_27b_complete_4b_cleanup_independently_verified",
   "project": "edugraph-438718",
   "region": "europe-west4",
   "model": {
@@ -90,7 +90,7 @@
     "previous_live_version": "38068e44e1c57937"
   },
   "cleanup": {
-    "status": "guarded_cleanup_done_independent_inventory_pending",
+    "status": "independent_final_inventory_passed",
     "legacy_backend_tag": "removed",
     "legacy_predictor_tag": "removed",
     "confirmed_4b_revisions_deleted": {
@@ -122,7 +122,7 @@
       "reason": "initial retained inventory subsequently partitioned by source-attestation evidence"
     },
     "followup_backend_cleanup": {
-      "status": "guarded_deletions_complete_independent_inventory_pending",
+      "status": "independent_final_inventory_passed",
       "attestation_classification_sha256": "cf76fbb6d38ddb83723cacceb61b237f1d608362f215eb8f97a798ebdadcdef2",
       "strict_proposal_sha256": "13f955911000c9f4d230a1c623be96a60494aae032622a91ef38ef0aa69c93b6",
       "expanded_proposal_sha256": "0547c1de21de37b543678cf5e37ca4cc20903fdf7b9fdf733180eafa2326ce7b",
@@ -131,7 +131,23 @@
       "source_proven_4b_client_revisions_deleted": 34,
       "strict_image_manifests_verified_absent": 24,
       "expanded_image_manifests_deleted_by_guarded_helper": 69,
-      "independent_final_provider_inventory": "pending",
+      "independent_final_provider_inventory": {
+        "observed_at_utc": "2026-10-22T15:32:58.535586+00:00",
+        "sha256": "db55af6f1c4f36531643c6ea202c34a21bfce972cbbcd4acaf8d563c67f15718",
+        "source_proven_4b_client_revisions_present": 0,
+        "source_proven_4b_client_manifests_present": 0,
+        "backend_revisions_retained": 5,
+        "backend_manifests_retained": 48,
+        "gemini_manifests_retained": 42,
+        "protected_27b_backend_manifests_retained": 6,
+        "legacy_predictor_images_retained": 0,
+        "exact_4b_gcs_live_objects": 0,
+        "exact_4b_gcs_generations_soft_deleted": 179,
+        "obsolete_hosting_versions_deleted": 15,
+        "live_hosting_version": "sites/imagine-web/versions/5478bb45b1ea67b5",
+        "backend_artifact_registry_reported_size_bytes": 24775978366,
+        "billing_savings_verified": false
+      },
       "gemini_family_manifests_preserved": 42,
       "gemini_families_preserved": 14,
       "gemini_revisions_preserved": 3,
