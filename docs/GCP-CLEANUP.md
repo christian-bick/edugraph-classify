@@ -107,7 +107,8 @@ defaults, canaries, and live Hosting version were protected by the deletion
 guards. The **14 Gemini families / 42 manifests**, three Gemini or transition
 backend revisions, and six 27B backend manifests were outside the allow-lists
 and retained. An independent read-only provider inventory at **2026-10-22
-15:32:58 UTC** confirmed all 34 follow-up revisions and 93 attested 4B-client
+15:38:12 UTC** confirmed all 36 reviewed 4B-client backend revisions and 96 manifests,
+including all 34 follow-up revisions and 93 attested 4B-client
 manifests absent. Only five backend revisions remain: the three Gemini or
 transition revisions and two pinned 27B revisions. Artifact Registry lists
 exactly **48 backend manifests**, all 42 Gemini and six 27B, with no other
@@ -119,7 +120,7 @@ still serves version `5478bb45b1ea67b5`, and all 15 old versions are
 allow-listed generations are soft-deleted and scheduled for hard deletion on
 **2026-10-29 between 14:07:48 and 14:12:56 UTC**. The sanitized independent
 inventory has SHA-256
-`db55af6f1c4f36531643c6ea202c34a21bfce972cbbcd4acaf8d563c67f15718`,
+`96a68a8119e6372248544e87df791e11b4b043328869be352689e7a68174c118`,
 also recorded in the cutover receipt. Artifact Registry reports
 24,775,978,366 backend repository bytes despite the manifest removals;
 shared layers or delayed accounting prevent a measured savings claim. GCS
