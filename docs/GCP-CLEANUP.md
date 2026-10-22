@@ -1,5 +1,37 @@
 # GCP cleanup record
 
+The sections below are dated records. The 2026-10-02 and 2026-10-07 statements
+about active 4B routes describe their state **on those dates**, not the current
+Imagine release. The [model-to-production runbook](MODEL-TO-PRODUCTION.md) and
+[baseline promotion record](IMAGINE-BASELINE-PROMOTION.md) describe the 27B
+classification rollout.
+
+## Imagine 27B default-route cutover on 2026-10-22
+
+The user approved replacing the 4B Imagine classifier, retiring its incompatible
+request path, and removing 4B resources after validation. Before the switch,
+`imagine-server-legacy-zero-20261007` and `edugraph-predict-00005-59s` each
+received 100% of their service's default traffic. The public web bundle still
+called the tagged 27B backend, which in turn called the tagged 27B predictor.
+Both services used minimum zero and maximum one instance. A read-only inventory
+counted 39 old backend revisions, five 4B predictor revisions, and 95,233,535,057
+logical bytes in the specifically named `edugraph-qwen-3vl-4b/` GCS prefixes.
+The two buckets have seven-day soft deletion; deletion is not immediate storage
+savings.
+
+The existing 27B tagged backend passed a fresh built-in upload: HTTP 200,
+ontology counts 283/353/130, intentional disabled-search response, and exact
+Area `Addition`, seven expected Scope labels, and Ability
+`ProcedureExecution`. ETag-guarded traffic changes added `legacy-4b-rollback`
+tags and moved the backend and predictor defaults to the existing 27B revisions
+`imagine-server-qwen38-40135eb` and `edugraph-predict-00006-nej` respectively.
+The untagged `https://api.edugraph.io` backend then passed the same upload.
+The current backend and web still call the 27B tags, so those tags must remain
+until their replacements use untagged routes and pass live smoke. The old 4B
+tags, revisions, image manifests, GCS objects, and Hosting rollback release
+remain until the full switch and dependency checks complete. The tracked
+cleanup record will be updated with exact deletions and post-deletion checks.
+
 On **2026-10-02**, the user authorized removal of obsolete Docker registry storage in project `edugraph-438718`, while retaining **GCS model artifacts** and **production inference on GCP with scale-to-zero**. Four unused training repositories were deleted. A subsequent explicit request authorized removal of the retired Hermes VM, its disks, and dedicated leftovers; that cleanup is also complete. Production services and their deployment/rollback images remain available.
 
 ## Removed training repositories
