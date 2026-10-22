@@ -1,5 +1,81 @@
 # GCP cleanup record
 
+The sections below are dated records. The 2026-10-02 and 2026-10-07 statements
+about active 4B routes describe their state **on those dates**, not the current
+Imagine release. The [model-to-production runbook](MODEL-TO-PRODUCTION.md) and
+[baseline promotion record](IMAGINE-BASELINE-PROMOTION.md) describe the 27B
+classification rollout.
+
+## Imagine 27B default-route cutover on 2026-10-22
+
+The user approved replacing the 4B Imagine classifier, retiring its incompatible
+request path, and removing 4B resources after validation. Before the switch,
+`imagine-server-legacy-zero-20261007` and `edugraph-predict-00005-59s` each
+received 100% of their service's default traffic. The public web bundle still
+called the tagged 27B backend, which in turn called the tagged 27B predictor.
+Both services used minimum zero and maximum one instance. A read-only inventory
+counted 39 old backend revisions, five 4B predictor revisions, and 95,233,535,057
+logical bytes in the specifically named `edugraph-qwen-3vl-4b/` GCS prefixes.
+The two buckets have seven-day soft deletion; deletion is not immediate storage
+savings.
+
+The existing 27B tagged backend passed a fresh built-in upload: HTTP 200,
+ontology counts 283/353/130, intentional disabled-search response, and exact
+Area `Addition`, seven expected Scope labels, and Ability
+`ProcedureExecution`. ETag-guarded traffic changes added `legacy-4b-rollback`
+tags and moved the backend and predictor defaults to the existing 27B revisions
+`imagine-server-qwen38-40135eb` and `edugraph-predict-00006-nej` respectively.
+The untagged `https://api.edugraph.io` backend then passed the same upload.
+The cleaned backend source `d8813a55302b5ebec63439f825876d3aceb544eb`
+was merged in `imagine-server#2` at `8b39fa06efaccd4511aaa9e4c00f289addb80460`.
+Its verified image uses OCI index digest
+`sha256:ddfabed6fa4137bd187f963c6cfc6e898810afa8816d0e07bd82270c193c9631`
+and linux/amd64 child digest
+`sha256:29479fcf7b275f27b748137a34a417de1af44908435c82004e24530005abd97f`;
+the release manifest is SHA-256
+`defcf74dd7358dae344409fd41b1e7b3a5016fa35f15bfd14db26df9d41a40f1`.
+Revision `imagine-server-27b-default-d8813a5` now receives 100% of backend
+default traffic (generation 52) and calls the **untagged private predictor**.
+Predictor generation 8 first sent 100% default traffic to `edugraph-predict-00006-nej`;
+generation 9 retained that route while removing the temporary 4B tag.
+The prior 27B canary, new backend tag, and new backend default passed both the
+built-in and shared benchmark validation uploads with exact expected labels;
+the benchmark image SHA-256 is
+`e623a9ceeef189c458e1aef1ec1e19f1b05e17f9ec59528d878ad1092e1ca513`.
+The 4B backend rollback tag was removed at backend generation 51; the 4B
+predictor rollback tag was removed at predictor generation 9. Two simultaneous built-in uploads
+on the untagged public API both returned HTTP 200 with exact labels, in 8.015
+and 4.483 client seconds; this is a bounded concurrency smoke, not a latency
+distribution or capacity benchmark. The new web build was published from exact
+tested Hosting preview version `5478bb45b1ea67b5` to live release
+`1792677401792000`. `https://demo.edugraph.io` now serves JavaScript asset
+`/assets/index-FuVyqANV.js` (SHA-256
+`69035370f33dc775ca95ceb0356990ebae608405abea3b64ce68df46d7eba7f1`)
+and calls the untagged `https://api.edugraph.io` backend. Hosted Chrome uploads
+of the built-in and shared validation image both returned HTTP 200 with exact
+labels and no browser errors. The earlier 27B tag is no longer a dependency
+of the live web bundle. The temporary preview channel was deleted after live
+smoke.
+
+After guarded dependency checks, **two confirmed 4B backend and five 4B
+predictor revisions** were deleted. Their 23 allow-listed image manifests are
+absent, along with 15 obsolete Hosting versions, including the October 7
+migration version. The two exact `edugraph-qwen-3vl-4b/` GCS prefixes lost 179
+generation-pinned objects totaling 95,233,535,057 logical bytes from live
+listings. The buckets' seven-day soft-delete period still applies. An Artifact
+Registry batch stopped on a dependent-manifest 404 and a GCS batch stopped on a
+transient 503; both resumed only after fresh inventory. Final dry-runs returned
+zero remaining allow-listed images, GCS objects, and Hosting versions. The
+current 27B predictor, backend, live web version and 27B canary tags remain.
+
+The other **37 historical backend revisions and 135 older image manifests**
+were retained because their relationship to the 4B model was not established.
+They receive no traffic and are not part of the confirmed 4B deletion claim.
+The [cutover receipt](../experiments/imagine-27b-default-cutover-20261022.json)
+records exact source and deployment pins. Historical 4B experiments and
+migration evidence remain in Git as dated provenance, not active deployment
+instructions.
+
 On **2026-10-02**, the user authorized removal of obsolete Docker registry storage in project `edugraph-438718`, while retaining **GCS model artifacts** and **production inference on GCP with scale-to-zero**. Four unused training repositories were deleted. A subsequent explicit request authorized removal of the retired Hermes VM, its disks, and dedicated leftovers; that cleanup is also complete. Production services and their deployment/rollback images remain available.
 
 ## Removed training repositories
