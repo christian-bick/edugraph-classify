@@ -1,7 +1,7 @@
 {
   "kind": "imagine_27b_default_cutover_v1",
   "date_utc": "2026-10-22",
-  "status": "complete_for_confirmed_4b_resources",
+  "status": "live_27b_complete_4b_cleanup_independently_verified",
   "project": "edugraph-438718",
   "region": "europe-west4",
   "model": {
@@ -90,15 +90,20 @@
     "previous_live_version": "38068e44e1c57937"
   },
   "cleanup": {
-    "status": "complete_for_confirmed_4b_resources",
+    "status": "independent_final_inventory_passed",
     "legacy_backend_tag": "removed",
     "legacy_predictor_tag": "removed",
     "confirmed_4b_revisions_deleted": {
-      "backend": 2,
+      "backend": 36,
+      "backend_initial_cutover": 2,
+      "backend_attested_followup": 34,
       "predictor": 5
     },
     "confirmed_4b_image_manifests_absent": {
-      "backend": 3,
+      "backend": 96,
+      "backend_initial_cutover": 3,
+      "backend_strict_followup": 24,
+      "backend_attested_expanded_followup": 69,
       "predictor_packages": 20
     },
     "exact_4b_gcs_prefixes": [
@@ -110,12 +115,45 @@
     "gcs_soft_delete_days": 7,
     "obsolete_hosting_versions_deleted": 15,
     "preview_channel_deleted": true,
-    "retained_unclassified_backend_history": {
+    "initially_retained_backend_history": {
       "revisions": 37,
       "old_manifests": 135,
-      "reason": "not proven to be 4B"
+      "as_of": "first_cleanup_before_attestation_audit",
+      "reason": "initial retained inventory subsequently partitioned by source-attestation evidence"
     },
-    "final_dry_run_remaining": {
+    "followup_backend_cleanup": {
+      "status": "independent_final_inventory_passed",
+      "attestation_classification_sha256": "cf76fbb6d38ddb83723cacceb61b237f1d608362f215eb8f97a798ebdadcdef2",
+      "strict_proposal_sha256": "13f955911000c9f4d230a1c623be96a60494aae032622a91ef38ef0aa69c93b6",
+      "expanded_proposal_sha256": "0547c1de21de37b543678cf5e37ca4cc20903fdf7b9fdf733180eafa2326ce7b",
+      "source_proven_4b_client_families": 31,
+      "source_proven_4b_client_manifests": 93,
+      "source_proven_4b_client_revisions_deleted": 34,
+      "strict_image_manifests_verified_absent": 24,
+      "expanded_image_manifests_deleted_by_guarded_helper": 69,
+      "independent_final_provider_inventory": {
+        "observed_at_utc": "2026-10-22T15:32:58.535586+00:00",
+        "sha256": "db55af6f1c4f36531643c6ea202c34a21bfce972cbbcd4acaf8d563c67f15718",
+        "source_proven_4b_client_revisions_present": 0,
+        "source_proven_4b_client_manifests_present": 0,
+        "backend_revisions_retained": 5,
+        "backend_manifests_retained": 48,
+        "gemini_manifests_retained": 42,
+        "protected_27b_backend_manifests_retained": 6,
+        "legacy_predictor_images_retained": 0,
+        "exact_4b_gcs_live_objects": 0,
+        "exact_4b_gcs_generations_soft_deleted": 179,
+        "obsolete_hosting_versions_deleted": 15,
+        "live_hosting_version": "sites/imagine-web/versions/5478bb45b1ea67b5",
+        "backend_artifact_registry_reported_size_bytes": 24775978366,
+        "billing_savings_verified": false
+      },
+      "gemini_family_manifests_preserved": 42,
+      "gemini_families_preserved": 14,
+      "gemini_revisions_preserved": 3,
+      "basis": "SHA-256 checked OCI index, attestation and in-toto source commit map 31 application image families to the historical predictor-client route. The attestations are content-addressed but not independently signed. These backend images do not contain model weights."
+    },
+    "initial_cutover_final_dry_run_remaining": {
       "images": 0,
       "gcs_objects": 0,
       "hosting_versions": 0
