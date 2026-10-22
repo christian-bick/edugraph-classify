@@ -57,6 +57,13 @@
       "Ability": ["http://edugraph.io/edu/ProcedureExecution"]
     },
     "both_images_exact_expected_labels": true,
+    "post_cleanup_smoke": {
+      "built_in_image_sha256": "82784a73467c422f6e2fc73e802cc326457bbe7fab35aaaa8d0734a429aa074f",
+      "public_default_origin": "https://api.edugraph.io",
+      "public_default": "passed_exact_labels",
+      "tagged_27b_canary_origin": "https://qwen38-classify-v2---imagine-server-6ikwdry2zq-ez.a.run.app",
+      "tagged_27b_canary": "passed_exact_labels"
+    },
     "two_simultaneous_builtin_uploads": {
       "http_statuses": [200, 200],
       "exact_expected_labels": [true, true],
@@ -132,8 +139,8 @@
       "strict_image_manifests_verified_absent": 24,
       "expanded_image_manifests_deleted_by_guarded_helper": 69,
       "independent_final_provider_inventory": {
-        "observed_at_utc": "2026-10-22T15:32:58.535586+00:00",
-        "sha256": "db55af6f1c4f36531643c6ea202c34a21bfce972cbbcd4acaf8d563c67f15718",
+        "observed_at_utc": "2026-10-22T15:38:12.861784+00:00",
+        "sha256": "96a68a8119e6372248544e87df791e11b4b043328869be352689e7a68174c118",
         "source_proven_4b_client_revisions_present": 0,
         "source_proven_4b_client_manifests_present": 0,
         "backend_revisions_retained": 5,
