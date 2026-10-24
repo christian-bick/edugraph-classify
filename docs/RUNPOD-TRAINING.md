@@ -4,21 +4,29 @@ Implemented 2026-10-02; full-run results verified 2026-10-03. This is the suppor
 
 ## Pinned training policy
 
-| Setting | Full candidate |
+The current K–6 candidate is separate from the completed October 2 baseline above. It retains the model, language-only QLoRA, image preprocessing, optimizer and evaluation policy. Release pins, cohort sizes, context allowance and runtime estimate change through configuration.
+
+| Setting | K–6 candidate, 2026-10-24 |
 |---|---|
-| Recipe | `experiments/edugraph-20261002-qwen38-27b-runpod-full-a40-v1.json` |
+| Recipe | `experiments/edugraph-20261024-qwen38-27b-runpod-k6-v1.json` |
 | Model | Qwen/Qwen3.8-27B, revision `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0` |
-| Dataset / ontology | v0.30.0-03 / 0.30.0, same immutable pins as the compact Fireworks recipe |
+| Dataset / ontology | v0.31.0-01 / 0.31.0; dataset revision `00ae2441669a42d1357c70d6f194bc71286eb464` |
+| Cohorts | All 2,330 training images; 64 checkpoint-selection images; all 414 remaining official validation images; 16 training diagnostics |
 | Executor | One on-demand Runpod Secure Pod, NVIDIA A40 48 GB |
 | Host allowance | At least 48 GB RAM and 8 vCPUs; 30 GB container disk and 140 GB `/workspace` volume |
 | Training | NF4 QLoRA, double quantization, BF16 compute, rank 8 / alpha 16, dropout 0 |
 | Trainable modules | Audited language attention and MLP adapters; vision tower, multimodal bridge, embeddings and output head frozen |
 | Batch / optimizer | Microbatch 1, effective batch 4; token-weighted assistant-only loss; constant AdamW LR 1e-4, gradient norm limit 1 |
-| Context / response | 2,048 expanded tokens / at most 512 generated tokens; no truncation |
+| Context / response | 4,096 expanded tokens / at most 512 generated tokens; no truncation |
 | Epochs | Two total, patience-one early stopping based on exact-set match then label F1 |
 | Checkpoints | Every 50 optimizer steps and each epoch, plus before final assessment |
 | W&B | Entity `edugraph-io`, project `edugraph-classify` |
 | Durable artifacts | `gs://edugraph-classify/runpod` |
+| Runtime planning | 10-hour estimate, 12-hour worker deadline; $8 estimated-cost guard and $0.60/hour compute ceiling |
+
+Two complete epochs imply 1,166 optimizer steps at effective batch 4. The local audit measures 2,726,422 training tokens across those epochs, about 62% above the baseline. The longest prompt plus its full output allowance requires 3,250 tokens, within 4,096. The October 24 live Secure catalog reported A40 capacity with 50 GB host RAM and 9 vCPUs at $0.59/hour. The recipe estimates $6.14 over 10 hours including $0.024/hour disk; this is not a guaranteed billing cap. Actual allocation price is checked before model loading. No GPU result exists yet for this candidate's longer inputs.
+
+The user accepted the release's existing annotation conventions and evaluation limitations for this round; realized-range/completeness fixes and fresh evaluation follow it. There are 147 training labels absent from official validation, and 224 official validation images reuse bytes from the inspected historical final cohort. This is regression assessment, not fresh blind confirmation. See [the refinement plan](REFINEMENT-PLAN.md).
 
 The separate `edugraph-20261002-qwen38-27b-runpod-smoke-v2.json` recipe uses 160 train images, 64 validation images, 16 train diagnostics, one epoch, and checkpoints every 10 steps. It leaves the final assessment cohort unused. On 2026-10-02 the live Secure inventory had no A6000 allocation, but offered an **A40 with 48 GB VRAM, 50 GB host RAM and 9 vCPUs at $0.49/hour**. The smoke and authorized full run explicitly select A40 and request at least 48 GB host RAM / 8 vCPUs. Transformers loads quantized shards directly to the GPU; this does not require a full BF16 CPU model copy. The smoke measured **29.122 GiB peak PyTorch device allocation**; the later L40S benchmark passed the longest training inputs. The original `runpod-v1` A6000 recipe remains available as an earlier candidate; the committed `runpod-full-a40-v1` recipe is the actual full-run configuration. The legacy recipe key `minimum_ram_gib` is passed to Runpod's GB-based `minRAMPerGPU` filter.
 
@@ -50,19 +58,39 @@ W&B receives pinned configuration, losses, gradient norms, generated-validation 
 ## Local preparation and explicit launch
 
 ```powershell
-uv sync --group training
+uv sync --locked --group training --reinstall-package edugraph-classify
 uv run --no-sync edugraph-classify runpod check-config
 uv run --no-sync pytest --cov=edugraph_classify --cov-report=term-missing
 ```
 
 Commit reviewed code and lockfile, then publish the image from that commit through the [GHCR workflow](CONTAINER-IMAGES.md). Use its **digest**, not a mutable tag. The image embeds `EDUGRAPH_CODE_COMMIT`; the worker checks this and `/app/uv.lock` against preparation. Local builds with `CODE_COMMIT=uncommitted` are verification images and cannot launch pinned experiments.
 
-For a new experiment, copy and review the successful [full A40 recipe](../experiments/edugraph-20261002-qwen38-27b-runpod-full-a40-v1.json), assign a new run ID, and commit the new recipe. Preparation from a clean checkout downloads public inputs locally without creating provider resources:
+For later releases, create a recipe using immutable upstream pins and an explicit runtime/budget. `new-run` copies the current candidate's model and training policy, updates dataset/ontology identity, and sets `train: "all"` and `final_validation: "remaining"`. It refuses to reuse the template's run ID or overwrite a recipe. It does not query a mutable latest release or install dependencies:
 
 ```powershell
-uv run --group training edugraph-classify runpod prepare `
-  --config 'experiments/<new-run-id>.json'
+uv run --no-sync edugraph-classify runpod new-run `
+  --run-id '<new-run-id>' --dataset-release '<release-tag>' `
+  --dataset-revision '<40-character-commit>' --ontology-version '<package-version>' `
+  --estimated-hours 10 --max-hours 12 --cost-limit-usd 8 `
+  --context-tokens 4096 --output 'temp/<new-run-id>.json'
+uv run --no-sync edugraph-classify runpod prepare `
+  --config 'temp/<new-run-id>.json' --dry-run --runs-root runs/preflight
 ```
+
+The budget values above are examples; revise them for each corpus. When the ontology changes, update the `edugraph-py` wheel URL under `[tool.uv.sources]` in `pyproject.toml`, run `uv lock`, then `uv sync --locked --group training --reinstall-package edugraph-classify`. The pinned ontology package must match the recipe. No trainer edits are needed. The reinstall step also repairs an editable environment left pointing at another checkout; launchable preparation rejects that mismatch.
+
+Dry preparation performs the real local conversion and tokenizer/model-target audit, using an explicitly uncommitted manifest identity. It cannot be staged or launched. Once the code and lockfile are reviewed and committed, rerun without `--dry-run` into a fresh output root. A recipe may remain in ignored `temp/`: the prepared bundle captures its full contents and hashes, while the code commit stays compatible with its image. An ontology/code/lock change requires a new matching image; a dataset-only recipe can reuse the same clean code/image revision.
+
+For the checked-in K–6 candidate, launchable preparation is:
+
+```powershell
+uv run --no-sync edugraph-classify runpod prepare `
+  --config experiments/edugraph-20261024-qwen38-27b-runpod-k6-v1.json
+```
+
+Preparation downloads public inputs locally without creating provider resources. Full cohorts retain every row even if the release has odd or unequal question/solution counts; numeric diagnostic and selection cohorts remain balanced. It validates all metadata labels against the installed pinned ontology, checks image hashes/split leakage, and fails with the source locator when a training target exceeds the output allowance or the prompt plus output allowance exceeds context. The generated schema explicitly bounds label arrays by vocabulary size, avoiding the decoder library's implicit 20-item default as the ontology grows.
+
+Review `manifest.json` before staging: `resolved_selection`, `unused_metadata_rows`, `data_profile` (label supports and coverage gaps), `token_limits`, token budgets, cost estimate and language-target audit describe this release. No training/final cohort counts or expected optimizer steps need source edits. Keep the entire prepared directory, including images and processor; offline result verification checks those inputs again.
 
 The following operations are separate and require explicit user authorization. `stage` uploads to GCS; `launch` creates a paid Pod. Both require exact run-ID confirmation. The completed A40 run and its reviewed request are recorded in [the full-run log](RUNPOD-FULL-A40-20261002.md).
 
@@ -73,14 +101,33 @@ $image = 'ghcr.io/christian-bick/edugraph-classify-trainer@sha256:<published-dig
 uv run --no-sync edugraph-classify runpod stage --manifest $manifest --confirm-run-id $runId
 uv run --no-sync edugraph-classify runpod render --manifest $manifest --image $image
 uv run --no-sync edugraph-classify runpod launch --manifest $manifest --image $image --confirm-run-id $runId
-uv run --no-sync edugraph-classify runpod status --launch-record "runs/$runId/pod-launch.json"
+uv run --no-sync edugraph-classify runpod status --manifest $manifest --launch-record "runs/$runId/pod-launch.json"
 ```
 
 `pod-request.json` is reviewable and contains secret references only. An exclusive launch journal is written **before** calling Runpod. An ambiguous network error may mean a Pod exists; inspect Runpod before retrying. Do not remove the journal to work around uncertainty. No inference endpoint, public ports or SSH service is provisioned.
 
-The GPU ceiling is **$0.60/hour**, checked after creation and again by the worker before model loading. Numeric and string currency values are accepted; missing, nonfinite and excessive rates fail closed. The documented REST create request has no price-cap field, so a rejected allocation can incur brief rental time before stopping. The authorized full A40 recipe allows 8 hours from worker startup; the smoke allows 4 hours. A watchdog calls stop at the deadline. This is not a guaranteed billing cap: image-pull/startup failures precede the worker, and an outage can defeat its stop request. Monitor startup and verify shutdown. See the [REST contract](https://docs.runpod.io/api-reference/pods/POST/pods).
+The GPU ceiling is **$0.60/hour**, checked after creation and again by the worker before model loading. Numeric and string currency values are accepted; missing, nonfinite and excessive rates fail closed. The documented REST create request has no price-cap field, so a rejected allocation can incur brief rental time before stopping. The K–6 recipe allows 12 hours from worker startup (the historical full run allowed 8 hours; the smoke allowed 4). A watchdog calls stop at the deadline. This is not a guaranteed billing cap: image-pull/startup failures precede the worker, and an outage can defeat its stop request. Monitor startup and verify shutdown. See the [REST contract](https://docs.runpod.io/api-reference/pods/POST/pods).
 
 Success publishes the selected model and completion marker, flushes W&B, then **terminates the Pod**, removing its volume. Failure or a cooperative pause stops the Pod while preserving its billable volume. An immediate `runpod stop --launch-record ... --confirm-run-id ...` releases compute; recover from the last external checkpoint. Do not assume a Pod disk survives host loss or that a stopped Pod can reacquire its GPU.
+
+## Retrieve and verify any completed run
+
+The supported commands replace run-specific verification scripts under ignored `temp/`. They take the prepared manifest and derive expected identities, steps, epochs, cohorts and tensor inventory from that run:
+
+```powershell
+uv run --no-sync edugraph-classify runpod status --manifest $manifest `
+  --launch-record "runs/$runId/pod-launch.json"
+uv run --no-sync edugraph-classify runpod retrieve --manifest $manifest --output "reports/$runId"
+uv run --no-sync edugraph-classify runpod verify-result --manifest $manifest --result-dir "reports/$runId"
+```
+
+`status` reads durable startup/completion markers even after the Pod disappears. With a launch record and Runpod credentials it also checks current provider state. A startup marker is historical evidence, not a heartbeat. Only a provider 404 establishes that the recorded Pod is absent; authentication/network errors remain unknown. A published completion marker does not prove artifact integrity or zero ongoing spend. Omitting the launch record performs only the storage check.
+
+`retrieve` performs cloud reads only. It validates run identity and content-addressed model/checkpoint references, downloads and verifies SHA-256/size, safely extracts the bundles, and writes `completion.json` and `retrieval.json`. A repeat call checks existing archives and extracted contents before reuse; corrupted files fail rather than being silently trusted.
+
+`verify-result` is offline and needs no provider credentials or clean checkout. It revalidates the archive/extracted inventory rather than trusting paths in `retrieval.json`, checks portable prompt/schema/processor hashes, verifies finite language-only adapter tensors and selected-best equality, and checks optimizer inventories, moments, step counters and saved RNG state. It derives counts from the manifest and completed epochs, handles early stopping and compatible continuation, and recomputes every saved baseline/epoch/final report from raw predictions. `verified-result.json` records the evidence. These are artifact/continuation-state checks, not a live GPU-resume test or a termination claim.
+
+Use the run's original ontology dependency when reproducing historical metrics; an old v0.30.0 run intentionally fails ontology verification in the current v0.31.0 environment. Retain its original prepared inputs, code and lockfile, or restore the matching input bundle into an isolated checkout. Do not weaken version checks to make historical artifacts pass.
 
 ## Recovery and one-epoch continuation
 
@@ -103,6 +150,10 @@ For **one epoch now and more later**, start with `training.epochs: 1`. Then crea
 A failed final assessment can recover the same run from its `phase=final` checkpoint without repeating optimizer steps. The final export contains the selected adapter, processor, prompt, schema, template and reports. It does **not** merge, register or deploy a serving model. Completed-run markers are immutable; training continuation gets a new run ID.
 
 ## Validation and remaining acceptance
+
+After integration onto the current production-aware main branch, the release checkout passed **374 tests with 95.80% coverage** and `uv lock --check`. The additional benchmark/promotion commands and their tests remain intact. Live prelaunch checks verified artifact-store read access, no existing classifier Pods, and Secure A40 availability within the recipe's price ceiling.
+
+Before release integration on 2026-10-24, the original checkout passed all **311 tests with 96.24% coverage**, `uv lock --check`, the Python package build, and a local Linux/CUDA container build with offline imports/CLI checks. Its actual K–6 CLI dry preparation validated all 2,808 images and prepared hashes, with no unused metadata rows and a maximum required context of 3,250 tokens. Evidence remains in that original checkout under ignored `reports/pipeline-consolidation-20261024/` and `temp/pipeline-consolidation/`. Those validation artifacts carry uncommitted identities and cannot launch a run. Launchable preparation must use the reviewed release commit and matching published image. These local checks do not measure GPU memory on the larger K–6 inputs.
 
 The first Secure smoke (`...runpod-smoke-v1`, Pod `yhbqhq55hz4qkx`, code `a69514d`) reached container startup but failed on the REST v1 Pod-key check, before GCS worker staging, W&B or model loading. The workstation stopped it, saved its failure record in GCS and terminated its empty volume. No optimizer steps ran. The v2 smoke completed with the corrected GraphQL worker adapter and verified automatic termination. Failure reporting preserves both the original exception and any shutdown failure as sanitized type/status/frame records.
 

@@ -16,6 +16,9 @@ from .runpod_cli import add_runpod_parser, run_runpod_command
 
 
 def _code_commit(repo_root: Path) -> str:
+    source = repo_root / "src/edugraph_classify/cli.py"
+    if source.exists() and source.resolve() != Path(__file__).resolve():
+        raise ValueError("installed package belongs to another checkout; run uv sync --reinstall-package edugraph-classify")
     status = subprocess.run(
         ["git", "status", "--porcelain"],
         cwd=repo_root,
@@ -50,7 +53,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             exit_code, payload = run_hf_gguf_release_command(args)
             print(json.dumps(payload, indent=2))
             return exit_code
-        commit = None if args.action in ("check-config", "compare", "status", "stop") else _code_commit(Path.cwd())
+        local_only = args.action in ("check-config", "compare", "new-run", "status", "stop", "retrieve", "verify-result")
+        commit = None if local_only or getattr(args, "dry_run", False) else _code_commit(Path.cwd())
         if args.command == "inference-benchmark":
             exit_code, payload = run_inference_benchmark_command(args, commit)
         else:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import sys
+from importlib.metadata import version
 from pathlib import Path
 from types import SimpleNamespace as NS
 from unittest.mock import Mock
@@ -22,6 +23,7 @@ from edugraph_classify.qwen_rendering import IMAGE_MARKER, QwenVisionRenderer, f
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = ROOT / "experiments/edugraph-20261002-qwen38-27b-runpod-full-a40-v1.json"
 GOLD = {"areas": ["Addition"], "scopes": [], "abilities": []}
+ONTOLOGY_VERSION = version("edugraph-py")
 
 
 class Tokenizer:
@@ -55,6 +57,7 @@ def png(color=0):
 
 def recipe():
     value = runpod_config.load_runpod_recipe(RECIPE)
+    value["ontology_version"] = value["dataset"]["source_ontology_version"] = ONTOLOGY_VERSION
     value["selection"] = {"train": 4, "validation": 4, "final_validation": 0,
                           "train_diagnostic": 2, "seed": 42}
     value["training"].update(epochs=2, batch_size=2, max_context_tokens=50000)
@@ -84,7 +87,7 @@ def prepared(tmp_path, monkeypatch):
 
 def test_assistant_only_loss_and_one_image_survive_target_shift():
     renderer = renderer_factory()
-    example = renderer.render(png(), json.dumps(GOLD), max_tokens=10000, max_output=20)
+    example = renderer.render(png(), json.dumps(GOLD), max_tokens=10000, max_output=512)
     targets, weights = example.targets_and_weights()
     assert example.image_tokens == 7
     assert len(targets) == len(weights) == example.training_tokens
@@ -93,9 +96,9 @@ def test_assistant_only_loss_and_one_image_survive_target_shift():
     assert "".join(chr(t) for t, w in zip(targets, weights) if w) == json.dumps(GOLD) + "<|im_end|>\n"
     assert example.sampling_tokens().count(1_000_000) == 1
     assert len(example.fingerprint()) == 64
-    assert example.fingerprint() != renderer.render(png(250), json.dumps(GOLD), max_tokens=10000, max_output=20).fingerprint()
+    assert example.fingerprint() != renderer.render(png(250), json.dumps(GOLD), max_tokens=10000, max_output=512).fingerprint()
     with pytest.raises(ValueError, match="truncation"):
-        renderer.render(png(), json.dumps(GOLD), max_tokens=10, max_output=20)
+        renderer.render(png(), json.dumps(GOLD), max_tokens=10, max_output=512)
 
 
 def test_embedded_system_template_matches_and_rejects_overrides():
@@ -174,7 +177,7 @@ def test_epoch_evaluation_requires_valid_patience(tmp_path):
 
 
 def test_metadata_and_balanced_selection_do_not_depend_on_input_order():
-    catalog = OntologyCatalog.load("0.30.0")
+    catalog = OntologyCatalog.load(ONTOLOGY_VERSION)
     rows = [{"file_name": f"{i}.png", "labels": ["Addition"], "solution": bool(i % 2)} for i in range(20)]
     assert learning_data.select_cohort(rows, 6, 42) == learning_data.select_cohort(list(reversed(rows)), 6, 42)
     assert sum(r["solution"] for r in learning_data.select_cohort(rows, 6, 42)) == 3
@@ -260,7 +263,7 @@ def test_compact_prompt_matches_prepared_embedded_template(prepared):
 
 
 def test_closed_schema_and_language_only_targets_fail_closed():
-    catalog = OntologyCatalog.load("0.30.0")
+    catalog = OntologyCatalog.load(ONTOLOGY_VERSION)
     schema = json.loads((ROOT / "schemas/dimension-labels-v1.json").read_text())
     closed = closed_vocabulary_schema(schema, catalog)
     assert closed["required"] == ["areas", "scopes", "abilities"]
@@ -293,7 +296,7 @@ def test_preparation_rejects_leakage_cost_and_large_images(prepared, failure):
 
 
 def test_evaluation_counts_raw_errors_without_ontology_repair():
-    catalog = OntologyCatalog.load("0.30.0")
+    catalog = OntologyCatalog.load(ONTOLOGY_VERSION)
     assert not parse_prediction("```json\n{}\n```", catalog)["valid"]
     assert not parse_prediction("[]", catalog)["valid"]
     duplicate = parse_prediction('{"areas":["Addition","Addition"],"scopes":[],"abilities":[]}', catalog)

@@ -584,7 +584,7 @@ training = [
 
 [package.metadata]
 requires-dist = [
-    { name = "edugraph-py", url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.30.0/edugraph_py-0.30.0-py3-none-any.whl" },
+    { name = "edugraph-py", url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.31.0/edugraph_py-0.31.0-py3-none-any.whl" },
     { name = "google-cloud-storage", specifier = ">=3.13.1,<4" },
     { name = "httpx", specifier = ">=0.28.1,<1" },
     { name = "pillow", specifier = ">=12.3.0" },
@@ -614,10 +614,10 @@ training = [
 
 [[package]]
 name = "edugraph-py"
-version = "0.30.0"
-source = { url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.30.0/edugraph_py-0.30.0-py3-none-any.whl" }
+version = "0.31.0"
+source = { url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.31.0/edugraph_py-0.31.0-py3-none-any.whl" }
 wheels = [
-    { url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.30.0/edugraph_py-0.30.0-py3-none-any.whl", hash = "sha256:f52779d5bd9f85659b043fd1dfe57ebe40d17be9beeddd9eb1c147b771f77871" },
+    { url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.31.0/edugraph_py-0.31.0-py3-none-any.whl", hash = "sha256:98ffab4c2086b11f1f3b7cb0de040715dfa61bd8a5457d5247a893698491f93f" },
 ]
 
 [package.metadata]

@@ -2,7 +2,11 @@
 
 This document explains the stable classifier-facing concepts of [`edugraph-ontology`](https://github.com/christian-bick/edugraph-ontology).
 
-Current runtime (2026-10-03): **v0.30.0**, aligned with dataset v0.30.0-03 for the [completed Secure A40 baseline](RUNPOD-FULL-A40-20261002.md). The earlier Fireworks learning smoke remains pinned to dataset v0.30.0-02 and the same ontology version. The public eligibility/relations APIs remain compatible. Unlike the earlier v0.27 client-only migration, subsequent releases contain semantic changes; historical experiments require their pinned environment. The prior review below records the older migration context; the [refinement plan](REFINEMENT-PLAN.md) records new classifier-side evidence questions without redefining upstream semantics.
+Current runtime and K–6 training candidate (2026-10-24): **v0.31.0**, aligned with dataset **v0.31.0-01** at `00ae2441669a42d1357c70d6f194bc71286eb464`. The [candidate recipe](../experiments/edugraph-20261024-qwen38-27b-runpod-k6-v1.json) pins both releases for the next Qwen3.8-27B Runpod run. Its vocabulary, eligibility checks, closed output schema and semantic snapshot are generated from the pinned ontology package. Broader CCSS K–6 coverage does not establish complete label coverage in either dataset split.
+
+The [completed Secure A40 baseline](RUNPOD-FULL-A40-20261002.md) remains a historical result on ontology **v0.30.0** and dataset v0.30.0-03. The earlier Fireworks learning smoke remains pinned to dataset v0.30.0-02 and ontology v0.30.0. The public eligibility/relations APIs remain compatible. Unlike the earlier v0.27 client-only migration, subsequent releases contain semantic changes; historical experiments require their pinned environment. The prior review below records the older migration context; the [refinement plan](REFINEMENT-PLAN.md) records classifier-side evidence questions without redefining upstream semantics.
+
+**Accepted scope for the next run, 2026-10-24:** consistent realized-task ranges and complete annotation of independent observable facets remain pending upstream work in the [annotation handoff](UPSTREAM-ANNOTATION-HANDOFF-20261003.md). The user explicitly deferred those improvements, broader evaluation coverage and a fresh assessment set until after this training round. The classifier preserves released gold and the existing explicit-versus-derived boundary; this adoption makes no claim that those annotation improvements are complete.
 
 Reviewed against release **v0.27.0** on 2026-09-13. Its authored ontology is unchanged from v0.26.0. See [the v0.27.0 adoption notes](ONTOLOGY-UPGRADE-0.27.md), [the v0.26.0 semantic migration](ONTOLOGY-UPGRADE-0.26.md), and [the dataset upgrade](DATASET-UPGRADE-0.26.0-01.md).
 
@@ -205,6 +209,8 @@ Do not hard-code:
 - the idea that every sample has exactly one descriptor per dimension.
 
 Generate enums, schemas, dimension maps, graph closures, and candidate vocabularies from the pinned release.
+
+Preparation records the eligible vocabulary size and observed label support for official splits and selected cohorts in `manifest.data_profile`, including training labels absent from official or checkpoint-selection validation. These are release-specific observations, not ontology constraints or guarantees of CCSS coverage. Schema and token limits are checked against the complete selected corpus on each preparation; adding labels or increasing target cardinality must not silently truncate an example.
 
 ## 13. Authoritative upstream references
 

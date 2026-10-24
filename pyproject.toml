@@ -65,7 +65,7 @@ torchvision = [
     { index = "pytorch-cpu", marker = "sys_platform == 'win32'" },
     { index = "pytorch-cu126", marker = "sys_platform != 'win32'" },
 ]
-edugraph-py = { url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.30.0/edugraph_py-0.30.0-py3-none-any.whl" }
+edugraph-py = { url = "https://github.com/christian-bick/edugraph-ontology/releases/download/v0.31.0/edugraph_py-0.31.0-py3-none-any.whl" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"

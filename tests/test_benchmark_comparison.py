@@ -1,6 +1,7 @@
 """The same saved validation cohort and evaluator govern every model stage."""
 
 from __future__ import annotations
+from importlib.metadata import version
 
 import hashlib
 import json
@@ -99,7 +100,7 @@ def _benchmark(root: Path, controls_root: Path, name: str, route: str, source_mo
 
 @pytest.fixture
 def comparison_case(tmp_path):
-    catalog = OntologyCatalog.load("0.30.0")
+    catalog = OntologyCatalog.load(version("edugraph-py"))
     training_root = tmp_path / "training"
     training_root.mkdir()
     image = training_root / "image.png"
@@ -116,7 +117,7 @@ def comparison_case(tmp_path):
     training = [{"id": row["id"], "gold": row["gold"], "solution": row["solution"]}
                 for row in examples if row["split"] == "train"]
     validation = examples[:2]
-    recipe = {"ontology_version": "0.30.0"}
+    recipe = {"ontology_version": version("edugraph-py")}
     write_json(training_root / "recipe.json", recipe)
     write_json(training_root / "examples.json", examples)
     for name in ("prompt.json", "schema.json", "closed_schema.json", "chat_template.jinja"):

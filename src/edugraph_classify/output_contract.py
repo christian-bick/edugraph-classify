@@ -25,4 +25,7 @@ def closed_vocabulary_schema(base_schema: dict, catalog: OntologyCatalog) -> dic
         )
         if not prop["items"]["enum"]:
             raise ValueError("ontology dimension has no eligible labels")
+        # Explicit cardinality avoids the decoder's implicit 20-item ceiling as
+        # ontology releases grow. A set cannot exceed its eligible vocabulary.
+        prop["maxItems"] = len(prop["items"]["enum"])
     return schema

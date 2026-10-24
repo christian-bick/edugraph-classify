@@ -1,6 +1,7 @@
 """Offline checks of merged-BF16 scoring and report-only publication."""
 
 from __future__ import annotations
+from importlib.metadata import version
 
 import hashlib
 import json
@@ -52,7 +53,7 @@ def prepared_fixture(tmp_path: Path, *, expected_digest: str | None = None):
     source.mkdir()
     source_recipe = {"model": {"hf_repository": "Qwen/Qwen3.8-27B",
                                "hf_revision": SOURCE_COMMIT},
-                     "ontology_version": "0.30.0", "training": {"max_context_tokens": 2048}}
+                     "ontology_version": version("edugraph-py"), "training": {"max_context_tokens": 2048}}
     write_json(source / "manifest.json", {"run_id": "source-run", "recipe": source_recipe})
     write_json(source / "result.json", {"status": "completed", "selected_epoch": 2})
     archive = tmp_path / "source.tar"
@@ -82,7 +83,7 @@ def prepared_fixture(tmp_path: Path, *, expected_digest: str | None = None):
         "source_training": {"run_id": "source-run",
                             "manifest_sha256": file_sha256(source / "manifest.json"),
                             "code_commit": SOURCE_COMMIT, "uv_lock_sha256": "e" * 64,
-                            "ontology_snapshot_sha256": OntologyCatalog.load("0.30.0").snapshot_sha256,
+                            "ontology_snapshot_sha256": OntologyCatalog.load(version("edugraph-py")).snapshot_sha256,
                             "recipe": source_recipe, "selected_epoch": 2},
         "cohort": "validation", "cohort_count": 1, "training_reference_count": 1,
         "files_sha256": {path.relative_to(prepared).as_posix(): file_sha256(path)

@@ -123,8 +123,16 @@ class QwenVisionRenderer:
             tuple(prompt[:marker_index]), tuple(prompt[marker_index + 1:]),
             tuple(tokens[len(prompt):]), jpeg.getvalue(), image_tokens, self.image_marker_id,
         )
-        if image_tokens < 1 or max(example.training_tokens, example.prompt_tokens + max_output) > max_tokens:
-            raise ValueError("example exceeds the configured context; truncation is forbidden")
+        if image_tokens < 1:
+            raise ValueError("image must expand to at least one token")
+        if len(example.completion) > max_output:
+            raise ValueError(f"gold completion has {len(example.completion)} tokens, exceeds "
+                             f"evaluation.max_tokens={max_output}; truncation is forbidden")
+        required = max(example.training_tokens, example.prompt_tokens + max_output)
+        if required > max_tokens:
+            raise ValueError(f"example requires {required} context tokens (training={example.training_tokens}, "
+                             f"prompt={example.prompt_tokens}, output allowance={max_output}), exceeds "
+                             f"training.max_context_tokens={max_tokens}; truncation is forbidden")
         return example
 
     def export_template(self) -> str:

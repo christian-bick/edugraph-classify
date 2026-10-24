@@ -16,6 +16,8 @@ The image recipe is `containers/runpod-trainer/Dockerfile`. It packages the Runp
 
 The Docker context includes only `pyproject.toml`, `uv.lock`, `README.md`, `LICENSE`, `src/`, and the Dockerfile. Datasets, model weights, checkpoints, local environment files, and Git credentials are excluded. The build installs from the frozen lockfile, imports the training stack without network access, verifies the CUDA 12.6 build of PyTorch, and checks the trainer CLI. These are CPU checks; they do not establish successful GPU training.
 
+Repeated releases use the same trainer implementation and model policy. A dataset-only recipe can live under ignored `temp/`; its complete contents and input hashes enter the prepared bundle, so it can reuse a matching clean code/image revision. An ontology upgrade changes the pinned wheel in `pyproject.toml` and `uv.lock`: synchronize the local environment, review and commit the lock update, then build a new image from that commit. The v0.31.0 candidate cannot use the historical v0.30.0 image. Dependency updates do not require changes to trainer code, but they do require an image containing those dependencies. `prepare --dry-run` emits an uncommitted identity for local checks and cannot be staged or launched.
+
 The project is licensed under Apache 2.0. The image includes `LICENSE`, and the publishing workflow records `org.opencontainers.image.licenses=Apache-2.0`. Bundled dependencies and the CUDA base image retain their respective licenses.
 
 An explicit `trainer-*` tag pointing to a reviewed clean commit also triggers publication; ordinary branch pushes and pull requests do not. The tag authorizes image publication, not paid training.
