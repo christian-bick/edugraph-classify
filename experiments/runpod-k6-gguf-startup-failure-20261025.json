@@ -1,0 +1,61 @@
+{
+  "run_id": "edugraph-20261025-qwen38-27b-k6-gguf-v1",
+  "status": "stopped_without_observed_worker_startup",
+  "code_commit": "7c9db04e3bc3cf9b018bf8912bac82ddc680c29e",
+  "image": "ghcr.io/christian-bick/edugraph-classify-inference-benchmark@sha256:2570eea4b136be1727888e17097bfacf828b42c32cf361b7a451d3a4f9cb46be",
+  "image_build_url": "https://github.com/christian-bick/edugraph-classify/actions/runs/40191673855",
+  "pod_id": "s9nbl9q3cku2ug",
+  "gpu": "NVIDIA L40S",
+  "gpu_count": 1,
+  "secure_cloud": true,
+  "host_memory_gb": 125,
+  "vcpu_count": 32,
+  "container_disk_gb": 30,
+  "retained_volume_gb": 350,
+  "provider_compute_usd_per_hour": 1.09,
+  "provider_created_at_utc": "2026-10-25T12:53:53.441+00:00",
+  "restart_requested_at_utc": "2026-10-25T13:21:05.912704+00:00",
+  "restart_http_status": 200,
+  "provider_stopped_at_utc": "2026-10-25T13:31:39+00:00",
+  "stop_verified_at_utc": "2026-10-25T13:32:17.704874+00:00",
+  "provider_desired_status": "EXITED",
+  "provider_absent": false,
+  "allocation_budget": {
+    "deadline_utc": "2026-10-25T15:53:46.0708958+00:00",
+    "stop_at_utc": "2026-10-25T15:48:46.0708958+00:00",
+    "prelaunch_at_utc": "2026-10-25T12:53:46.0708958+00:00",
+    "run_id": "edugraph-20261025-qwen38-27b-k6-gguf-v1"
+  },
+  "observed_allocation_seconds": 2265.559,
+  "compute_rate_based_estimate_usd": 0.685961,
+  "running_disk_allowance_usd_per_hour": 0.05,
+  "compute_and_running_disk_estimate_usd": 0.717427,
+  "cost_is_invoice": false,
+  "cost_exclusions": [
+    "retained storage after stop",
+    "GCS",
+    "taxes"
+  ],
+  "retained_volume_list_price_usd_per_gb_month": 0.2,
+  "retained_volume_list_price_usd_per_month": 70,
+  "storage_price_source": "https://docs.runpod.io/pods/pricing",
+  "diagnostics": {
+    "last_runtime_check_at_utc": "2026-10-25T13:31:19.998923+00:00",
+    "runtime": null,
+    "last_marker_check_at_utc": "2026-10-25T13:31:24.762351+00:00",
+    "startup_marker": "absent",
+    "worker_failure_marker": "absent",
+    "completion_marker": "absent",
+    "fresh_system_and_container_logs": "HTTP 200, zero events",
+    "root_cause": "unknown; initialization stalled before any observed worker execution"
+  },
+  "shutdown_watchdog_observed_stopped_at_utc": "2026-10-25T13:31:58.903522+00:00",
+  "verified_candidate_available": false,
+  "new_gguf_metrics": null,
+  "huggingface_publication": {
+    "published": false,
+    "repository": "christian-bick/EduGraph-Classifier-Qwen3.8-27B-GGUF",
+    "unchanged_revision": "477e3caf32eced2a9e002ead1edccc9a5c458f0c",
+    "verified_at_utc": "2026-10-25T13:32:17.704874+00:00"
+  }
+}
