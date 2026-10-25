@@ -1,6 +1,8 @@
 # K–6 GGUF conversion: startup failure, 2026-10-25
 
-The approved conversion and validation attempt stopped before any observed worker execution. **No verified K–6 GGUF candidate or evaluation result is available, and Hugging Face was not updated.** The [sanitized receipt](../experiments/runpod-k6-gguf-startup-failure-20261025.json) records the provider state, timestamps, budget and publication check.
+**Follow-up, 2026-10-25:** The [fresh-host retry](RUNPOD-GGUF-K6-20261025.md) completed, and the [K–6 model was published and verified](HUGGINGFACE-GGUF-RELEASE.md). After explicit user authorization, the failed Pod `s9nbl9q3cku2ug` and its attached 350 GB volume were deleted at **17:55:11 UTC**; Runpod returned HTTP 404 at **17:55:12 UTC**. The [cleanup receipt](../experiments/runpod-k6-gguf-cleanup-20261025.json) records the exact stopped-Pod identity, deletion and absence checks. No separate network volume was attached. The remaining text preserves the original failure-time observations and retention decision; the recovery volume is no longer retained or accruing storage charges.
+
+The approved conversion and validation attempt stopped before any observed worker execution. **This failed allocation produced no verified K–6 GGUF candidate or evaluation result and made no Hugging Face update.** The [sanitized receipt](../experiments/runpod-k6-gguf-startup-failure-20261025.json) records the provider state, timestamps, budget and publication check.
 
 ## Prepared release
 

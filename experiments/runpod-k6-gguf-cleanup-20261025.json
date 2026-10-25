@@ -1,0 +1,53 @@
+{
+  "action": "terminate_pod_and_attached_volume",
+  "authorized_by": "Explicit user request after successful verified retry publication",
+  "before": {
+    "containerDiskInGb": 30,
+    "costPerHr": 1.09,
+    "desiredStatus": "EXITED",
+    "gpuCount": 1,
+    "id": "s9nbl9q3cku2ug",
+    "imageName": "ghcr.io/christian-bick/edugraph-classify-inference-benchmark@sha256:2570eea4b136be1727888e17097bfacf828b42c32cf361b7a451d3a4f9cb46be",
+    "machineId": "e4e0u0fv49q6",
+    "name": "edugraph-20261025-qwen38-27b-k6-gguf-v1",
+    "networkVolumeId": null,
+    "secureCloud": true,
+    "volumeInGb": 350
+  },
+  "independent_verification": {
+    "get": {
+      "http_status": 404,
+      "observed_at_utc": "2026-10-25T17:57:07.701539+00:00",
+      "state": "absent"
+    },
+    "kind": "edugraph_runpod_cleanup_independent_verification_v1",
+    "list": {
+      "contains_target_pod": false,
+      "observed_at_utc": "2026-10-25T17:57:08.062493+00:00",
+      "returned_pod_count": 0,
+      "state": "verified"
+    },
+    "pod_id": "s9nbl9q3cku2ug",
+    "provider_absent_independently_verified": true,
+    "read_only": true,
+    "run_id": "edugraph-20261025-qwen38-27b-k6-gguf-v1"
+  },
+  "kind": "edugraph_runpod_failed_volume_cleanup_v1",
+  "pod_id": "s9nbl9q3cku2ug",
+  "post_delete_observations": [
+    {
+      "http_status": 404,
+      "observed_at_utc": "2026-10-25T17:55:12.251282+00:00",
+      "state": "absent"
+    }
+  ],
+  "provider_absent": true,
+  "request_completed_at_utc": "2026-10-25T17:55:11.880793+00:00",
+  "request_returned_success": true,
+  "requested_at_utc": "2026-10-25T17:55:11.202854+00:00",
+  "run_id": "edugraph-20261025-qwen38-27b-k6-gguf-v1",
+  "status": "deleted_and_absence_verified",
+  "storage_semantics_source": "https://docs.runpod.io/pods/storage/types",
+  "successful_hf_revision": "140480b1d3893f0fb678a6f2d0f92103a60a936b",
+  "volume_deletion_basis": "Pod-local 350 GB volume; no network volume attached; Runpod Pod termination removes attached local volume storage."
+}
