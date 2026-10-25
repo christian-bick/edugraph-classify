@@ -4,9 +4,9 @@ Implemented 2026-10-02; full-run results verified 2026-10-03. This is the suppor
 
 ## Pinned training policy
 
-The current K–6 candidate is separate from the completed October 2 baseline above. It retains the model, language-only QLoRA, image preprocessing, optimizer and evaluation policy. Release pins, cohort sizes, context allowance and runtime estimate change through configuration.
+The [K–6 run completed and was independently verified on October 25](RUNPOD-K6-A40-20261024.md): 306/414 exact matches (73.91%), 96.19% label F1 and zero invalid final outputs. It retains the model, language-only QLoRA, image preprocessing, optimizer and evaluation policy of the October 2 baseline. Release pins, cohort sizes, context allowance and runtime estimate change through configuration. The K–6 model has not been promoted or deployed.
 
-| Setting | K–6 candidate, 2026-10-24 |
+| Setting | Completed K–6 run, 2026-10-24 |
 |---|---|
 | Recipe | `experiments/edugraph-20261024-qwen38-27b-runpod-k6-v1.json` |
 | Model | Qwen/Qwen3.8-27B, revision `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0` |
@@ -24,7 +24,7 @@ The current K–6 candidate is separate from the completed October 2 baseline ab
 | Durable artifacts | `gs://edugraph-classify/runpod` |
 | Runtime planning | 10-hour estimate, 12-hour worker deadline; $8 estimated-cost guard and $0.60/hour compute ceiling |
 
-Two complete epochs imply 1,166 optimizer steps at effective batch 4. The local audit measures 2,726,422 training tokens across those epochs, about 62% above the baseline. The longest prompt plus its full output allowance requires 3,250 tokens, within 4,096. The October 24 live Secure catalog reported A40 capacity with 50 GB host RAM and 9 vCPUs at $0.59/hour. The recipe estimates $6.14 over 10 hours including $0.024/hour disk; this is not a guaranteed billing cap. Actual allocation price is checked before model loading. No GPU result exists yet for this candidate's longer inputs.
+Both epochs completed all 1,166 optimizer steps at effective batch 4. The local audit measures 2,726,422 training tokens across those epochs, about 62% above the baseline. The longest prompt plus its full output allowance requires 3,250 tokens, within 4,096. The allocation supplied a Secure A40, 50 GB host RAM and 9 vCPUs at $0.59/hour. The recipe forecast $6.14 over 10 hours including $0.024/hour disk; measured allocation-to-publication time was 8 hours 29 minutes, approximately $5.21 at those rates, excluding the termination tail and GCS. Peak PyTorch allocation was 35.857 GiB, with one recovered allocation warning; all steps finished. See the run record for memory, billing and verification limits. Actual allocation price remains checked before model loading.
 
 The user accepted the release's existing annotation conventions and evaluation limitations for this round; realized-range/completeness fixes and fresh evaluation follow it. There are 147 training labels absent from official validation, and 224 official validation images reuse bytes from the inspected historical final cohort. This is regression assessment, not fresh blind confirmation. See [the refinement plan](REFINEMENT-PLAN.md).
 
@@ -65,7 +65,7 @@ uv run --no-sync pytest --cov=edugraph_classify --cov-report=term-missing
 
 Commit reviewed code and lockfile, then publish the image from that commit through the [GHCR workflow](CONTAINER-IMAGES.md). Use its **digest**, not a mutable tag. The image embeds `EDUGRAPH_CODE_COMMIT`; the worker checks this and `/app/uv.lock` against preparation. Local builds with `CODE_COMMIT=uncommitted` are verification images and cannot launch pinned experiments.
 
-For later releases, create a recipe using immutable upstream pins and an explicit runtime/budget. `new-run` copies the current candidate's model and training policy, updates dataset/ontology identity, and sets `train: "all"` and `final_validation: "remaining"`. It refuses to reuse the template's run ID or overwrite a recipe. It does not query a mutable latest release or install dependencies:
+For later releases, create a recipe using immutable upstream pins and an explicit runtime/budget. `new-run` copies the completed K–6 recipe's model and training policy, updates dataset/ontology identity, and sets `train: "all"` and `final_validation: "remaining"`. It refuses to reuse the template's run ID or overwrite a recipe. It does not query a mutable latest release or install dependencies:
 
 ```powershell
 uv run --no-sync edugraph-classify runpod new-run `
@@ -81,7 +81,7 @@ The budget values above are examples; revise them for each corpus. When the onto
 
 Dry preparation performs the real local conversion and tokenizer/model-target audit, using an explicitly uncommitted manifest identity. It cannot be staged or launched. Once the code and lockfile are reviewed and committed, rerun without `--dry-run` into a fresh output root. A recipe may remain in ignored `temp/`: the prepared bundle captures its full contents and hashes, while the code commit stays compatible with its image. An ontology/code/lock change requires a new matching image; a dataset-only recipe can reuse the same clean code/image revision.
 
-For the checked-in K–6 candidate, launchable preparation is:
+The completed K–6 run used the command below at its original clean code commit and matching image. Its run ID cannot be launched again; use `new-run` for subsequent releases.
 
 ```powershell
 uv run --no-sync edugraph-classify runpod prepare `
@@ -149,7 +149,9 @@ For **one epoch now and more later**, start with `training.epochs: 1`. Then crea
 
 A failed final assessment can recover the same run from its `phase=final` checkpoint without repeating optimizer steps. The final export contains the selected adapter, processor, prompt, schema, template and reports. It does **not** merge, register or deploy a serving model. Completed-run markers are immutable; training continuation gets a new run ID.
 
-## Validation and remaining acceptance
+## Validation evidence
+
+The complete K–6 workflow passed through the published image, paid training, generated evaluation, artifact retrieval and offline verification without trainer changes. All 2,808 prepared renderings matched inside that image. Both archives, all 992 adapter/optimizer states, saved RNG states and every reported metric passed independent verification; the exact Pod returned HTTP 404 after automatic termination. The [run record](RUNPOD-K6-A40-20261024.md) preserves immutable identities, results and evidence boundaries.
 
 After integration onto the current production-aware main branch, the release checkout passed **374 tests with 95.80% coverage** and `uv lock --check`. The additional benchmark/promotion commands and their tests remain intact. Live prelaunch checks verified artifact-store read access, no existing classifier Pods, and Secure A40 availability within the recipe's price ceiling.
 

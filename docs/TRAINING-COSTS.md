@@ -1,5 +1,7 @@
 # Compact 27B training: token profile, runtime, and cost
 
+The latest [K–6 Secure A40 run](RUNPOD-K6-A40-20261024.md) completed on October 25 with dataset v0.31.0-01 / ontology 0.31.0, 2,330 training images, 1,166 optimizer steps and 654 generated classifications. Allocation to durable publication took **8 hours 29 minutes**. At the observed $0.59/hour compute rate plus the recipe's $0.024/hour disk allowance, this is **approximately $5.21**, compared with the 10-hour / $6.14 forecast. This is a rate-based estimate, not an invoice; it excludes the publication-to-termination tail, GCS and taxes. The Pod was confirmed absent. Training steps averaged 17.87 seconds; generation accounted for 138.35 minutes. The historical comparisons below retain their original dataset, hardware prices and evidence limits.
+
 Historical comparison assessed 2026-10-02, then updated with the authorized [Secure A40 smoke](RUNPOD-SMOKE-20261002.md), [L40S benchmark](RUNPOD-HARDWARE-BENCHMARK.md) and completed [full A40 run](RUNPOD-FULL-A40-20261002.md). The full two-epoch A40 run measured **5 hours 19 minutes / approximately $2.73** on October 3, including generated evaluation and running disk. The original Fireworks/A6000 comparison below used local rendering and read-only provider/catalog checks; its Fireworks executor and recipe have since been removed from the current checkout. Later sections distinguish throughput forecasts from the full-run measurement. Dollar values are USD, excluding tax, deployment, engineering time, and retries.
 
 ## Workload and measured inputs
