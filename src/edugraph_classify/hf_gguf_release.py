@@ -22,6 +22,16 @@ SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 COMMIT = re.compile(r"[0-9a-f]{40}\Z")
 REPO = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 LICENSE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{1,63}\Z")
+BENCHMARK_RECORD = re.compile(r"docs/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9][A-Za-z0-9_.-]*\.md\Z")
+DEFAULT_BENCHMARK_RECORD = "docs/RUNPOD-GGUF-BENCHMARK-20261004.md"
+CARD_FIELDS = {"context_tokens", "ubatch_size", "benchmark_record_path", "coverage", "limitations"}
+DEFAULT_LIMITATIONS = (
+    "Real-world classroom performance, unfamiliar label combinations, and a fresh "
+    "post-refinement assessment are unmeasured. Runtime measurements apply to the "
+    "hardware used for the linked benchmark and do not establish fit or latency on "
+    "other devices. This model is a research candidate and should be reviewed for "
+    "the intended educational setting before use in decisions affecting learners."
+)
 
 
 def _sha256(path: Path) -> str:
@@ -32,8 +42,8 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _keys(value: object, keys: set[str], section: str) -> None:
-    if not isinstance(value, dict) or set(value) != keys:
+def _keys(value: object, keys: set[str], section: str, *, optional: set[str] | frozenset[str] = frozenset()) -> None:
+    if not isinstance(value, dict) or not keys <= set(value) or set(value) - keys - optional:
         raise ValueError(f"invalid {section} fields")
 
 
@@ -46,7 +56,18 @@ def load_release_recipe(path: Path) -> dict:
     recipe = json.loads(path.read_text(encoding="utf-8"))
     _keys(recipe, {"kind", "repository", "candidate", "base_model", "dataset",
                    "ontology_version", "llama_cpp_commit", "benchmark_code_commit", "benchmark_record_commit",
-                   "files_sha256", "evaluation", "model_license"}, "release recipe")
+                   "files_sha256", "evaluation", "model_license"}, "release recipe", optional=CARD_FIELDS)
+    for field, default in (("context_tokens", 2048), ("ubatch_size", 1024)):
+        value = recipe.get(field, default)
+        if type(value) is not int or value <= 0:
+            raise ValueError(f"invalid model card {field}")
+    record_path = recipe.get("benchmark_record_path", DEFAULT_BENCHMARK_RECORD)
+    if not isinstance(record_path, str) or not BENCHMARK_RECORD.fullmatch(record_path):
+        raise ValueError("invalid benchmark record path")
+    for field in ("coverage", "limitations"):
+        if field in recipe and (not isinstance(recipe[field], str) or
+                                not recipe[field].strip() or len(recipe[field]) > 8000):
+            raise ValueError(f"invalid model card {field}")
     if recipe["kind"] != "huggingface_gguf_release_v1" or not REPO.fullmatch(recipe["repository"]):
         raise ValueError("invalid release repository or recipe kind")
     candidate = recipe["candidate"]
@@ -80,12 +101,15 @@ def load_release_recipe(path: Path) -> dict:
     for name, digest in recipe["files_sha256"].items():
         _digest(digest, name)
     evaluation = recipe["evaluation"]
-    _keys(evaluation, {"validation_count", "nf4_exact", "bf16_exact", "gguf_exact",
+    _keys(evaluation, {"validation_count", "nf4_exact", "gguf_exact",
                        "gguf_micro_f1_percent", "gguf_invalid", "gguf_report_sha256",
-                       "nf4_final_exact", "nf4_final_count"}, "evaluation")
+                       "nf4_final_exact", "nf4_final_count"}, "evaluation", optional={"bf16_exact"})
     if (type(evaluation["validation_count"]) is not int or evaluation["validation_count"] <= 0 or
             any(type(evaluation[field]) is not int or not 0 <= evaluation[field] <= evaluation["validation_count"]
-                for field in ("nf4_exact", "bf16_exact", "gguf_exact", "gguf_invalid")) or
+                for field in ("nf4_exact", "gguf_exact", "gguf_invalid")) or
+            (evaluation.get("bf16_exact") is not None and
+             (type(evaluation["bf16_exact"]) is not int or
+              not 0 <= evaluation["bf16_exact"] <= evaluation["validation_count"])) or
             type(evaluation["nf4_final_count"]) is not int or evaluation["nf4_final_count"] <= 0 or
             type(evaluation["nf4_final_exact"]) is not int or not 0 <= evaluation["nf4_final_exact"] <= evaluation["nf4_final_count"] or
             type(evaluation["gguf_micro_f1_percent"]) not in (int, float) or
@@ -97,6 +121,13 @@ def load_release_recipe(path: Path) -> dict:
 
 def _card(recipe: dict, license_id: str | None) -> str:
     candidate, evaluation = recipe["candidate"], recipe["evaluation"]
+    context_tokens = recipe.get("context_tokens", 2048)
+    ubatch_size = recipe.get("ubatch_size", 1024)
+    record_path = recipe.get("benchmark_record_path", DEFAULT_BENCHMARK_RECORD)
+    coverage = f"\n{recipe['coverage']}\n" if recipe.get("coverage") else ""
+    limitations = recipe.get("limitations", DEFAULT_LIMITATIONS)
+    bf16_row = (f"| Merged BF16 (Transformers runtime) | {evaluation['bf16_exact']}/{evaluation['validation_count']} |\n"
+                if evaluation.get("bf16_exact") is not None else "")
     license_metadata = f"license: {license_id}\n" if license_id else ""
     draft = "\n> **DRAFT — DO NOT PUBLISH.** The model-weight license has not been selected.\n" if not license_id else ""
     license_section = (f"""\n## License and attribution
@@ -120,7 +151,7 @@ tags:
 # EduGraph Classifier — Qwen3.8-27B GGUF
 {draft}
 This research model labels **one educational task image** with explicit EduGraph ontology identifiers in `areas`, `scopes`, and `abilities`. It is a language-adapter fine-tune of [{recipe['base_model']['repository']}](https://huggingface.co/{recipe['base_model']['repository']}) at revision `{recipe['base_model']['revision']}`, merged into the BF16 base and converted to Q4_K_M GGUF. The vision projector remains BF16. The two GGUF files in this repository are a pair; use both.
-
+{coverage}
 ## Files and provenance
 
 - Language model: `model-Q4_K_M.gguf` (SHA-256 `{recipe['files_sha256']['model-Q4_K_M.gguf']}`)
@@ -128,16 +159,16 @@ This research model labels **one educational task image** with explicit EduGraph
 - Pinned llama.cpp converter/runtime commit: `{recipe['llama_cpp_commit']}`
 - Selected training run: `{candidate['source_training_run_id']}`; GGUF validation run: `{candidate['run_id']}` at code commit `{recipe['benchmark_code_commit']}`
 - Training dataset: [{recipe['dataset']['repository']}](https://huggingface.co/datasets/{recipe['dataset']['repository']}) release `{recipe['dataset']['release']}` at revision `{recipe['dataset']['revision']}`; ontology `{recipe['ontology_version']}`
-- `provenance.json` contains the source archive and curated-file checksums. The [immutable benchmark record](https://github.com/christian-bick/edugraph-classify/blob/{recipe['benchmark_record_commit']}/docs/RUNPOD-GGUF-BENCHMARK-20261004.md) documents the corrected v4 score; the execution code remains pinned separately above.
+- `provenance.json` contains the source archive and curated-file checksums. The [immutable benchmark record](https://github.com/christian-bick/edugraph-classify/blob/{recipe['benchmark_record_commit']}/{record_path}) documents the measured results; the execution code remains pinned separately above.
 
 ## Use with llama.cpp
 
-Use the included `chat_template.jinja`, `prompt.json`, and `closed_schema.json` together. The template injects the fixed classifier system prompt and disables thinking. The measured single-request path used a 2,048-token context, 1,024-token microbatch, GPU offload, greedy generation, a 512-token output ceiling, and an RGB JPEG image encoded at quality 75. Start a local server:
+Use the included `chat_template.jinja`, `prompt.json`, and `closed_schema.json` together. The template injects the fixed classifier system prompt and disables thinking. The measured single-request path used a {context_tokens:,}-token context, {ubatch_size:,}-token microbatch, GPU offload, greedy generation, a 512-token output ceiling, and an RGB JPEG image encoded at quality 75. Start a local server:
 
 ```bash
 llama-server -m model-Q4_K_M.gguf --mmproj mmproj-BF16.gguf \\
   --jinja --chat-template-file chat_template.jinja \\
-  --ctx-size 2048 --ubatch-size 1024 --parallel 1 \\
+  --ctx-size {context_tokens} --batch-size {max(2048, ubatch_size)} --ubatch-size {ubatch_size} --parallel 1 \\
   --n-gpu-layers all --fit off --host 127.0.0.1 --port 8080
 ```
 
@@ -153,14 +184,13 @@ All validation rows below are the **same {evaluation['validation_count']} origin
 | Configuration | Exact-set match |
 |---|---:|
 | Selected NF4 base plus adapter (training runtime) | {evaluation['nf4_exact']}/{evaluation['validation_count']} |
-| Merged BF16 (Transformers runtime) | {evaluation['bf16_exact']}/{evaluation['validation_count']} |
-| This Q4_K_M GGUF (llama.cpp, corrected property order) | **{evaluation['gguf_exact']}/{evaluation['validation_count']}** |
+{bf16_row}| This Q4_K_M GGUF (llama.cpp, ordered schema) | **{evaluation['gguf_exact']}/{evaluation['validation_count']}** |
 
-The GGUF run measured {evaluation['gguf_micro_f1_percent']:.2f}% micro label F1 and {evaluation['gguf_invalid']}/{evaluation['validation_count']} invalid outputs. Its immutable report archive has SHA-256 `{evaluation['gguf_report_sha256']}`. The separate **{evaluation['nf4_final_exact']}/{evaluation['nf4_final_count']} final-assessment result belongs only to the NF4-plus-adapter configuration**; this GGUF export has not been scored on that final cohort. Differences between BF16 and GGUF also include conversion, serving, and JSON constraint mechanics, so they do not isolate quantization loss.
+The GGUF run measured {evaluation['gguf_micro_f1_percent']:.2f}% micro label F1 and {evaluation['gguf_invalid']}/{evaluation['validation_count']} invalid outputs. Its immutable report archive has SHA-256 `{evaluation['gguf_report_sha256']}`. The separate **{evaluation['nf4_final_exact']}/{evaluation['nf4_final_count']} final-assessment result belongs only to the NF4-plus-adapter configuration**; this GGUF export has not been scored on that final cohort. Differences between configurations include precision, conversion, serving, and JSON constraint mechanics, so they do not isolate quantization loss.
 
 ## Limitations
 
-Training and evaluation used synthetic educational-task images and ontology `{recipe['ontology_version']}`. Real-world classroom performance, unfamiliar label combinations, and a fresh post-refinement assessment are unmeasured. The GGUF run fit an L40S; its memory and timing do not establish fit, load behavior, or cold-start performance on a 24 GB GCP L4. This model is a research candidate and should be reviewed for the intended educational setting before use in decisions affecting learners.
+Training and evaluation used synthetic educational-task images and ontology `{recipe['ontology_version']}`. {limitations}
 """
 
 
@@ -237,6 +267,10 @@ def prepare_release(archive_path: Path, recipe: dict, output: Path, *,
                           "llama_cpp_commit": recipe["llama_cpp_commit"],
                           "benchmark_code_commit": recipe["benchmark_code_commit"],
                           "benchmark_record_commit": recipe["benchmark_record_commit"],
+                          "context_tokens": recipe.get("context_tokens", 2048),
+                          "ubatch_size": recipe.get("ubatch_size", 1024),
+                          "benchmark_record_path": recipe.get("benchmark_record_path", DEFAULT_BENCHMARK_RECORD),
+                          "coverage": recipe.get("coverage"), "limitations": recipe.get("limitations"),
                           "source_files_sha256": recipe["files_sha256"],
                           "gguf_report_sha256": recipe["evaluation"]["gguf_report_sha256"],
                           "model_license": license_id,

@@ -244,7 +244,12 @@ def test_tampered_validation_image_fails_before_scoring(tmp_path):
     assert not store.markers
 
 
-def test_llama_server_starts_checks_health_and_posts_completion(tmp_path, monkeypatch):
+@pytest.mark.parametrize("context_per_slot,parallel,ubatch_size,expected_batch_size", [
+    (2048, 2, 1024, 2048),  # Preserve the historical logical batch size.
+    (4096, 1, 4096, 4096),  # Avoid silently capping the K–6 vision budget at 2048.
+])
+def test_llama_server_starts_checks_health_and_posts_completion(
+        tmp_path, monkeypatch, context_per_slot, parallel, ubatch_size, expected_batch_size):
     commands = []
 
     class Process:
@@ -286,8 +291,8 @@ def test_llama_server_starts_checks_health_and_posts_completion(tmp_path, monkey
     monkeypatch.setattr(benchmark, "urlopen", respond)
     monkeypatch.setattr(benchmark.time, "sleep", lambda _: None)
     with benchmark.LlamaServer(model=tmp_path / "model.gguf", mmproj=tmp_path / "mmproj.gguf",
-                               chat_template=tmp_path / "chat.jinja", parallel=2,
-                               context_per_slot=2048, ubatch_size=1024,
+                               chat_template=tmp_path / "chat.jinja", parallel=parallel,
+                               context_per_slot=context_per_slot, ubatch_size=ubatch_size,
                                log_path=tmp_path / "server.log") as server:
         assert server.startup_seconds is not None
         assert server.infer({"max_tokens": 512})["choices"][0]["message"]["content"] == "{}"
@@ -295,7 +300,8 @@ def test_llama_server_starts_checks_health_and_posts_completion(tmp_path, monkey
     assert "--parallel" in commands[0] and "--fit" in commands[0]
     assert commands[0].index("--jinja") < commands[0].index("--chat-template-file")
     assert commands[0][commands[0].index("--ctx-size") + 1] == "4096"
-    assert commands[0][commands[0].index("--ubatch-size") + 1] == "1024"
+    assert commands[0][commands[0].index("--batch-size") + 1] == str(expected_batch_size)
+    assert commands[0][commands[0].index("--ubatch-size") + 1] == str(ubatch_size)
     assert commands[0][commands[0].index("--n-gpu-layers") + 1] == "all"
 
 

@@ -86,9 +86,11 @@ class LlamaServer:
     def __enter__(self):
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self.log = self.log_path.open("wb")
+        # llama.cpp caps the physical microbatch at its logical batch size.
         command = [str(self.binary), "-m", str(self.model), "--mmproj", str(self.mmproj),
                    "--jinja", "--chat-template-file", str(self.chat_template),
                    "--ctx-size", str(self.context_per_slot * self.parallel),
+                   "--batch-size", str(max(2048, self.ubatch_size)),
                    "--ubatch-size", str(self.ubatch_size),
                    "--parallel", str(self.parallel), "--n-gpu-layers", "all",
                    "--fit", "off", "--host", "127.0.0.1", "--port", str(self.port)]

@@ -74,6 +74,8 @@ def test_prepare_stages_only_verified_public_files_and_marks_license_pending(tmp
     assert "181/250 final-assessment result belongs only to the NF4-plus-adapter" in card
     assert "areas`, `scopes`, `abilities` order" in card
     assert "--ubatch-size 1024" in card and "--mmproj mmproj-BF16.gguf" in card
+    assert "2,048-token context" in card and "--ctx-size 2048" in card
+    assert "--batch-size 2048 --ubatch-size 1024" in card
     assert "library_name: gguf" in card
     assert f"blob/{recipe['benchmark_record_commit']}/docs/RUNPOD-GGUF-BENCHMARK" in card
     provenance = json.loads((output / "provenance.json").read_text(encoding="utf-8"))
@@ -81,6 +83,51 @@ def test_prepare_stages_only_verified_public_files_and_marks_license_pending(tmp
     assert provenance["source_model_sha256"] == recipe["candidate"]["source_model_sha256"]
     assert provenance["model_license"] is None
     assert set(provenance["source_files_sha256"]) == set(SOURCE_FILES)
+
+
+@pytest.mark.parametrize("bf16_exact", ["omitted", None, 0])
+def test_card_uses_release_scope_runtime_and_only_measured_comparisons(tmp_path, bf16_exact):
+    archive, recipe, _, _ = example(tmp_path)
+    recipe.update(
+        context_tokens=4096, ubatch_size=4096,
+        benchmark_record_path="docs/RUNPOD-GGUF-K6-20261025.md",
+        coverage="The training corpus covers in-scope Common Core State Standards for Mathematics "
+                 "from Kindergarten through Grade 6 (K–6). See [coverage and scope exclusions]"
+                 "(https://coverage.edugraph.io). This describes curriculum scope, not measured "
+                 "performance on every standard.",
+        limitations="147 of 403 training labels are absent from official validation. "
+                    "224 validation images were previously inspected. These are regression results.",
+    )
+    recipe["dataset"].update(release="v0.31.0-01", revision="a" * 40)
+    recipe["ontology_version"] = "0.31.0"
+    recipe["evaluation"].update(nf4_exact=47, nf4_final_exact=306, nf4_final_count=414)
+    if bf16_exact == "omitted":
+        del recipe["evaluation"]["bf16_exact"]
+    else:
+        recipe["evaluation"]["bf16_exact"] = bf16_exact
+    recipe_path = tmp_path / "recipe.json"
+    recipe_path.write_text(json.dumps(recipe), encoding="utf-8")
+    assert load_release_recipe(recipe_path) == recipe
+    output = tmp_path / "release"
+    prepare_release(archive, recipe, output)
+    card = (output / "README.md").read_text(encoding="utf-8")
+    assert recipe["coverage"] in card and recipe["limitations"] in card
+    assert "v0.31.0-01" in card and "ontology `0.31.0`" in card
+    assert "4,096-token context, 4,096-token microbatch" in card
+    assert "--ctx-size 4096 --batch-size 4096 --ubatch-size 4096" in card
+    assert recipe["benchmark_record_path"] in card
+    assert "306/414 final-assessment result belongs only to the NF4-plus-adapter" in card
+    assert "47/64" in card and "37/64" in card
+    assert "RUNPOD-GGUF-BENCHMARK-20261004" not in card
+    assert "corrected v4" not in card and "L40S" not in card
+    if bf16_exact == 0:
+        assert "| Merged BF16 (Transformers runtime) | 0/64 |" in card
+    else:
+        assert "Merged BF16 (Transformers runtime)" not in card
+        assert "None/64" not in card and "40/64" not in card
+    provenance = json.loads((output / "provenance.json").read_text(encoding="utf-8"))
+    for field in ("context_tokens", "ubatch_size", "benchmark_record_path", "coverage", "limitations"):
+        assert provenance[field] == recipe[field]
 
 
 def test_license_requires_explicit_id_and_file_and_never_uploads(tmp_path):
@@ -205,6 +252,19 @@ def test_recipe_pins_and_cli_output_boundary(tmp_path, monkeypatch):
         lambda r: r.update(ontology_version="latest"),
         lambda r: r["files_sha256"].pop("manifest.json"),
         lambda r: r["evaluation"].update(gguf_exact=65),
+        lambda r: r["evaluation"].update(bf16_exact=65),
+        lambda r: r["evaluation"].update(bf16_exact=True),
+        lambda r: r.update(context_tokens=0),
+        lambda r: r.update(context_tokens=True),
+        lambda r: r.update(ubatch_size=-1),
+        lambda r: r.update(ubatch_size="1024"),
+        lambda r: r.update(benchmark_record_path="docs/../PRIVATE.md"),
+        lambda r: r.update(benchmark_record_path="https://example.com/record.md"),
+        lambda r: r.update(benchmark_record_path="docs/record.md)bad"),
+        lambda r: r.update(coverage=" "),
+        lambda r: r.update(coverage=None),
+        lambda r: r.update(limitations="x" * 8001),
+        lambda r: r.update(unknown_card_option="unsupported"),
     ):
         invalid = json.loads(json.dumps(recipe))
         mutate(invalid)
