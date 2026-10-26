@@ -7,14 +7,14 @@ steps:
     entrypoint: python3
     args:
       - prepare_context.py
+      - --profile
+      - '${_RELEASE_PROFILE}'
       - --model-hf-revision
       - '${_MODEL_HF_REVISION}'
   - id: build
-    name: gcr.io/cloud-builders/docker
+    name: gcr.io/cloud-builders/docker@sha256:001fb4a870a84485cf198c80002f7af42f6456f2dbc261d70a0b5f0111470df4
     args:
       - build
-      - --build-arg
-      - 'MODEL_HF_REVISION=${_MODEL_HF_REVISION}'
       - -t
       - 'europe-west4-docker.pkg.dev/edugraph-438718/edugraph-predict/qwen38-27b-gguf:${_MODEL_HF_REVISION}'
       - /workspace/build-context

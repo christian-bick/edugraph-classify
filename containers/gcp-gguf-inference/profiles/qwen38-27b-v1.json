@@ -1,0 +1,35 @@
+{
+  "kind": "edugraph_gcp_gguf_build_profile_v1",
+  "publication": {
+    "repository": "christian-bick/EduGraph-Classifier-Qwen3.8-27B-GGUF",
+    "revision": "477e3caf32eced2a9e002ead1edccc9a5c458f0c"
+  },
+  "candidate": {
+    "gcs_uri": "gs://edugraph-classify/runpod/inference-models/edugraph-20261004-qwen38-27b-gguf-benchmark-v4/7fc4a0f8fc21761615751107e92b44ffe4f9f75a9cde3aaac6613e4d51c33c72.tar#1791147881432887",
+    "archive_bytes": 17478901760,
+    "archive_sha256": "7fc4a0f8fc21761615751107e92b44ffe4f9f75a9cde3aaac6613e4d51c33c72",
+    "member_sha256": {
+      "model-Q4_K_M.gguf": "bd2ec1357e84b27b58ec0b1c83e143028f9b54e42989dc9f3db7c59aed870639",
+      "mmproj-BF16.gguf": "3248a0391bed86eef3842121dab70d4657da244bde47ae02ce37580351bd0138",
+      "chat_template.jinja": "4813f6c608147061ba44f17b01aa344de7b5036cb97bb39200a3b2bb6e26a0c5",
+      "prompt.json": "17e336fff2c539d9413defc12a8578e770e220f272e1ef92f90dfedc38c7c949",
+      "closed_schema.json": "a59c3cbed3a817bc20fec04c2d13c003b9be6360b0f8d3348036da884376f5b6",
+      "manifest.json": "92e6a5214a18663ca1d81bea5e142db995d75a6f64daf107f6ebca819a62ff4e"
+    }
+  },
+  "runtime": {
+    "image": "europe-west4-docker.pkg.dev/edugraph-438718/edugraph-predict/qwen38-27b-gguf@sha256:64c5b5ff8fdac5eeeeed45cd6eb3dc65850f65f7d9436c0eb1ab8bd819c58b58",
+    "llama_cpp_commit": "0faee5004297c3bcfa40b7bf11750127b8c1fd7d"
+  },
+  "inference": {
+    "context_tokens": 2048,
+    "batch_size": 2048,
+    "ubatch_size": 1024
+  },
+  "evidence": {
+    "recipe_path": "experiments/hf-gguf-release-qwen38-27b-v1.json",
+    "recipe_sha256": "84ee83d0daa6bc491f89a8e987aede9c6e3ddbb0dc8f27d976f9b3722f5fe014",
+    "publication_path": "experiments/hf-gguf-publication-qwen38-27b-v1.json",
+    "publication_sha256": "a3588808dd97d75bf6c9a6af6c755f0f0581b8dcc7dcc21a036011fd0c331a4d"
+  }
+}

@@ -3,3 +3,5 @@
 !cloudbuild.yaml
 !prepare_context.py
 !.gcloudignore
+!profiles/
+!profiles/*.json
