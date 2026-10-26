@@ -54,7 +54,7 @@ The following records describe retired training paths. Their executors, recipes,
 - [Ontology contract](docs/UPSTREAM-ONTOLOGY.md): identifiers, dimensions, eligibility, and explicit-versus-derived semantics.
 - [edugraph-dataset](https://github.com/christian-bick/edugraph-dataset)
 - [edugraph-ontology](https://github.com/christian-bick/edugraph-ontology)
-- [Earlier Qwen3-VL classifier](https://github.com/christian-bick/edugraph-classify-qwen3vl)
+- [Published 27B classifier](https://huggingface.co/christian-bick/EduGraph-Classifier-Qwen3.8-27B-GGUF)
 
 ## License
 
