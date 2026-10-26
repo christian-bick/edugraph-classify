@@ -1,0 +1,1553 @@
+{
+  "schema_version": 1,
+  "record_kind": "imagine_model_promotion",
+  "deployment_status": "verified_live",
+  "recorded_at_utc": "2026-10-26T01:15:50.525985+00:00",
+  "project": "edugraph-438718",
+  "region": "europe-west4",
+  "live_state_verified_at_utc": "2026-10-26T01:12:18.066599+00:00",
+  "sources": {
+    "classifier": "e900b4ef2b2e061c215466ede809d8ee27ac7c54",
+    "imagine_server": "27374a79d8db6d80ef5c6124f47160183eba5aa8",
+    "imagine_web": "444c81d1e820b4cd26e3e501dc353d2d8d2dafca",
+    "training": "1a9e34c131fa9ebcd56fee70d5c6c75c0e913f26",
+    "gguf_execution": "7c9db04e3bc3cf9b018bf8912bac82ddc680c29e"
+  },
+  "source_pin_note": "Image/build source commits; subsequent documentation commits do not change these build identities.",
+  "model": {
+    "repository": "christian-bick/EduGraph-Classifier-Qwen3.8-27B-GGUF",
+    "revision": "140480b1d3893f0fb678a6f2d0f92103a60a936b",
+    "publication_verified_at_utc": "2026-10-25T17:32:08.280646+00:00",
+    "anonymous_file_verification": "passed",
+    "language_format": "Q4_K_M",
+    "vision_projector_format": "BF16",
+    "license": "apache-2.0",
+    "files": {
+      "LICENSE": {
+        "sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a",
+        "size": 11544
+      },
+      "README.md": {
+        "sha256": "c73e02e1e8c0b9464a4d37b1849e93dfbf40799d36c5aa735eb8ef4fad7a7846",
+        "size": 6348
+      },
+      "chat_template.jinja": {
+        "sha256": "4813f6c608147061ba44f17b01aa344de7b5036cb97bb39200a3b2bb6e26a0c5",
+        "size": 9984
+      },
+      "closed_schema.json": {
+        "sha256": "e7f5b2ad09721c05d234b196bd2657b211d58b5e55300e7bf1e38d5cadd31678",
+        "size": 41811
+      },
+      "mmproj-BF16.gguf": {
+        "sha256": "3248a0391bed86eef3842121dab70d4657da244bde47ae02ce37580351bd0138",
+        "size": 931145760
+      },
+      "model-Q4_K_M.gguf": {
+        "sha256": "22506fbed9ad33421d7322719eb21dbe9c457aa3cdb816e8a48b44295e2723ff",
+        "size": 16547400064
+      },
+      "prompt.json": {
+        "sha256": "17e336fff2c539d9413defc12a8578e770e220f272e1ef92f90dfedc38c7c949",
+        "size": 607
+      },
+      "provenance.json": {
+        "sha256": "362c533a8652f5866f620ba51367b0908b5be3186e4508e4cd6f9daa88b3b1e4",
+        "size": 3283
+      }
+    },
+    "base_model": {
+      "id": "Qwen/Qwen3.8-27B",
+      "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0"
+    },
+    "training": {
+      "run_id": "edugraph-20261024-qwen38-27b-runpod-k6-v1",
+      "selected_epoch": 2,
+      "optimizer_steps": 1166,
+      "training_images": 2330,
+      "trainable_language_adapter_parameters": 58363904,
+      "trainable_vision_and_bridge_parameters": 0
+    },
+    "dataset": {
+      "release": "v0.31.0-01",
+      "revision": "00ae2441669a42d1357c70d6f194bc71286eb464"
+    },
+    "coverage": "Training corpus covers in-scope Common Core State Standards for Mathematics from Kindergarten through Grade 6 (K\u00e2\u20ac\u201c6); this does not establish model mastery of every standard.",
+    "coverage_url": "https://coverage.edugraph.io",
+    "evidence": {
+      "repository": "edugraph-classify",
+      "path": "experiments/hf-gguf-publication-qwen38-27b-k6-v1.json"
+    }
+  },
+  "ontology": {
+    "version": "0.31.0",
+    "contract": "edugraph_v031",
+    "semantic_snapshot_sha256": "14034fa5790c4e5977ce8da72ee4dd34213b1d06b6d15f71ee539bc42361be6e",
+    "rdf_sha256": "44d4770e1a40b48776652321ca60408f6e852244fb9907838dc76fc65263eaa3",
+    "rdf_bytes": 868249,
+    "entity_counts": {
+      "Area": 894,
+      "Scope": 417,
+      "Ability": 130
+    },
+    "eligible_output_counts": {
+      "areas": 768,
+      "scopes": 389,
+      "abilities": 117
+    },
+    "authored_descriptor_statements_matched": 7496,
+    "full_response_fixture_sha256": "832cc31d494a36a7893424d42968f06c3aa9ea58078fe41dbd5ecee37608897a",
+    "web_normalized_contract_sha256": "8c0c611646b46c75fcc89c36044289ef444b48649f55bc349427e2fa567969ec"
+  },
+  "quality": {
+    "metric_units": "percent unless a count is explicit",
+    "gguf_run_id": "edugraph-20261025-qwen38-27b-k6-gguf-v2",
+    "selection_images": 64,
+    "gguf_repeats": 2,
+    "concurrency": 1,
+    "generated_text_identical_between_repeats": true,
+    "gguf_each_repeat": {
+      "exact_matches": 43,
+      "exact_match_percent": 67.1875,
+      "micro_precision_percent": 95.47,
+      "micro_recall_percent": 95.29,
+      "micro_f1_percent": 95.38,
+      "invalid_outputs": 0
+    },
+    "selected_nf4": {
+      "exact_matches": 47,
+      "exact_match_percent": 73.4375,
+      "micro_f1_percent": 96.78
+    },
+    "paired_each_repeat": {
+      "both_correct": 40,
+      "both_wrong": 14,
+      "regressions": 7,
+      "recoveries": 3,
+      "net_exact_case_change": -4,
+      "exact_match_percentage_point_change": -6.25
+    },
+    "matched_bf16": null,
+    "nf4_final_only": {
+      "images": 414,
+      "exact_matches": 306,
+      "micro_precision_percent": 96.62,
+      "micro_recall_percent": 95.77,
+      "micro_f1_percent": 96.19,
+      "invalid_outputs": 0
+    },
+    "gguf_final_414": null,
+    "limits": [
+      "Validation omits 147 of 403 training labels.",
+      "224 official-validation images across selection and final reuse previously inspected assessment bytes.",
+      "Range-label, label-completeness and fresh-assessment work was deferred.",
+      "Merge, conversion and serving differ; the paired loss is not isolated quantization loss.",
+      "Historical 37/64 GGUF used a different release/cohort.",
+      "Deployment smoke is not an accuracy benchmark."
+    ],
+    "evidence": {
+      "repository": "edugraph-classify",
+      "path": "docs/RUNPOD-GGUF-K6-20261025.md"
+    }
+  },
+  "request_contract": {
+    "profile": "qwen38_gguf_k6_v1",
+    "image_mode": "RGB",
+    "image_format": "JPEG",
+    "jpeg_quality": 75,
+    "native_max_dimension": 4096,
+    "native_max_pixels": 3145728,
+    "oversized_resize": "proportional LANCZOS",
+    "context_tokens": 4096,
+    "logical_batch_tokens": 4096,
+    "microbatch_tokens": 4096,
+    "parallel_slots": 1,
+    "output_tokens": 512,
+    "temperature": 0,
+    "thinking": false,
+    "stream": false,
+    "schema_property_order": [
+      "areas",
+      "scopes",
+      "abilities"
+    ],
+    "explicit_labels_only": true,
+    "search_disabled": true,
+    "actual_l4_inference_verified": true
+  },
+  "build": {
+    "id": "586721e3-39b5-4c9a-982c-72fb5ae4a379",
+    "status": "SUCCESS",
+    "started_at_utc": "2026-10-26T00:10:07.451504046Z",
+    "finished_at_utc": "2026-10-26T00:43:35.225402Z",
+    "image": "europe-west4-docker.pkg.dev/edugraph-438718/edugraph-predict/qwen38-27b-gguf@sha256:f3077e15d5a04aea3c51deea341384592d6e407242f5d9c59478e7ce8d59027d",
+    "registry_verified_at_utc": "2026-10-26T00:45:39.446679Z",
+    "image_config_digest": "sha256:619501c715bf279502e883243bf38b73e76e85084a10a72478635766552decda",
+    "llama_cpp_commit": "0faee5004297c3bcfa40b7bf11750127b8c1fd7d",
+    "architecture": "linux/amd64",
+    "source_archive_generation": "1792973362507215",
+    "source_archive_sha256": "b317237d579474e891ad3231b7b504bfef6fc2de6acb0648ab5695edf22718c4",
+    "evidence": "edugraph-classify:temp/k6-imagine-promotion/predictor-build-verified.json"
+  },
+  "serving": {
+    "predictor": {
+      "revision": "edugraph-predict-k6-140480b1",
+      "tag": "k6-140480b1",
+      "image": "europe-west4-docker.pkg.dev/edugraph-438718/edugraph-predict/qwen38-27b-gguf@sha256:f3077e15d5a04aea3c51deea341384592d6e407242f5d9c59478e7ce8d59027d",
+      "ready_at_utc": "2026-10-26T01:00:07.592288Z",
+      "private_iam_verified": true,
+      "gpu": "nvidia-l4",
+      "gpu_count": 1,
+      "cpu": 4,
+      "memory_gib": 16,
+      "minimum_instances": 0,
+      "maximum_instances": 1,
+      "concurrency": 1,
+      "timeout_seconds": 300,
+      "configured_context_batch_microbatch": [
+        4096,
+        4096,
+        4096
+      ],
+      "observed_slot_context_tokens": 4096,
+      "observed_slots": 1,
+      "generation": "11",
+      "traffic": [
+        {
+          "revision": "edugraph-predict-00006-nej",
+          "tag": "qwen38-canary",
+          "percent": 0
+        },
+        {
+          "revision": "edugraph-predict-k6-140480b1",
+          "tag": "k6-140480b1",
+          "percent": 100
+        }
+      ]
+    },
+    "backend": {
+      "revision": "imagine-server-k6-default-27374a7",
+      "tag": "k6-default-27374a7",
+      "image": "europe-west4-docker.pkg.dev/edugraph-438718/imagine-server/imagine-server@sha256:a752811efb320192eb0047f911a38a78f30333d0360905db251d934f6b7f7409",
+      "index_digest": "sha256:a12936df05239a08855694ff200500c53357a8834d8f21f579041d07d472d176",
+      "release_manifest_sha256": "600e5a93ca9936122ef65514d08f5fc2591ea1f10e923e2c6d0a190bc0e04fb9",
+      "endpoint": "https://api.edugraph.io",
+      "predictor_endpoint": "https://edugraph-predict-6ikwdry2zq-ez.a.run.app/v1/chat/completions",
+      "predictor_audience": "https://edugraph-predict-575953891979.europe-west4.run.app",
+      "tagged_canary": "imagine-server-k6-27374a7",
+      "cpu": 1,
+      "memory_gib": 1,
+      "minimum_instances": 0,
+      "maximum_instances": 1,
+      "concurrency": 1,
+      "timeout_seconds": 300,
+      "generation": "58",
+      "traffic": [
+        {
+          "revision": "imagine-server-k6-27374a7",
+          "tag": "k6-27374a7",
+          "percent": 0
+        },
+        {
+          "revision": "imagine-server-k6-default-27374a7",
+          "tag": "k6-default-27374a7",
+          "percent": 100
+        },
+        {
+          "revision": "imagine-server-k6-rollback27b",
+          "tag": "k6-rollback27b",
+          "percent": 0
+        },
+        {
+          "revision": "imagine-server-qwen38-40135eb",
+          "tag": "qwen38-classify-v2",
+          "percent": 0
+        }
+      ]
+    },
+    "evidence": "edugraph-classify:temp/k6-imagine-promotion/cleanup-final-inventory.json"
+  },
+  "local_validation": {
+    "classifier": {
+      "passed": 410,
+      "coverage_percent": 95.83,
+      "elapsed_seconds": 115.78,
+      "evidence_kind": "reported_agent_test_output"
+    },
+    "backend": {
+      "passed": 98,
+      "evidence_kind": "reported_agent_test_output",
+      "github_actions": {
+        "run_id": 40248820768,
+        "name": "Verify Imagine backend source",
+        "status": "completed",
+        "conclusion": "success",
+        "source_commit": "27374a79d8db6d80ef5c6124f47160183eba5aa8",
+        "started_at_utc": "2026-10-26T00:19:47Z",
+        "updated_at_utc": "2026-10-26T00:20:12Z",
+        "url": "https://github.com/christian-bick/imagine-server/actions/runs/40248820768"
+      }
+    },
+    "web": {
+      "lint": "passed",
+      "node_tests": {
+        "passed": 22,
+        "failed": 0
+      },
+      "mock_upload_browser_test": "passed",
+      "mock_upload_elapsed_seconds_approximate": 37.4,
+      "build_command": "npm run build -- --configLoader runner",
+      "build": "passed",
+      "evidence_kind": "reported_agent_test_output; separate local logs not retained"
+    },
+    "backend_image_offline": {
+      "status": "passed",
+      "scope": "No GPU inference, model quality, OIDC or production networking tested",
+      "ontology_counts": {
+        "Ability": 130,
+        "Area": 894,
+        "Scope": 417
+      },
+      "taxonomy": {
+        "abilities": {
+          "roots": 5,
+          "unique_entities": 130,
+          "unique_structural_edges": 131
+        },
+        "areas": {
+          "roots": 16,
+          "unique_entities": 894,
+          "unique_structural_edges": 885
+        },
+        "scopes": {
+          "roots": 8,
+          "unique_entities": 417,
+          "unique_structural_edges": 425
+        }
+      },
+      "mocked_classification_cases": [
+        {
+          "case": "validation",
+          "mocked_response_checked": true,
+          "rendered_dimensions": [
+            700,
+            520
+          ],
+          "request_sha256": "307850912234811c6ee74558b94d9d03734c1247226344fbd6a9295fbe5e6e83"
+        },
+        {
+          "case": "longest_corpus",
+          "mocked_response_checked": true,
+          "rendered_dimensions": [
+            800,
+            3362
+          ],
+          "request_sha256": "d51b7711dd29e9080a318225a84de9b47be49e9c1b9ddb25e914408223c0e306"
+        },
+        {
+          "case": "synthetic_bound",
+          "mocked_response_checked": true,
+          "rendered_dimensions": [
+            4096,
+            768
+          ],
+          "request_sha256": "67ef97226561365008fe5dc7b0cb461ef528bb2bd0bb807e52eeab722a1c7b7a"
+        },
+        {
+          "case": "synthetic_oversize",
+          "mocked_response_checked": true,
+          "rendered_dimensions": [
+            1773,
+            1773
+          ],
+          "request_sha256": "b3a188f133d23965d4dfaea26bc09bafbd4ba968c5d9ccdfe72365eec3c9754a"
+        }
+      ],
+      "evidence": "imagine-server:temp/k6-smoke/local-image-smoke.json"
+    }
+  },
+  "inference_tests": [
+    {
+      "id": "predictor-canary-validation",
+      "surface": "private_predictor_tag",
+      "case": "validation",
+      "revision": "edugraph-predict-k6-140480b1",
+      "image_sha256": "e623a9ceeef189c458e1aef1ec1e19f1b05e17f9ec59528d878ad1092e1ca513",
+      "request_sha256": "307850912234811c6ee74558b94d9d03734c1247226344fbd6a9295fbe5e6e83",
+      "request_bytes": 59935,
+      "http_status": 200,
+      "finish_reason": "stop",
+      "schema_valid": true,
+      "exact_expected_labels": true,
+      "labels": {
+        "abilities": [
+          "ProcedureExecution"
+        ],
+        "areas": [
+          "Addition",
+          "AdjacentAngles",
+          "AngleCalculation"
+        ],
+        "scopes": [
+          "DegreeScale"
+        ]
+      },
+      "prompt_tokens": 465,
+      "completion_tokens": 24,
+      "cached_prompt_tokens": 0,
+      "elapsed_seconds": 4.645,
+      "started_at_utc": "2026-10-26T01:01:33.436838+00:00",
+      "finished_at_utc": "2026-10-26T01:01:38.082274+00:00",
+      "passed": true,
+      "evidence": "imagine-server:temp/k6-smoke/predictor-canary-validation.json"
+    },
+    {
+      "id": "predictor-canary-selection-longest",
+      "surface": "private_predictor_tag",
+      "case": "selection-longest",
+      "revision": "edugraph-predict-k6-140480b1",
+      "image_sha256": "8f18da8ba86f57e91610f277e061ab31e0f3add7602fa846140257b544c40774",
+      "request_sha256": "4167b1460e322679f37e941c712b13d2f8541be24d3f516bca9f60d2e295baf0",
+      "request_bytes": 224195,
+      "http_status": 200,
+      "finish_reason": "stop",
+      "schema_valid": true,
+      "exact_expected_labels": true,
+      "labels": {
+        "abilities": [
+          "ConceptClassification"
+        ],
+        "areas": [
+          "StatisticalQuestion"
+        ],
+        "scopes": []
+      },
+      "prompt_tokens": 1361,
+      "completion_tokens": 16,
+      "cached_prompt_tokens": 93,
+      "elapsed_seconds": 5.029,
+      "started_at_utc": "2026-10-26T01:02:00.562234+00:00",
+      "finished_at_utc": "2026-10-26T01:02:05.591420+00:00",
+      "passed": true,
+      "evidence": "imagine-server:temp/k6-smoke/predictor-canary-selection-longest.json"
+    },
+    {
+      "id": "predictor-canary-longest",
+      "surface": "private_predictor_tag",
+      "case": "longest",
+      "revision": "edugraph-predict-k6-140480b1",
+      "image_sha256": "7fda53d4d22d860f6990be0f772823c33124806da82cf8cddb64a89351ee1e5f",
+      "request_sha256": "d51b7711dd29e9080a318225a84de9b47be49e9c1b9ddb25e914408223c0e306",
+      "request_bytes": 326575,
+      "http_status": 200,
+      "finish_reason": "stop",
+      "schema_valid": true,
+      "exact_expected_labels": null,
+      "labels": {
+        "abilities": [
+          "ProcedureExecution",
+          "VisualDecomposition"
+        ],
+        "areas": [
+          "AreaCalculation",
+          "ShapeDecomposition",
+          "StarsAndBars"
+        ],
+        "scopes": []
+      },
+      "prompt_tokens": 2738,
+      "completion_tokens": 32,
+      "cached_prompt_tokens": 93,
+      "elapsed_seconds": 10.773,
+      "started_at_utc": "2026-10-26T01:02:08.533154+00:00",
+      "finished_at_utc": "2026-10-26T01:02:19.306472+00:00",
+      "passed": true,
+      "evidence": "imagine-server:temp/k6-smoke/predictor-canary-longest.json"
+    },
+    {
+      "id": "predictor-canary-builtin",
+      "surface": "private_predictor_tag",
+      "case": "builtin",
+      "revision": "edugraph-predict-k6-140480b1",
+      "image_sha256": "82784a73467c422f6e2fc73e802cc326457bbe7fab35aaaa8d0734a429aa074f",
+      "request_sha256": "2b26239e7ab3006ced89f249a0028e90910dbadc51e90f810472ffb4d52ade4e",
+      "request_bytes": 305179,
+      "http_status": 200,
+      "finish_reason": "stop",
+      "schema_valid": true,
+      "exact_expected_labels": null,
+      "labels": {
+        "abilities": [
+          "ProcedureExecution"
+        ],
+        "areas": [
+          "Addition"
+        ],
+        "scopes": [
+          "ArabicNumerals",
+          "Base10",
+          "IntegerNumbers",
+          "NumbersSmaller10",
+          "NumbersWithoutNegatives",
+          "NumbersWithoutZero",
+          "PhysicalNumbers",
+          "SingleStep",
+          "TwoOperands"
+        ]
+      },
+      "prompt_tokens": 2933,
+      "completion_tokens": 51,
+      "cached_prompt_tokens": 93,
+      "elapsed_seconds": 12.815,
+      "started_at_utc": "2026-10-26T01:02:22.222527+00:00",
+      "finished_at_utc": "2026-10-26T01:02:35.037548+00:00",
+      "passed": true,
+      "evidence": "imagine-server:temp/k6-smoke/predictor-canary-builtin.json"
+    },
+    {
+      "id": "predictor-canary-upload-bound",
+      "surface": "private_predictor_tag",
+      "case": "upload-bound",
+      "revision": "edugraph-predict-k6-140480b1",
+      "image_sha256": "c0e9115d7be5b041a2f8a9c9e2658bf45a8895fc0c5da5e31e999bf3c3561cee",
+      "request_sha256": "67ef97226561365008fe5dc7b0cb461ef528bb2bd0bb807e52eeab722a1c7b7a",
+      "request_bytes": 92871,
+      "http_status": 200,
+      "finish_reason": "stop",
+      "schema_valid": true,
+      "exact_expected_labels": null,
+      "labels": {
+        "abilities": [],
+        "areas": [],
+        "scopes": []
+      },
+      "prompt_tokens": 3185,
+      "completion_tokens": 11,
+      "cached_prompt_tokens": 93,
+      "elapsed_seconds": 10.562,
+      "started_at_utc": "2026-10-26T01:02:38.002625+00:00",
+      "finished_at_utc": "2026-10-26T01:02:48.564740+00:00",
+      "passed": true,
+      "evidence": "imagine-server:temp/k6-smoke/predictor-canary-upload-bound.json"
+    },
+    {
+      "id": "predictor-default-validation",
+      "surface": "private_predictor_default",
+      "case": "validation",
+      "revision": "edugraph-predict-k6-140480b1",
+      "image_sha256": "e623a9ceeef189c458e1aef1ec1e19f1b05e17f9ec59528d878ad1092e1ca513",
+      "request_sha256": "307850912234811c6ee74558b94d9d03734c1247226344fbd6a9295fbe5e6e83",
+      "request_bytes": 59935,
+      "http_status": 200,
+      "finish_reason": "stop",
+      "schema_valid": true,
+      "exact_expected_labels": true,
+      "labels": {
+        "abilities": [
+          "ProcedureExecution"
+        ],
+        "areas": [
+          "Addition",
+          "AdjacentAngles",
+          "AngleCalculation"
+        ],
+        "scopes": [
+          "DegreeScale"
+        ]
+      },
+      "prompt_tokens": 465,
+      "completion_tokens": 24,
+      "cached_prompt_tokens": 461,
+      "elapsed_seconds": 2.812,
+      "started_at_utc": "2026-10-26T01:04:05.143655+00:00",
+      "finished_at_utc": "2026-10-26T01:04:07.956089+00:00",
+      "passed": true,
+      "evidence": "imagine-server:temp/k6-smoke/predictor-default-validation.json"
+    },
+    {
+      "id": "backend-canary-full",
+      "surface": "backend_tag",
+      "case": "validation",
+      "revision": "imagine-server-k6-27374a7",
+      "image_sha256": "e623a9ceeef189c458e1aef1ec1e19f1b05e17f9ec59528d878ad1092e1ca513",
+      "expected_uris_sha256": "c994dd4def27d64582c18b1ee48259af7297e3c63ec420cf409a990a26bb3b77",
+      "http_status": 200,
+      "exact_expected_labels": true,
+      "labels": {
+        "Ability": [
+          "http://edugraph.io/edu/ProcedureExecution"
+        ],
+        "Area": [
+          "http://edugraph.io/edu/Addition",
+          "http://edugraph.io/edu/AdjacentAngles",
+          "http://edugraph.io/edu/AngleCalculation"
+        ],
+        "Scope": [
+          "http://edugraph.io/edu/DegreeScale"
+        ]
+      },
+      "elapsed_seconds": null,
+      "passed": true,
+      "additional_checks": [
+        "root",
+        "ontology_counts",
+        "taxonomy_dimensions",
+        "disabled_search_routes"
+      ],
+      "evidence": "imagine-server:temp/k6-smoke/backend-canary-full.json"
+    },
+    {
+      "id": "backend-default-canary-full",
+      "surface": "backend_default_revision_tag",
+      "case": "validation",
+      "revision": "imagine-server-k6-default-27374a7",
+      "image_sha256": "e623a9ceeef189c458e1aef1ec1e19f1b05e17f9ec59528d878ad1092e1ca513",
+      "expected_uris_sha256": "c994dd4def27d64582c18b1ee48259af7297e3c63ec420cf409a990a26bb3b77",
+      "http_status": 200,
+      "exact_expected_labels": true,
+      "labels": {
+        "Ability": [
+          "http://edugraph.io/edu/ProcedureExecution"
+        ],
+        "Area": [
+          "http://edugraph.io/edu/Addition",
+          "http://edugraph.io/edu/AdjacentAngles",
+          "http://edugraph.io/edu/AngleCalculation"
+        ],
+        "Scope": [
+          "http://edugraph.io/edu/DegreeScale"
+        ]
+      },
+      "elapsed_seconds": null,
+      "passed": true,
+      "additional_checks": [
+        "root",
+        "ontology_counts",
+        "taxonomy_dimensions",
+        "disabled_search_routes"
+      ],
+      "evidence": "imagine-server:temp/k6-smoke/backend-default-canary-full.json"
+    },
+    {
+      "id": "backend-public-full",
+      "surface": "backend_public_api",
+      "case": "validation",
+      "revision": "imagine-server-k6-default-27374a7",
+      "image_sha256": "e623a9ceeef189c458e1aef1ec1e19f1b05e17f9ec59528d878ad1092e1ca513",
+      "expected_uris_sha256": "c994dd4def27d64582c18b1ee48259af7297e3c63ec420cf409a990a26bb3b77",
+      "http_status": 200,
+      "exact_expected_labels": true,
+      "labels": {
+        "Ability": [
+          "http://edugraph.io/edu/ProcedureExecution"
+        ],
+        "Area": [
+          "http://edugraph.io/edu/Addition",
+          "http://edugraph.io/edu/AdjacentAngles",
+          "http://edugraph.io/edu/AngleCalculation"
+        ],
+        "Scope": [
+          "http://edugraph.io/edu/DegreeScale"
+        ]
+      },
+      "elapsed_seconds": null,
+      "passed": true,
+      "additional_checks": [
+        "root",
+        "ontology_counts",
+        "taxonomy_dimensions",
+        "disabled_search_routes"
+      ],
+      "evidence": "imagine-server:temp/k6-smoke/backend-public-full.json"
+    },
+    {
+      "id": "backend-canary-selection-longest-0",
+      "surface": "backend_tag",
+      "case": "selection-longest",
+      "revision": "imagine-server-k6-27374a7",
+      "concurrency": 1,
+      "image_sha256": "8f18da8ba86f57e91610f277e061ab31e0f3add7602fa846140257b544c40774",
+      "http_status": 200,
+      "schema_valid": true,
+      "exact_expected_labels": true,
+      "addition_present": null,
+      "elapsed_seconds": 2.247,
+      "started_at_utc": "2026-10-26T01:03:21.368337+00:00",
+      "finished_at_utc": "2026-10-26T01:03:23.615522+00:00",
+      "labels": {
+        "Ability": [
+          "http://edugraph.io/edu/ConceptClassification"
+        ],
+        "Area": [
+          "http://edugraph.io/edu/StatisticalQuestion"
+        ],
+        "Scope": []
+      },
+      "passed": true,
+      "evidence": "imagine-server:temp/k6-smoke/backend-canary-selection-longest.json"
+    },
+    {
+      "id": "backend-canary-longest-0",
+      "surface": "backend_tag",
+      "case": "longest",
+      "revision": "imagine-server-k6-27374a7",
+      "concurrency": 1,
+      "image_sha256": "7fda53d4d22d860f6990be0f772823c33124806da82cf8cddb64a89351ee1e5f",
+      "http_status": 200,
+      "schema_valid": true,
+      "exact_expected_labels": null,
+      "addition_present": null,
+      "elapsed_seconds": 3.791,
+      "started_at_utc": "2026-10-26T01:03:24.191218+00:00",
+      "finished_at_utc": "2026-10-26T01:03:27.982313+00:00",
+      "labels": {
+        "Ability": [
+          "http://edugraph.io/edu/ProcedureExecution",
+          "http://edugraph.io/edu/VisualDecomposition"
+        ],
+        "Area": [
+          "http://edugraph.io/edu/AreaCalculation",
+          "http://edugraph.io/edu/ShapeDecomposition",
+          "http://edugraph.io/edu/StarsAndBars"
+        ],
+        "Scope": []
+      },
+      "passed": true,
+      "evidence": "imagine-server:temp/k6-smoke/backend-canary-longest.json"
+    },
+    {
+      "id": "backend-canary-builtin-0",
+      "surface": "backend_tag",
+      "case": "builtin",
+      "revision": "imagine-server-k6-27374a7",
+      "concurrency": 1,
+      "image_sha256": "82784a73467c422f6e2fc73e802cc326457bbe7fab35aaaa8d0734a429aa074f",
+      "http_status": 200,
+      "schema_valid": true,
+      "exact_expected_labels": null,
+      "addition_present": true,
+      "elapsed_seconds": 4.904,
+      "started_at_utc": "2026-10-26T01:03:28.577079+00:00",
+      "finished_at_utc": "2026-10-26T01:03:33.481538+00:00",
+      "labels": {
+        "Ability": [
+          "http://edugraph.io/edu/ProcedureExecution"
+        ],
+        "Area": [
+          "http://edugraph.io/edu/Addition"
+        ],
+        "Scope": [
+          "http://edugraph.io/edu/ArabicNumerals",
+          "http://edugraph.io/edu/Base10",
+          "http://edugraph.io/edu/IntegerNumbers",
+          "http://edugraph.io/edu/NumbersSmaller10",
+          "http://edugraph.io/edu/NumbersWithoutNegatives",
+          "http://edugraph.io/edu/NumbersWithoutZero",
+          "http://edugraph.io/edu/PhysicalNumbers",
+          "http://edugraph.io/edu/SingleStep",
+          "http://edugraph.io/edu/TwoOperands"
+        ]
+      },
+      "passed": true,
+      "evidence": "imagine-server:temp/k6-smoke/backend-canary-builtin.json"
+    },
+    {
+      "id": "backend-public-concurrency-two-0",
+      "surface": "backend_public_api",
+      "case": "builtin",
+      "revision": "imagine-server-k6-default-27374a7",
+      "concurrency": 2,
+      "image_sha256": "82784a73467c422f6e2fc73e802cc326457bbe7fab35aaaa8d0734a429aa074f",
+      "http_status": 200,
+      "schema_valid": true,
+      "exact_expected_labels": null,
+      "addition_present": true,
+      "elapsed_seconds": 9.049,
+      "started_at_utc": "2026-10-26T01:07:32.855919+00:00",
+      "finished_at_utc": "2026-10-26T01:07:41.905473+00:00",
+      "labels": {
+        "Ability": [
+          "http://edugraph.io/edu/ProcedureExecution"
+        ],
+        "Area": [
+          "http://edugraph.io/edu/Addition"
+        ],
+        "Scope": [
+          "http://edugraph.io/edu/ArabicNumerals",
+          "http://edugraph.io/edu/Base10",
+          "http://edugraph.io/edu/IntegerNumbers",
+          "http://edugraph.io/edu/NumbersSmaller10",
+          "http://edugraph.io/edu/NumbersWithoutNegatives",
+          "http://edugraph.io/edu/NumbersWithoutZero",
+          "http://edugraph.io/edu/PhysicalNumbers",
+          "http://edugraph.io/edu/SingleStep",
+          "http://edugraph.io/edu/TwoOperands"
+        ]
+      },
+      "passed": true,
+      "evidence": "imagine-server:temp/k6-smoke/backend-public-concurrency-two.json"
+    },
+    {
+      "id": "backend-public-concurrency-two-1",
+      "surface": "backend_public_api",
+      "case": "builtin",
+      "revision": "imagine-server-k6-default-27374a7",
+      "concurrency": 2,
+      "image_sha256": "82784a73467c422f6e2fc73e802cc326457bbe7fab35aaaa8d0734a429aa074f",
+      "http_status": 200,
+      "schema_valid": true,
+      "exact_expected_labels": null,
+      "addition_present": true,
+      "elapsed_seconds": 4.946,
+      "started_at_utc": "2026-10-26T01:07:32.856217+00:00",
+      "finished_at_utc": "2026-10-26T01:07:37.802224+00:00",
+      "labels": {
+        "Ability": [
+          "http://edugraph.io/edu/ProcedureExecution"
+        ],
+        "Area": [
+          "http://edugraph.io/edu/Addition"
+        ],
+        "Scope": [
+          "http://edugraph.io/edu/ArabicNumerals",
+          "http://edugraph.io/edu/Base10",
+          "http://edugraph.io/edu/IntegerNumbers",
+          "http://edugraph.io/edu/NumbersSmaller10",
+          "http://edugraph.io/edu/NumbersWithoutNegatives",
+          "http://edugraph.io/edu/NumbersWithoutZero",
+          "http://edugraph.io/edu/PhysicalNumbers",
+          "http://edugraph.io/edu/SingleStep",
+          "http://edugraph.io/edu/TwoOperands"
+        ]
+      },
+      "passed": true,
+      "evidence": "imagine-server:temp/k6-smoke/backend-public-concurrency-two.json"
+    },
+    {
+      "id": "hosted_preview-builtin",
+      "surface": "hosted_preview",
+      "case": "builtin",
+      "revision": "imagine-server-k6-default-27374a7",
+      "image_sha256": "82784a73467c422f6e2fc73e802cc326457bbe7fab35aaaa8d0734a429aa074f",
+      "expected_uris_sha256": null,
+      "http_status": 200,
+      "exact_expected_labels": null,
+      "labels": {
+        "Ability": [
+          "http://edugraph.io/edu/ProcedureExecution"
+        ],
+        "Area": [
+          "http://edugraph.io/edu/Addition"
+        ],
+        "Scope": [
+          "http://edugraph.io/edu/ArabicNumerals",
+          "http://edugraph.io/edu/Base10",
+          "http://edugraph.io/edu/IntegerNumbers",
+          "http://edugraph.io/edu/NumbersSmaller10",
+          "http://edugraph.io/edu/NumbersWithoutNegatives",
+          "http://edugraph.io/edu/NumbersWithoutZero",
+          "http://edugraph.io/edu/PhysicalNumbers",
+          "http://edugraph.io/edu/SingleStep",
+          "http://edugraph.io/edu/TwoOperands"
+        ]
+      },
+      "elapsed_seconds": null,
+      "passed": true,
+      "evidence": "imagine-web:temp/k6-preview-smoke.log"
+    },
+    {
+      "id": "hosted_preview-selection-longest",
+      "surface": "hosted_preview",
+      "case": "selection-longest",
+      "revision": "imagine-server-k6-default-27374a7",
+      "image_sha256": "8f18da8ba86f57e91610f277e061ab31e0f3add7602fa846140257b544c40774",
+      "expected_uris_sha256": "3a793df14782d1f484870a6c25178aeab93f6c606c515490937d510a4d21619a",
+      "http_status": 200,
+      "exact_expected_labels": true,
+      "labels": {
+        "Ability": [
+          "http://edugraph.io/edu/ConceptClassification"
+        ],
+        "Area": [
+          "http://edugraph.io/edu/StatisticalQuestion"
+        ],
+        "Scope": []
+      },
+      "elapsed_seconds": null,
+      "passed": true,
+      "evidence": "imagine-web:temp/k6-preview-smoke.log"
+    },
+    {
+      "id": "hosted_live-builtin",
+      "surface": "hosted_live",
+      "case": "builtin",
+      "revision": "imagine-server-k6-default-27374a7",
+      "image_sha256": "82784a73467c422f6e2fc73e802cc326457bbe7fab35aaaa8d0734a429aa074f",
+      "expected_uris_sha256": null,
+      "http_status": 200,
+      "exact_expected_labels": null,
+      "labels": {
+        "Ability": [
+          "http://edugraph.io/edu/ProcedureExecution"
+        ],
+        "Area": [
+          "http://edugraph.io/edu/Addition"
+        ],
+        "Scope": [
+          "http://edugraph.io/edu/ArabicNumerals",
+          "http://edugraph.io/edu/Base10",
+          "http://edugraph.io/edu/IntegerNumbers",
+          "http://edugraph.io/edu/NumbersSmaller10",
+          "http://edugraph.io/edu/NumbersWithoutNegatives",
+          "http://edugraph.io/edu/NumbersWithoutZero",
+          "http://edugraph.io/edu/PhysicalNumbers",
+          "http://edugraph.io/edu/SingleStep",
+          "http://edugraph.io/edu/TwoOperands"
+        ]
+      },
+      "elapsed_seconds": null,
+      "passed": true,
+      "evidence": "imagine-web:temp/k6-live-smoke.log"
+    },
+    {
+      "id": "hosted_live-selection-longest",
+      "surface": "hosted_live",
+      "case": "selection-longest",
+      "revision": "imagine-server-k6-default-27374a7",
+      "image_sha256": "8f18da8ba86f57e91610f277e061ab31e0f3add7602fa846140257b544c40774",
+      "expected_uris_sha256": "3a793df14782d1f484870a6c25178aeab93f6c606c515490937d510a4d21619a",
+      "http_status": 200,
+      "exact_expected_labels": true,
+      "labels": {
+        "Ability": [
+          "http://edugraph.io/edu/ConceptClassification"
+        ],
+        "Area": [
+          "http://edugraph.io/edu/StatisticalQuestion"
+        ],
+        "Scope": []
+      },
+      "elapsed_seconds": null,
+      "passed": true,
+      "evidence": "imagine-web:temp/k6-live-smoke.log"
+    }
+  ],
+  "inference_summary": {
+    "private_predictor_requests": 6,
+    "backend_requests": 8,
+    "hosted_browser_requests": 4,
+    "http_200": 18,
+    "failed_test_requests": 0,
+    "concurrency_two_client_seconds": [
+      4.946,
+      9.049
+    ],
+    "limits": [
+      "Compatibility and capacity smokes, not an accuracy benchmark or representative latency distribution.",
+      "Warm prompt caches affect repeated requests.",
+      "Longest corpus and built-in predictions are schema-valid; exact gold correctness was not tested.",
+      "The synthetic blank capacity input returned empty label arrays.",
+      "Null timings mean the corresponding smoke receipt did not record client latency.",
+      "Hosted logs name the selection-longest statistical-question image validation."
+    ]
+  },
+  "web": {
+    "source_commit": "444c81d1e820b4cd26e3e501dc353d2d8d2dafca",
+    "version": "1df2038228449e23",
+    "live_release": "sites/imagine-web/releases/1792976793555000",
+    "released_at_utc": "2026-10-26T01:06:33.555Z",
+    "javascript_path": "/assets/index-XKA66Bnd.js",
+    "javascript_sha256": "85bb85d29c1f00eee1fc2a4ad99a43037b541a3dbd9caf962c8069c8db4e37e5",
+    "backend_origin": "https://api.edugraph.io",
+    "session_key": "classification-storage-v031-140480b1",
+    "preview_version_equals_live": true,
+    "hosted_checks": [
+      {
+        "surface": "hosted_preview",
+        "url": "https://imagine-web--k6-model-20261026-ba43cdl7.web.app",
+        "backend_origin": "https://api.edugraph.io",
+        "full_ontology_contract": {
+          "fileSha256": "832cc31d494a36a7893424d42968f06c3aa9ea58078fe41dbd5ecee37608897a",
+          "counts": {
+            "Ability": 130,
+            "Area": 894,
+            "Scope": 417
+          },
+          "canonicalSha256": "8c0c611646b46c75fcc89c36044289ef444b48649f55bc349427e2fa567969ec"
+        },
+        "checks": [
+          "built_in_upload",
+          "pinned_selection_upload",
+          "results_route",
+          "visible_labels",
+          "no_search_ui",
+          "no_browser_errors"
+        ],
+        "passed": true,
+        "evidence": "imagine-web:temp/k6-preview-smoke.log"
+      },
+      {
+        "surface": "hosted_live",
+        "url": "https://demo.edugraph.io",
+        "backend_origin": "https://api.edugraph.io",
+        "full_ontology_contract": {
+          "fileSha256": "832cc31d494a36a7893424d42968f06c3aa9ea58078fe41dbd5ecee37608897a",
+          "counts": {
+            "Ability": 130,
+            "Area": 894,
+            "Scope": 417
+          },
+          "canonicalSha256": "8c0c611646b46c75fcc89c36044289ef444b48649f55bc349427e2fa567969ec"
+        },
+        "checks": [
+          "built_in_upload",
+          "pinned_selection_upload",
+          "results_route",
+          "visible_labels",
+          "no_search_ui",
+          "no_browser_errors"
+        ],
+        "passed": true,
+        "evidence": "imagine-web:temp/k6-live-smoke.log"
+      }
+    ],
+    "evidence": "imagine-web:temp/k6-live-promotion-applied.json"
+  },
+  "failure_and_corrective_action_history": [
+    {
+      "phase": "predictor_revision_import",
+      "operation_error_code": 13,
+      "operation_error": "Provisioning revision instances to receive traffic. Resource readiness deadline exceeded.",
+      "observed_at_utc": "2026-10-26T01:01:10.925103+00:00",
+      "action": "Read revision and service readiness independently; continue on the healthy existing revision without retrying deployment.",
+      "deployments_retried": 0,
+      "revision_ready_at_utc": "2026-10-26T01:00:07.592288Z",
+      "service_ready_at_utc": "2026-10-26T01:00:09.224873Z",
+      "image_import_seconds": 826.18,
+      "instance_provisioning_seconds": 2.63,
+      "container_health_seconds": 20.02,
+      "impact": "Old model remained at 100% while the new revision reconciled; subsequent tagged inference passed.",
+      "cause_limit": "The completed operation error does not establish a persistent revision failure.",
+      "evidence": "edugraph-classify:temp/k6-imagine-promotion/predictor-operation-and-readiness.json"
+    }
+  ],
+  "rollback": {
+    "backend_revision": "imagine-server-k6-rollback27b",
+    "backend_tag": "k6-rollback27b",
+    "backend_image": "europe-west4-docker.pkg.dev/edugraph-438718/imagine-server/imagine-server@sha256:29479fcf7b275f27b748137a34a417de1af44908435c82004e24530005abd97f",
+    "predictor_revision": "edugraph-predict-00006-nej",
+    "predictor_tag": "qwen38-canary",
+    "backend_predictor_endpoint": "https://qwen38-canary---edugraph-predict-6ikwdry2zq-ez.a.run.app/v1/chat/completions",
+    "ontology_contract": "edugraph_v030",
+    "model_revision": "477e3caf32eced2a9e002ead1edccc9a5c458f0c",
+    "hosting_version": "5478bb45b1ea67b5",
+    "hosting_javascript_sha256": "69035370f33dc775ca95ceb0356990ebae608405abea3b64ce68df46d7eba7f1",
+    "tagged_and_default_preparation_smokes": "passed",
+    "retained_through_utc": "2026-10-27T01:15:00Z",
+    "deletion_scheduled": false,
+    "procedure": "Review a paired backend/Hosting rollback; the old backend remains pinned to the old predictor tag. An old Hosting version alone still calls the untagged API.",
+    "limits": "The changed session key takes effect on reload. Already-open tabs can retain the prior in-memory ontology."
+  },
+  "cleanup": {
+    "completed_at_utc": "2026-10-26T01:08:34.405684+00:00",
+    "independent_verified_at_utc": "2026-10-26T01:09:17.521541+00:00",
+    "removed_backend_tags": [
+      "model27b-default-v1"
+    ],
+    "deleted_preview_channel": "k6-model-20261026",
+    "preview_absent_verified": true,
+    "deleted_revisions": [],
+    "deleted_images": [],
+    "deleted_hosting_versions": [],
+    "temporary_oidc_grant_revoked": true,
+    "temporary_oidc_revoke_verified_at_utc": "2026-10-26T01:04:36.660727+00:00",
+    "temporary_oidc_role": "roles/iam.serviceAccountOpenIdTokenCreator",
+    "temporary_oidc_service_account": "imagine-server@edugraph-438718.iam.gserviceaccount.com",
+    "rollback_retained": true,
+    "evidence": "edugraph-classify:temp/k6-imagine-promotion/cleanup-result.json"
+  },
+  "observation_metrics": {
+    "window_start_utc": "2026-10-26T00:59:00Z",
+    "window_end_utc": "2026-10-26T01:08:00Z",
+    "sampling_seconds": 60,
+    "ingestion_delay_allowance_seconds": 120,
+    "queries_untruncated": true,
+    "revisions": [
+      {
+        "revision": "edugraph-predict-k6-140480b1",
+        "read_at_utc": "2026-10-26T01:11:32.432349Z",
+        "sampled_resource_metrics": {
+          "gpu_memory_bytes": {
+            "sampled_max": 19061014528.0,
+            "samples": 8
+          },
+          "gpu_memory_fraction": {
+            "sampled_max": 0.7891812103846488,
+            "samples": 8
+          },
+          "gpu_utilization_fraction": {
+            "sampled_max": 0.95,
+            "samples": 8
+          },
+          "instance_count": {
+            "sampled_max": 1.0,
+            "samples": 16
+          },
+          "request_concurrency": {
+            "sampled_max": 1.0,
+            "samples": 8
+          },
+          "host_memory_bytes": {
+            "sampled_max": 4196237312.0,
+            "samples": 8
+          }
+        },
+        "request_log_status_counts": {
+          "200": 18
+        },
+        "error_log_status_counts": {},
+        "evidence": "edugraph-classify:temp/k6-imagine-promotion/metrics-predictor-final-smokes.json"
+      },
+      {
+        "revision": "imagine-server-k6-default-27374a7",
+        "read_at_utc": "2026-10-26T01:11:32.891982Z",
+        "sampled_resource_metrics": {
+          "instance_count": {
+            "sampled_max": 1.0,
+            "samples": 6
+          },
+          "request_concurrency": {
+            "sampled_max": 1.0,
+            "samples": 3
+          },
+          "host_memory_bytes": {
+            "sampled_max": 94642176.0,
+            "samples": 3
+          }
+        },
+        "request_log_status_counts": {
+          "200": 18,
+          "503": 4
+        },
+        "error_log_status_counts": {
+          "503": 4
+        },
+        "evidence": "edugraph-classify:temp/k6-imagine-promotion/metrics-backend-default-final-smokes.json"
+      },
+      {
+        "revision": "imagine-server-k6-27374a7",
+        "read_at_utc": "2026-10-26T01:11:31.376653Z",
+        "sampled_resource_metrics": {
+          "instance_count": {
+            "sampled_max": 1.0,
+            "samples": 10
+          },
+          "request_concurrency": {
+            "sampled_max": 1.0,
+            "samples": 5
+          },
+          "host_memory_bytes": {
+            "sampled_max": 81424384.0,
+            "samples": 5
+          }
+        },
+        "request_log_status_counts": {
+          "200": 7,
+          "503": 2
+        },
+        "error_log_status_counts": {
+          "503": 2
+        },
+        "evidence": "edugraph-classify:temp/k6-imagine-promotion/metrics-backend-canary-final-smokes.json"
+      }
+    ],
+    "route_counts": [
+      {
+        "revision": "edugraph-predict-k6-140480b1",
+        "method": "POST",
+        "path": "/v1/chat/completions",
+        "status": 200,
+        "count": 18
+      },
+      {
+        "revision": "imagine-server-k6-27374a7",
+        "method": "GET",
+        "path": "/",
+        "status": 200,
+        "count": 1
+      },
+      {
+        "revision": "imagine-server-k6-27374a7",
+        "method": "GET",
+        "path": "/ontology",
+        "status": 200,
+        "count": 1
+      },
+      {
+        "revision": "imagine-server-k6-27374a7",
+        "method": "GET",
+        "path": "/taxonomy",
+        "status": 200,
+        "count": 1
+      },
+      {
+        "revision": "imagine-server-k6-27374a7",
+        "method": "POST",
+        "path": "/classify",
+        "status": 200,
+        "count": 4
+      },
+      {
+        "revision": "imagine-server-k6-27374a7",
+        "method": "POST",
+        "path": "/classify_and_search",
+        "status": 503,
+        "count": 1
+      },
+      {
+        "revision": "imagine-server-k6-27374a7",
+        "method": "POST",
+        "path": "/search",
+        "status": 503,
+        "count": 1
+      },
+      {
+        "revision": "imagine-server-k6-default-27374a7",
+        "method": "GET",
+        "path": "/",
+        "status": 200,
+        "count": 2
+      },
+      {
+        "revision": "imagine-server-k6-default-27374a7",
+        "method": "GET",
+        "path": "/ontology",
+        "status": 200,
+        "count": 6
+      },
+      {
+        "revision": "imagine-server-k6-default-27374a7",
+        "method": "GET",
+        "path": "/taxonomy",
+        "status": 200,
+        "count": 2
+      },
+      {
+        "revision": "imagine-server-k6-default-27374a7",
+        "method": "POST",
+        "path": "/classify",
+        "status": 200,
+        "count": 8
+      },
+      {
+        "revision": "imagine-server-k6-default-27374a7",
+        "method": "POST",
+        "path": "/classify_and_search",
+        "status": 503,
+        "count": 2
+      },
+      {
+        "revision": "imagine-server-k6-default-27374a7",
+        "method": "POST",
+        "path": "/search",
+        "status": 503,
+        "count": 2
+      }
+    ],
+    "predictor_successful_completion_requests": 18,
+    "backend_successful_classification_requests": 12,
+    "expected_disabled_search_http_503": 6,
+    "unexpected_http_errors": 0,
+    "limits": [
+      "Sampled maxima can miss instantaneous peaks; this short smoke window is not a sustained capacity test.",
+      "The six backend HTTP 503 responses were deliberate disabled-search checks.",
+      "No predictor error-log entries appeared in the queried window; this does not assert zero warnings."
+    ],
+    "route_evidence": "edugraph-classify:temp/k6-imagine-promotion/final-request-route-counts.json",
+    "runtime_and_error_route_evidence": "edugraph-classify:temp/k6-imagine-promotion/final-runtime-and-error-routes.json"
+  },
+  "cost": {
+    "currency": "USD",
+    "status": "unmeasured",
+    "total": null,
+    "note": "No billing export or invoice was available. Observed billable-instance time is not a complete deployment-cost invoice."
+  },
+  "evidence": {
+    "edugraph-classify:temp/k6-imagine-promotion/cleanup-final-inventory.json": {
+      "repository": "edugraph-classify",
+      "path": "temp/k6-imagine-promotion/cleanup-final-inventory.json",
+      "sha256": "a54c19b40bc6cd3486134d1f09fb8fe206aea88533fe8dd3b8468e3e5bbbd1be",
+      "bytes": 6086
+    },
+    "edugraph-classify:temp/k6-imagine-promotion/predictor-operation-and-readiness.json": {
+      "repository": "edugraph-classify",
+      "path": "temp/k6-imagine-promotion/predictor-operation-and-readiness.json",
+      "sha256": "588dae03cca46ba489ba8ad587c4dcf5027a24cbcfabcc4cb132e6767d664d91",
+      "bytes": 11850
+    },
+    "edugraph-classify:temp/k6-imagine-promotion/predictor-runtime-20261026T010028887353Z.json": {
+      "repository": "edugraph-classify",
+      "path": "temp/k6-imagine-promotion/predictor-runtime-20261026T010028887353Z.json",
+      "sha256": "5483944e40f111b6d1811f9a561683f641beba4b558d020c2427a1de3b5827c9",
+      "bytes": 4140
+    },
+    "edugraph-classify:temp/k6-imagine-promotion/predictor-build-verified.json": {
+      "repository": "edugraph-classify",
+      "path": "temp/k6-imagine-promotion/predictor-build-verified.json",
+      "sha256": "3b7884091256d39f8efee00c14d936e6f941ddf52c7c39d1e45b21d181b561a7",
+      "bytes": 9706
+    },
+    "edugraph-classify:temp/k6-imagine-promotion/smoke-access-revokeed.json": {
+      "repository": "edugraph-classify",
+      "path": "temp/k6-imagine-promotion/smoke-access-revokeed.json",
+      "sha256": "73765fa5fc0ca8a18952513fd1396fc4a679a7e05a03c046adae0f59a778dedd",
+      "bytes": 282
+    },
+    "edugraph-classify:temp/k6-imagine-promotion/cleanup-result.json": {
+      "repository": "edugraph-classify",
+      "path": "temp/k6-imagine-promotion/cleanup-result.json",
+      "sha256": "1ce706869232f708dd1f0229964220f2cd5353fc69dd98dfb74a1dbb9d21cad4",
+      "bytes": 10309
+    },
+    "edugraph-classify:temp/k6-imagine-promotion/cleanup-plan.json": {
+      "repository": "edugraph-classify",
+      "path": "temp/k6-imagine-promotion/cleanup-plan.json",
+      "sha256": "1e44a15bdd2db2aabd6c659ca90f52ea15345c28e8a897eb14180ab5d6199fa9",
+      "bytes": 7962
+    },
+    "imagine-server:temp/k6-smoke/local-image-smoke.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/local-image-smoke.json",
+      "sha256": "e35802a6659db01568b35b97e7e5b98c8031f38cc27bfa26dfa0d42e947da3a1",
+      "bytes": 2030
+    },
+    "imagine-server:temp/k6-smoke/backend-image.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/backend-image.json",
+      "sha256": "2cc1f427d34dc64eeb5fa4689c9072c238b07176975e206092853abed424f74f",
+      "bytes": 493
+    },
+    "edugraph-classify:docs/RUNPOD-K6-A40-20261024.md": {
+      "repository": "edugraph-classify",
+      "path": "docs/RUNPOD-K6-A40-20261024.md",
+      "sha256": "3323ade7121bf3617560763d8a2c480e0c9e2ad6b5b2b4b326a2341aa5c1b8cf",
+      "bytes": 10277
+    },
+    "edugraph-classify:docs/RUNPOD-GGUF-K6-20261025.md": {
+      "repository": "edugraph-classify",
+      "path": "docs/RUNPOD-GGUF-K6-20261025.md",
+      "sha256": "06d7baa448a14dfa996e8748d0cd813ac883a170fffda103978b6e221f319c0d",
+      "bytes": 12327
+    },
+    "edugraph-classify:experiments/hf-gguf-publication-qwen38-27b-k6-v1.json": {
+      "repository": "edugraph-classify",
+      "path": "experiments/hf-gguf-publication-qwen38-27b-k6-v1.json",
+      "sha256": "f219c09fde72aa046a8fe7529d9a3d5f4f14ecd69ed7412e580f3dcab49ceccd",
+      "bytes": 1785
+    },
+    "imagine-server:temp/k6-smoke/pins.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/pins.json",
+      "sha256": "493e62363d7b85d98bdc662841b103f914ee69af61e20f33ffdc0eae318120d2",
+      "bytes": 2615
+    },
+    "imagine-server:temp/k6-smoke/predictor-canary-validation.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/predictor-canary-validation.json",
+      "sha256": "300624555f9da230308950dfb11a59ef169e00c1f6695fc04a85e5cdbaeea002",
+      "bytes": 1548
+    },
+    "imagine-server:temp/k6-smoke/predictor-canary-selection-longest.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/predictor-canary-selection-longest.json",
+      "sha256": "a9227a147898ac68988b285bbe1d0c558c08fefc426fd2e42bcddf09d115124f",
+      "bytes": 1498
+    },
+    "imagine-server:temp/k6-smoke/predictor-canary-longest.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/predictor-canary-longest.json",
+      "sha256": "0591a040c77797f15a9395c91c2a9254c518036c454b27f5ce341670d8eeb139",
+      "bytes": 1527
+    },
+    "imagine-server:temp/k6-smoke/predictor-canary-builtin.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/predictor-canary-builtin.json",
+      "sha256": "d39a744c0713641fa7ca13fe95d6bc6b6b19879bc69d299dd60d96d5250a6c2d",
+      "bytes": 1660
+    },
+    "imagine-server:temp/k6-smoke/predictor-canary-upload-bound.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/predictor-canary-upload-bound.json",
+      "sha256": "5a56e0739731325ad589464bb64aa73bda30d3f1b49d10bd80970a923e4168d9",
+      "bytes": 1373
+    },
+    "imagine-server:temp/k6-smoke/predictor-default-validation.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/predictor-default-validation.json",
+      "sha256": "5a182ffb4028ff625cd275cbb922da67e0cb4f5171da69d755b6d4d509b11cc4",
+      "bytes": 1527
+    },
+    "imagine-server:temp/k6-smoke/backend-canary-full.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/backend-canary-full.json",
+      "sha256": "79e1cc6cabd87761c72259aac27de6831b4d55ed3bce119ef56ea3978cc42f3b",
+      "bytes": 450
+    },
+    "imagine-server:temp/k6-smoke/backend-default-canary-full.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/backend-default-canary-full.json",
+      "sha256": "79e1cc6cabd87761c72259aac27de6831b4d55ed3bce119ef56ea3978cc42f3b",
+      "bytes": 450
+    },
+    "imagine-server:temp/k6-smoke/backend-public-full.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/backend-public-full.json",
+      "sha256": "79e1cc6cabd87761c72259aac27de6831b4d55ed3bce119ef56ea3978cc42f3b",
+      "bytes": 450
+    },
+    "imagine-server:temp/k6-smoke/backend-canary-selection-longest.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/backend-canary-selection-longest.json",
+      "sha256": "aea30d624ee4acc366eeca187abf140a7e502fdf08763a055e044e661f187db4",
+      "bytes": 884
+    },
+    "imagine-server:temp/k6-smoke/backend-canary-longest.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/backend-canary-longest.json",
+      "sha256": "6d6d7465c0f5818605a79cccaaf1e0c923e30718b178cf9851e1c7259a03da99",
+      "bytes": 1030
+    },
+    "imagine-server:temp/k6-smoke/backend-canary-builtin.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/backend-canary-builtin.json",
+      "sha256": "97046040d0824ca13f326e0a1449a7568de4a51a00b68f09ed2bce5b1290d8cb",
+      "bytes": 1338
+    },
+    "imagine-server:temp/k6-smoke/backend-public-concurrency-two.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/backend-public-concurrency-two.json",
+      "sha256": "eaa5ab501840d589fe23f1a2b7e96dea3f1061b4d70628c259b52180915d55a4",
+      "bytes": 2278
+    },
+    "imagine-web:temp/k6-live-promotion-applied.json": {
+      "repository": "imagine-web",
+      "path": "temp/k6-live-promotion-applied.json",
+      "sha256": "1b621326031e66b1f5874e21580613ff258e1ff08abeeca25aae2715987a1ddb",
+      "bytes": 482
+    },
+    "imagine-web:temp/k6-live-promotion-plan.json": {
+      "repository": "imagine-web",
+      "path": "temp/k6-live-promotion-plan.json",
+      "sha256": "45ae339dfb14acab519833e1a1580f4aa4847d6cb1c20aa15678623319eefba7",
+      "bytes": 420
+    },
+    "imagine-web:temp/k6-preview-manifest.json": {
+      "repository": "imagine-web",
+      "path": "temp/k6-preview-manifest.json",
+      "sha256": "dc2316d52bc60cb3f938f7a8a30df394c7a89263b70b763f1f4c610e118e29bb",
+      "bytes": 2738
+    },
+    "imagine-web:temp/k6-preview-smoke.log": {
+      "repository": "imagine-web",
+      "path": "temp/k6-preview-smoke.log",
+      "sha256": "6eec52e16f2c573e235a1a10f6a9ed66b57439532e55b2a722796a1e5e4b7b53",
+      "bytes": 1578
+    },
+    "imagine-web:temp/k6-live-smoke.log": {
+      "repository": "imagine-web",
+      "path": "temp/k6-live-smoke.log",
+      "sha256": "29c41e4a09cef9527cca61f66f79cbdfa3d923af0bac715ff97b2b7a358f85dc",
+      "bytes": 1547
+    },
+    "edugraph-classify:temp/k6-imagine-promotion/final-request-route-counts.json": {
+      "repository": "edugraph-classify",
+      "path": "temp/k6-imagine-promotion/final-request-route-counts.json",
+      "sha256": "063a72cc4d150a559c2f2c8f00e911a16237c24139876d6e9acc8bfab8ca8693",
+      "bytes": 13255
+    },
+    "edugraph-classify:temp/k6-imagine-promotion/final-runtime-and-error-routes.json": {
+      "repository": "edugraph-classify",
+      "path": "temp/k6-imagine-promotion/final-runtime-and-error-routes.json",
+      "sha256": "67b75a260e9d9ddca9b495ccbcce2f7fc93d2e1698d59f6587f5daf4730e21c3",
+      "bytes": 6535
+    },
+    "edugraph-classify:temp/k6-imagine-promotion/metrics-predictor-final-smokes.json": {
+      "repository": "edugraph-classify",
+      "path": "temp/k6-imagine-promotion/metrics-predictor-final-smokes.json",
+      "sha256": "ee79a44500474a95d2ec7315936e10bb71fd83eff3bcd314dbe3af807af7de75",
+      "bytes": 184617
+    },
+    "edugraph-classify:temp/k6-imagine-promotion/metrics-backend-default-final-smokes.json": {
+      "repository": "edugraph-classify",
+      "path": "temp/k6-imagine-promotion/metrics-backend-default-final-smokes.json",
+      "sha256": "f77f7395a79020b65855bc9ef67f298d0770f1484e4a297e2250117376cf34a2",
+      "bytes": 66382
+    },
+    "edugraph-classify:temp/k6-imagine-promotion/metrics-backend-canary-final-smokes.json": {
+      "repository": "edugraph-classify",
+      "path": "temp/k6-imagine-promotion/metrics-backend-canary-final-smokes.json",
+      "sha256": "c28c9bbe1c7f0bb83c373ffb425d9b8afe4509593c665041416c8ac796356918",
+      "bytes": 80908
+    },
+    "imagine-server:temp/k6-smoke/rollback-backend.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/rollback-backend.json",
+      "sha256": "79e1cc6cabd87761c72259aac27de6831b4d55ed3bce119ef56ea3978cc42f3b",
+      "bytes": 450
+    },
+    "imagine-server:temp/k6-smoke/rollback-default.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/rollback-default.json",
+      "sha256": "79e1cc6cabd87761c72259aac27de6831b4d55ed3bce119ef56ea3978cc42f3b",
+      "bytes": 450
+    },
+    "imagine-server:temp/k6-smoke/predictor-traffic-plan.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/predictor-traffic-plan.json",
+      "sha256": "6d955a7882161ffa9a1eeda76aa4902203a6740286a96277ce74c7d645e59404",
+      "bytes": 933
+    },
+    "imagine-server:temp/k6-smoke/predictor-traffic-applied.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/predictor-traffic-applied.json",
+      "sha256": "e25f239528c14549bda227ca3896cf07655ad206bde827f75bc6543e87112225",
+      "bytes": 977
+    },
+    "imagine-server:temp/k6-smoke/backend-traffic-plan.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/backend-traffic-plan.json",
+      "sha256": "ed475dcf06b814eed1b2f6488aee8e7b37c12680c117db96bd848f90f60c1351",
+      "bytes": 1972
+    },
+    "imagine-server:temp/k6-smoke/backend-traffic-applied.json": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/backend-traffic-applied.json",
+      "sha256": "c1544c9f4fbdd631190cd9172e584a37268b0ad016a15377bf5f4e007fc88c6d",
+      "bytes": 2209
+    },
+    "edugraph-classify:temp/k6-imagine-promotion/k6-backend-default-plan.json": {
+      "repository": "edugraph-classify",
+      "path": "temp/k6-imagine-promotion/k6-backend-default-plan.json",
+      "sha256": "b809b237e2470cce05912e2f8d1f771b631fc671434796bc3d88361e8a02ec3d",
+      "bytes": 3642
+    },
+    "edugraph-classify:temp/k6-imagine-promotion/k6-backend-default-ready.json": {
+      "repository": "edugraph-classify",
+      "path": "temp/k6-imagine-promotion/k6-backend-default-ready.json",
+      "sha256": "e20c7e9ac0b66d3b70a21794ee1b6372dd49ba736847defbb0b3a43d975314b7",
+      "bytes": 2375
+    },
+    "imagine-server:temp/k6-smoke/predictor.py": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/predictor.py",
+      "sha256": "1140f59440863ea0bca42365cd7517202cd54df98816e0a0df44b50b326abc8c",
+      "bytes": 5523
+    },
+    "imagine-server:temp/k6-smoke/backend_checks.py": {
+      "repository": "imagine-server",
+      "path": "temp/k6-smoke/backend_checks.py",
+      "sha256": "29b4e7ce6777cae8a6a67af951af9df65c0b039ae23787fab48b15689daa35ce",
+      "bytes": 4462
+    }
+  }
+}
